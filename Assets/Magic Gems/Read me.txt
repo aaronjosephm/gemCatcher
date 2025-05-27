@@ -1,0 +1,43 @@
+   This package represents 30 Magic Gem models in three different visualisation styles. In order to watch how it works just load the "Magic Gems" scene file from the main "Magic Gems" folder.
+ 
+   The package also supported  Universal RP see the description in PDF files that are inside the "Magic Gems for URP" unitypackage.
+
+If you want to use this package in URP, first you should create a new project (you should create new project with default RP (without URP template) it is important otherwise package will not work correctly) and downloaded the Universal RP from the package manager, second you should unpack the «Magic Gems for URP» unitypackage from URP folder  to a new project you have created (Please follow these steps in order to avoid any "Missing script" errors). 
+
+Do not forget to assign URP Pipeline asset from the unitypackage that is located in "URP" folder to graphics settings of the project. Otherwise all in the scene will be blue or pink collor. for more information read PDF files that are included: 
+   1) "Description how to setup URP and make Gem shader work with it"
+
+   2)"Description how to setup Post Process in Universal RP".
+
+   You may see Gems in any position you want because of "free camera" scrypt that has already attached to the camera. In order to use it just click right mouse button when you a running the scene. Now you may look around if you move your mouse and change the camera position if you press "W" "S" "A" "D" buttons on your keyboard. This allows you to see Gems from any direction you want and move the camera to any position you want.    
+
+  This package includes:
+
+  1)30 Gem models;
+
+  2)30 prefabs with Gem shader materials;
+
+  3)60 prefabs with texture based materials and sparks effect;
+  
+  4)3 Prefabs with all of the "Magic Gems" from the scene;  
+   
+  5)9 different Gem shader colors (Dark_blue, Green, Orange, Purple, Pink, Red, Rainbow, Turquoise and Yellow). You may change and replace Gem materials between the models as you wish via "Mesh Renderer" component from "inspector" area.
+
+    In order to make gems shine and flicker like in screensots or video you will need Unity Bloom post process effect. For default RP see the detailed instructions how to do it in PDF file that is called "description how to setup Post Process for default RP ".
+
+the recommendation settings for Bloom effect (it is a part of Post Process For default RP) are:
+  
+  Intensity: 25
+  Threshold: 1.4
+  Soft Knee: 0.5
+
+the recommendation settings for Bloom effect (it is a part of Post Process For Universal RP) are:
+  
+  Threshold: 1.4
+  Intensity: 5  
+  Scatter: 0.9
+
+ If you have any questions please contact me via horofff@mail.ru
+
+Hope you enjoy! :)
+ 
