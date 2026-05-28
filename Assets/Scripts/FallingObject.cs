@@ -7,6 +7,9 @@ public class FallingObject : MonoBehaviour
     private float initialFallSpeed; // Store the initial fall speed
     private float initialHorizontalSpeed; // Store the initial horizontal speed
     private Vector3 movementDirection;
+
+    // Read-only accessor for the current velocity vector (used by trajectory prediction).
+    public Vector3 MovementDirection => movementDirection;
     private Vector3 rotationSpeed;
     private float objectHalfWidth;
     private float objectHalfHeight;
@@ -56,7 +59,9 @@ public class FallingObject : MonoBehaviour
         // Set the movement direction with the initial speeds
         movementDirection = new Vector3(initialHorizontalSpeed, -fallSpeed, 0f);
 
+#if UNITY_EDITOR
         Debug.Log($"Gem initialized with fall speed: {fallSpeed}, horizontal speed: {initialHorizontalSpeed}");
+#endif
     }
 
     // Helper method to initialize components and cache values
@@ -90,6 +95,10 @@ public class FallingObject : MonoBehaviour
 
     void Update()
     {
+        // Recompute boundaries each frame so they track Screen.safeArea (changes on
+        // device rotation / multitasking on mobile). Cheap to recompute.
+        CalculateBoundaries();
+
         // Rotate the object
         transform.Rotate(rotationSpeed * Time.deltaTime);
 
@@ -102,10 +111,18 @@ public class FallingObject : MonoBehaviour
         // Check for collisions with obstacles
         CheckObstacleCollisions();
 
-        // Check if the object has reached the bottom of the screen
+        // Check if the object has fallen past the catcher line — this can only happen
+        // if the gem was NOT caught (a caught gem is deactivated by GemCatcher before it
+        // gets here), so we treat reaching the bottom as a miss and deduct points.
+        // We use the same world-bottom that the catcher uses so the gem disappears
+        // right at the catcher level instead of slipping behind the gesture bar.
         if (transform.position.y < bottomBoundary - objectHalfHeight)
         {
-            // Deactivate the object
+            // Report the miss at the gem's last visible position (just above the bottom)
+            // so the floating "-10" appears at the edge of play rather than off-screen.
+            Vector3 reportPos = transform.position;
+            reportPos.y = bottomBoundary + objectHalfHeight;
+            GemCatcher.ReportGemMissed(reportPos);
             gameObject.SetActive(false);
         }
     }
@@ -114,24 +131,25 @@ public class FallingObject : MonoBehaviour
     {
         if (mainCamera != null)
         {
-            // Calculate screen boundaries in world coordinates
-            rightBoundary = mainCamera.orthographicSize * mainCamera.aspect;
-            leftBoundary = -rightBoundary;
-            bottomBoundary = -mainCamera.orthographicSize;
+            // Bounce / miss inside the safe play area so gems never disappear behind a
+            // notch or gesture bar.
+            rightBoundary = ScreenPadding.WorldRight;
+            leftBoundary = ScreenPadding.WorldLeft;
+            bottomBoundary = ScreenPadding.WorldBottom;
         }
     }
 
     void EnforceBoundaries()
     {
         Vector3 position = transform.position;
-        bool positionChanged = false;
+        bool hitWall = false;
 
         // Check and enforce left boundary
         if (position.x - objectHalfWidth < leftBoundary)
         {
             position.x = leftBoundary + objectHalfWidth + 0.01f; // Add small buffer
             movementDirection.x = Mathf.Abs(movementDirection.x); // Ensure moving right
-            positionChanged = true;
+            hitWall = true;
         }
 
         // Check and enforce right boundary
@@ -139,13 +157,17 @@ public class FallingObject : MonoBehaviour
         {
             position.x = rightBoundary - objectHalfWidth - 0.01f; // Add small buffer
             movementDirection.x = -Mathf.Abs(movementDirection.x); // Ensure moving left
-            positionChanged = true;
+            hitWall = true;
         }
 
-        // Apply position changes if needed
-        if (positionChanged)
+        if (hitWall)
         {
             transform.position = position;
+
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlayWithRandomPitch("WallBounce", 0.85f, 1.15f);
+            }
         }
     }
 
@@ -212,25 +234,21 @@ public class FallingObject : MonoBehaviour
     // Public method to update fall speed (called by ObjectPooler when difficulty changes)
     public void UpdateFallSpeed(float newSpeed)
     {
-        // Calculate the speed multiplier
-        float speedMultiplier = newSpeed / initialFallSpeed;
+        // Avoid divide-by-zero if InitializeMovement hasn't been called yet.
+        float speedMultiplier = initialFallSpeed > 0f ? newSpeed / initialFallSpeed : 1f;
 
-        // Update the fall speed
         fallSpeed = newSpeed;
 
-        // Update both vertical and horizontal components of the movement direction
-        if (movementDirection != null)
-        {
-            // Update vertical speed
-            movementDirection.y = -fallSpeed;
+        // Vector3 is a struct and cannot be null; update both axes unconditionally.
+        movementDirection.y = -fallSpeed;
 
-            // Update horizontal speed by the same multiplier
-            // Preserve the direction (sign) but scale the magnitude
-            float currentHorizontalDirection = Mathf.Sign(movementDirection.x);
-            float scaledHorizontalSpeed = Mathf.Abs(initialHorizontalSpeed) * speedMultiplier;
-            movementDirection.x = currentHorizontalDirection * scaledHorizontalSpeed;
+        // Preserve the horizontal direction (sign) but scale the magnitude.
+        float currentHorizontalDirection = Mathf.Sign(movementDirection.x);
+        float scaledHorizontalSpeed = Mathf.Abs(initialHorizontalSpeed) * speedMultiplier;
+        movementDirection.x = currentHorizontalDirection * scaledHorizontalSpeed;
 
-            Debug.Log($"Speed updated - Vertical: {fallSpeed}, Horizontal: {movementDirection.x}, Multiplier: {speedMultiplier}");
-        }
+#if UNITY_EDITOR
+        Debug.Log($"Speed updated - Vertical: {fallSpeed}, Horizontal: {movementDirection.x}, Multiplier: {speedMultiplier}");
+#endif
     }
 }

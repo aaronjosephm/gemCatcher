@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 public class GemCatcher : MonoBehaviour
@@ -9,18 +10,127 @@ public class GemCatcher : MonoBehaviour
     private Vector3 catcherSize;
     private Vector3 catcherCenter;
 
-    // Static score tracking
-    public static int Score { get; private set; }
+    // Scoring rules.
+    public const int POINTS_PER_CATCH = 20;
+    public const int POINTS_PER_MISS = -10;
 
-    // Event for score changes
+    // Lives rules.
+    public const int STARTING_LIVES = 3;
+    // Players earn one extra life every time their score crosses a multiple of this value.
+    public const int POINTS_PER_BONUS_LIFE = 100;
+
+    // Static score & lives tracking.
+    public static int Score { get; private set; }
+    public static int Lives { get; private set; } = STARTING_LIVES;
+    public static bool IsGameOver { get; private set; }
+
+    // Per-gem catch counts. Keyed by the prefab name (with the "(Clone)" suffix stripped).
+    // Read by UIManager when the game over panel is shown.
+    public static Dictionary<string, int> CatchesByGemName { get; private set; }
+        = new Dictionary<string, int>();
+
+    // Event for score changes (any source).
     public delegate void ScoreChangedDelegate(int newScore);
     public static event ScoreChangedDelegate OnScoreChanged;
 
-    // Public method to reset the score
+    // Event for life-count changes.
+    public static event ScoreChangedDelegate OnLivesChanged;
+
+    // Fired exactly once when the player runs out of lives.
+    public static event System.Action OnGameOver;
+
+    // Event fired when a gem is caught. Subscribers (e.g. UIManager) use this to spawn
+    // the floating "+20" pop-up at the catch location.
+    public delegate void GemCaughtDelegate(int amount, Vector3 worldPosition);
+    public static event GemCaughtDelegate OnGemCaught;
+
+    // Event fired when a gem falls off-screen uncaught. Same shape as OnGemCaught so
+    // listeners can render a matching "-10" pop-up at the miss location.
+    public static event GemCaughtDelegate OnGemMissed;
+
+    // Internal helper so non-catcher code (e.g. FallingObject's bottom-boundary check)
+    // can report a miss without needing to know about both the lives update and the event.
+    // Misses cost a life but no longer deduct points; the event amount is left at the
+    // POINTS_PER_MISS constant for any listener that wants the conventional value.
+    public static void ReportGemMissed(Vector3 worldPosition)
+    {
+        if (IsGameOver) return;
+
+        OnGemMissed?.Invoke(POINTS_PER_MISS, worldPosition);
+        ChangeLives(-1);
+    }
+
+    // Records a successful catch of the given gem name (used to populate the game-over breakdown).
+    public static void RecordCatch(string gemName)
+    {
+        if (string.IsNullOrEmpty(gemName)) return;
+        CatchesByGemName.TryGetValue(gemName, out int count);
+        CatchesByGemName[gemName] = count + 1;
+    }
+
+    // Add (or subtract) points. Score is clamped at 0; misses never push it negative.
+    // Awards bonus lives whenever the score crosses a POINTS_PER_BONUS_LIFE threshold.
+    public static void AddScore(int delta)
+    {
+        if (IsGameOver) return;
+
+        int previousScore = Score;
+        Score = Mathf.Max(0, Score + delta);
+        OnScoreChanged?.Invoke(Score);
+
+        if (delta > 0)
+        {
+            int previousTier = previousScore / POINTS_PER_BONUS_LIFE;
+            int newTier = Score / POINTS_PER_BONUS_LIFE;
+            if (newTier > previousTier)
+            {
+                ChangeLives(newTier - previousTier);
+            }
+        }
+    }
+
+    private static void ChangeLives(int delta)
+    {
+        int previousLives = Lives;
+        Lives = Mathf.Max(0, Lives + delta);
+        OnLivesChanged?.Invoke(Lives);
+
+        if (Lives <= 0 && previousLives > 0 && !IsGameOver)
+        {
+            IsGameOver = true;
+            OnGameOver?.Invoke();
+        }
+    }
+
     public static void ResetScore()
     {
         Score = 0;
+        CatchesByGemName.Clear();
         OnScoreChanged?.Invoke(Score);
+    }
+
+    public static void ResetLives()
+    {
+        Lives = STARTING_LIVES;
+        IsGameOver = false;
+        OnLivesChanged?.Invoke(Lives);
+    }
+
+    // Reset static state when entering Play Mode. Required because Unity's "Domain Reload"
+    // option may be disabled, leaving statics dirty across play sessions.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        Score = 0;
+        Lives = STARTING_LIVES;
+        IsGameOver = false;
+        if (CatchesByGemName == null) CatchesByGemName = new Dictionary<string, int>();
+        else CatchesByGemName.Clear();
+        OnScoreChanged = null;
+        OnLivesChanged = null;
+        OnGameOver = null;
+        OnGemCaught = null;
+        OnGemMissed = null;
     }
 
     void Start()
@@ -37,13 +147,16 @@ public class GemCatcher : MonoBehaviour
         // Check if the gem crosses the catcher's boundaries
         if (IsGemWithinCatcherBounds())
         {
-            // Increase score
-            Score++;
+            Vector3 catchPosition = transform.position;
 
-            // Notify listeners of score change
-            OnScoreChanged?.Invoke(Score);
+            AddScore(POINTS_PER_CATCH);
+            OnGemCaught?.Invoke(POINTS_PER_CATCH, catchPosition);
 
-            // Play catch effect
+            // "(Clone)" is appended by Instantiate; strip it for nicer display in the
+            // game-over breakdown.
+            string gemName = gameObject.name.Replace("(Clone)", "").Trim();
+            RecordCatch(gemName);
+
             PlayCatchEffect();
 
             // Deactivate the gem
@@ -53,9 +166,9 @@ public class GemCatcher : MonoBehaviour
 
     void PlayCatchEffect()
     {
-        // Create a simple particle effect at the gem's position
-        // This is a placeholder - you might want to use a proper particle system
+#if UNITY_EDITOR
         Debug.Log($"Gem caught! Score: {Score}");
+#endif
     }
 
     void FindCatcher()
@@ -73,8 +186,10 @@ public class GemCatcher : MonoBehaviour
     {
         if (catcher != null && catcherCollider != null)
         {
-            catcherSize = Vector3.Scale(catcherCollider.size, catcher.localScale); // Adjust size by the catcher's scale
-            catcherCenter = catcherCollider.center + catcher.position;
+            // Scale by lossyScale so parent transforms are respected, and convert the local-space
+            // collider center into world space rather than naively adding it to position.
+            catcherSize = Vector3.Scale(catcherCollider.size, catcher.lossyScale);
+            catcherCenter = catcher.TransformPoint(catcherCollider.center);
         }
     }
 

@@ -23,33 +23,73 @@ public class CatcherManager : MonoBehaviour
     // Placement phase
     private bool isPlacementPhase = false;
     private float placementTimer = 0f;
-    private bool userPlacedCatcher = false;
     private ObjectPooler objectPooler;
+
+    // Tracking for the rotate-during-placement / settle-after animation.
+    private bool wasInPlacementPhase = false;
+    private Quaternion catcherSettleStart;
+    private float catcherSettleTimer = -1f;
 
     // Trajectory prediction
     public LineRenderer trajectoryLine;
     public int trajectoryPoints = 10;
     public float trajectoryTimeStep = 0.1f;
 
+    [Header("Glass Catcher Appearance")]
+    [Tooltip("Tint and transparency of the glass catcher. Alpha controls how see-through it is.")]
+    public Color glassColor = new Color(0.65f, 0.85f, 1.00f, 0.30f);
+    [Range(0f, 1f)]
+    [Tooltip("How smooth/shiny the glass surface is. 1 = mirror-like.")]
+    public float glassSmoothness = 0.95f;
+    [Range(0f, 1f)]
+    [Tooltip("Metallic factor. Keep low for glass; a touch of metallic gives it some sheen.")]
+    public float glassMetallic = 0.1f;
+
+    [Header("Placement Phase Spin")]
+    [Tooltip("Degrees per second the catcher spins while the placement countdown is running.")]
+    public float catcherSpinSpeed = 120f;
+    [Tooltip("Local axis around which the catcher spins during placement.")]
+    public Vector3 catcherSpinAxis = new Vector3(0.4f, 1f, 0.2f);
+    [Tooltip("Seconds the catcher takes to settle back to upright once the placement phase ends.")]
+    public float catcherSettleDuration = 0.25f;
+
+    [Header("Sparkle")]
+    [Tooltip("If true, a subtle particle sparkle is attached to the catcher.")]
+    public bool enableSparkle = true;
+    [Range(0f, 30f)]
+    [Tooltip("Particles spawned per second. Keep small for a tasteful shimmer.")]
+    public float sparkleRate = 5f;
+    [Range(0.01f, 0.3f)]
+    public float sparkleSize = 0.07f;
+    public Color sparkleColor = new Color(1f, 1f, 1f, 0.9f);
+
     void Start()
     {
-        // Find the object pooler
+        // Find the object pooler and subscribe to its lifecycle events.
         objectPooler = FindObjectOfType<ObjectPooler>();
+        if (objectPooler != null)
+        {
+            objectPooler.GemSpawned += OnGemSpawned;
+        }
 
-        // Calculate the width of each slot based on the screen size
-        float screenWidth = Camera.main.orthographicSize * 2.0f * Camera.main.aspect;
-        slotWidth = screenWidth / numberOfSlots;
+        // Lay out slots inside the safe play area (excludes phone notches / camera lens
+        // and lifts off the bottom of the screen). See ScreenPadding for the bounds.
+        float playLeft = ScreenPadding.WorldLeft;
+        float playRight = ScreenPadding.WorldRight;
+        float playBottom = ScreenPadding.WorldBottom;
+        float playWidth = Mathf.Max(0.01f, playRight - playLeft);
+        slotWidth = playWidth / numberOfSlots;
 
         // Initialize slot positions
         slotPositions = new Vector3[numberOfSlots];
         slotHighlights = new GameObject[numberOfSlots];
 
-        float startX = -screenWidth / 2.0f + slotWidth / 2.0f; // Starting x position for the slots
+        float startX = playLeft + slotWidth / 2.0f; // Starting x position for the slots
 
-        // Calculate the position for each slot at the bottom of the screen
+        // Catcher sits inside the safe area's bottom edge (raised above the gesture/home bar).
         for (int i = 0; i < numberOfSlots; i++)
         {
-            slotPositions[i] = new Vector3(startX + i * slotWidth, -Camera.main.orthographicSize + slotHeight / 2.0f, 0f);
+            slotPositions[i] = new Vector3(startX + i * slotWidth, playBottom + slotHeight / 2.0f, 0f);
 
             // Create slot highlights if prefab is assigned
             if (slotHighlightPrefab != null)
@@ -99,23 +139,58 @@ public class CatcherManager : MonoBehaviour
             }
         }
 
-        // Detect mouse clicks or touches during placement phase
-        if (isPlacementPhase && Input.GetMouseButtonDown(0)) // Detects left mouse click or first touch
+        // The catcher can be repositioned freely while the placement countdown is active —
+        // every click during the phase moves it to the clicked slot.
+        if (isPlacementPhase && Input.GetMouseButtonDown(0))
         {
-            // Get the world position of the click
             Vector3 clickPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            clickPosition.z = 0f; // Set z to 0 because we're in 2D
+            clickPosition.z = 0f;
 
-            // Determine which section (slot) was clicked
             int slotIndex = GetSlotFromClick(clickPosition);
-
-            // Move the catcher to the corresponding slot
-            if (slotIndex != -1) // Check if the click is in a valid slot
+            if (slotIndex != -1)
             {
                 PlaceCatcherInSlot(slotIndex);
-                userPlacedCatcher = true;
             }
         }
+
+        UpdateCatcherSpin();
+    }
+
+    // Spin the catcher while the placement phase is active so the player can see at a glance
+    // that they can still pick a slot. When the phase ends, ease the catcher back to upright.
+    void UpdateCatcherSpin()
+    {
+        if (catcherInstance == null)
+        {
+            wasInPlacementPhase = isPlacementPhase;
+            return;
+        }
+
+        if (isPlacementPhase)
+        {
+            Vector3 axis = catcherSpinAxis.sqrMagnitude > 0f ? catcherSpinAxis.normalized : Vector3.up;
+            catcherInstance.transform.Rotate(axis, catcherSpinSpeed * Time.deltaTime, Space.Self);
+            catcherSettleTimer = -1f; // Cancel any in-progress settle.
+        }
+        else if (wasInPlacementPhase)
+        {
+            // Phase just ended this frame — kick off the settle animation.
+            catcherSettleStart = catcherInstance.transform.rotation;
+            catcherSettleTimer = 0f;
+        }
+        else if (catcherSettleTimer >= 0f)
+        {
+            catcherSettleTimer += Time.deltaTime;
+            float t = catcherSettleDuration > 0f
+                ? Mathf.Clamp01(catcherSettleTimer / catcherSettleDuration)
+                : 1f;
+            // Ease-out cubic for a soft landing.
+            float eased = 1f - Mathf.Pow(1f - t, 3f);
+            catcherInstance.transform.rotation = Quaternion.Slerp(catcherSettleStart, Quaternion.identity, eased);
+            if (t >= 1f) catcherSettleTimer = -1f;
+        }
+
+        wasInPlacementPhase = isPlacementPhase;
     }
 
     void UpdateScoreDisplay(int newScore)
@@ -144,77 +219,62 @@ public class CatcherManager : MonoBehaviour
 
     void UpdateTrajectoryPrediction()
     {
-        // Find the active gem
-        GameObject activeGem = null;
-        FallingObject[] fallingObjects = FindObjectsOfType<FallingObject>();
-        foreach (FallingObject obj in fallingObjects)
-        {
-            if (obj.gameObject.activeInHierarchy)
-            {
-                activeGem = obj.gameObject;
-                break;
-            }
-        }
-
-        if (activeGem != null)
-        {
-            // Get the FallingObject component
-            FallingObject fallingObj = activeGem.GetComponent<FallingObject>();
-            if (fallingObj != null)
-            {
-                // Enable the trajectory line
-                trajectoryLine.enabled = true;
-
-                // Calculate and display the predicted trajectory
-                Vector3 position = activeGem.transform.position;
-                Vector3 velocity = new Vector3(
-                  fallingObj.horizontalSpeed * (fallingObj.horizontalSpeed > 0 ? 1 : -1),
-                  -fallingObj.fallSpeed,
-                  0
-                );
-
-                // Set the first point to the current position
-                trajectoryLine.SetPosition(0, position);
-
-                // Calculate the rest of the points
-                for (int i = 1; i < trajectoryPoints; i++)
-                {
-                    // Simple physics prediction (doesn't account for bounces)
-                    position += velocity * trajectoryTimeStep;
-
-                    // Check for screen boundaries
-                    float screenWidth = Camera.main.orthographicSize * Camera.main.aspect;
-                    if (position.x < -screenWidth)
-                    {
-                        position.x = -screenWidth;
-                        velocity.x = -velocity.x;
-                    }
-                    else if (position.x > screenWidth)
-                    {
-                        position.x = screenWidth;
-                        velocity.x = -velocity.x;
-                    }
-
-                    trajectoryLine.SetPosition(i, position);
-                }
-            }
-        }
-        else
+        // Pull the active gem directly from the pooler instead of scanning the scene.
+        GameObject activeGem = objectPooler != null ? objectPooler.CurrentActiveGem : null;
+        if (activeGem == null || !activeGem.activeInHierarchy)
         {
             trajectoryLine.enabled = false;
+            return;
+        }
+
+        FallingObject fallingObj = activeGem.GetComponent<FallingObject>();
+        if (fallingObj == null)
+        {
+            trajectoryLine.enabled = false;
+            return;
+        }
+
+        trajectoryLine.enabled = true;
+
+        // Use the gem's actual movement direction so the prediction respects the real sign.
+        Vector3 position = activeGem.transform.position;
+        Vector3 velocity = fallingObj.MovementDirection;
+
+        trajectoryLine.SetPosition(0, position);
+
+        // Bounce trajectory off the same play-area walls the gem actually uses.
+        float left = ScreenPadding.WorldLeft;
+        float right = ScreenPadding.WorldRight;
+        for (int i = 1; i < trajectoryPoints; i++)
+        {
+            position += velocity * trajectoryTimeStep;
+
+            if (position.x < left)
+            {
+                position.x = left;
+                velocity.x = -velocity.x;
+            }
+            else if (position.x > right)
+            {
+                position.x = right;
+                velocity.x = -velocity.x;
+            }
+
+            trajectoryLine.SetPosition(i, position);
         }
     }
 
     int GetSlotFromClick(Vector3 clickPosition)
     {
-        // Check if the click is within the vertical range of the slots
+        // Catcher sits in a band of slotHeight above the safe-area bottom. Allow taps
+        // anywhere from the very bottom of the camera up to the top of the catcher
+        // band so the clickable area still feels generous on phones with thick bezels.
+        float catcherBandTop = ScreenPadding.WorldBottom + slotHeight;
         float bottomY = -Camera.main.orthographicSize;
-        float topY = bottomY + slotHeight;
 
-        if (clickPosition.y >= bottomY && clickPosition.y <= topY)
+        if (clickPosition.y >= bottomY && clickPosition.y <= catcherBandTop)
         {
-            // Calculate which slot the click was in based on the x position
-            float startX = -Camera.main.orthographicSize * Camera.main.aspect;
+            float startX = ScreenPadding.WorldLeft;
             int slotIndex = (int)((clickPosition.x - startX) / slotWidth);
 
             // Ensure the slotIndex is within the valid range
@@ -244,6 +304,8 @@ public class CatcherManager : MonoBehaviour
         {
             catcherInstance = Instantiate(catcherPrefab, slotPositions[slotIndex], Quaternion.identity);
             catcherInstance.tag = "Catcher"; // Ensure it has the correct tag
+            ApplyGlassAppearance(catcherInstance);
+            AddSparkleEffect(catcherInstance);
         }
         else
         {
@@ -263,32 +325,130 @@ public class CatcherManager : MonoBehaviour
     {
         // Reset the catcher position to the middle slot when a new gem spawns
         PlaceCatcherInSlot(numberOfSlots / 2);
-
-        // Reset the user placed flag
-        userPlacedCatcher = false;
     }
 
-    // Called by ObjectPooler when the placement phase ends
-    void OnPlacementPhaseEnded()
+    // Swaps every Renderer on the catcher prefab over to a translucent glass material so
+    // the player can see falling gems through it. Called once when the catcher is first
+    // instantiated.
+    void ApplyGlassAppearance(GameObject catcherObject)
     {
-        // If the user didn't place the catcher, place it randomly
-        if (!userPlacedCatcher)
-        {
-            // Choose a random slot
-            int randomSlot = Random.Range(0, numberOfSlots);
-            PlaceCatcherInSlot(randomSlot);
+        if (catcherObject == null) return;
 
-            // Play a sound to indicate random placement
-            if (SoundManager.Instance != null)
+        Material glass = CreateGlassMaterial();
+
+        Renderer[] renderers = catcherObject.GetComponentsInChildren<Renderer>(true);
+        foreach (Renderer r in renderers)
+        {
+            // Replace every submaterial on the renderer with the glass material. Using a
+            // single shared material keeps the per-instance Material count low (this only
+            // ever runs once, but it's still tidier).
+            Material[] mats = new Material[r.sharedMaterials.Length];
+            for (int i = 0; i < mats.Length; i++) mats[i] = glass;
+            r.sharedMaterials = mats;
+        }
+    }
+
+    // Adds a low-rate particle system to the catcher so it gives off a subtle sparkle.
+    // Tunable through the "Sparkle" header on this component.
+    void AddSparkleEffect(GameObject catcherObject)
+    {
+        if (!enableSparkle || catcherObject == null) return;
+
+        GameObject sparkleHost = new GameObject("Sparkles");
+        sparkleHost.transform.SetParent(catcherObject.transform, false);
+        sparkleHost.transform.localPosition = Vector3.zero;
+        sparkleHost.transform.localRotation = Quaternion.identity;
+        sparkleHost.transform.localScale = Vector3.one;
+
+        ParticleSystem ps = sparkleHost.AddComponent<ParticleSystem>();
+        // Stop the system before reconfiguring; calling Play at the end ensures it picks up
+        // the latest module values cleanly.
+        ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var main = ps.main;
+        main.duration = 5f;
+        main.loop = true;
+        main.startLifetime = 0.7f;
+        main.startSize = sparkleSize;
+        main.startSpeed = 0.15f;
+        main.startColor = sparkleColor;
+        main.maxParticles = 80;
+        // World simulation so the sparkle "trails" stay put while the catcher moves between slots.
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.playOnAwake = false;
+
+        var emission = ps.emission;
+        emission.rateOverTime = sparkleRate;
+
+        var shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = Vector3.one * 0.9f;
+
+        // Fade-in / fade-out alpha so each particle pops in and out gently.
+        var colorOverLifetime = ps.colorOverLifetime;
+        colorOverLifetime.enabled = true;
+        Gradient g = new Gradient();
+        g.SetKeys(
+            new[]
             {
-                SoundManager.Instance.Play("RandomPlacement");
+                new GradientColorKey(Color.white, 0f),
+                new GradientColorKey(Color.white, 1f)
+            },
+            new[]
+            {
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(1f, 0.35f),
+                new GradientAlphaKey(0f, 1f)
+            });
+        colorOverLifetime.color = g;
+
+        // Default particle material — small bright sprites that work in the built-in pipeline.
+        ParticleSystemRenderer renderer = sparkleHost.GetComponent<ParticleSystemRenderer>();
+        if (renderer != null)
+        {
+            Shader particleShader = Shader.Find("Sprites/Default");
+            if (particleShader != null)
+            {
+                renderer.material = new Material(particleShader);
             }
         }
+
+        ps.Play();
+    }
+
+    Material CreateGlassMaterial()
+    {
+        // Built-in Render Pipeline (Standard shader). If the project later moves to URP,
+        // swap this shader name for "Universal Render Pipeline/Lit".
+        Shader standard = Shader.Find("Standard");
+        Material mat = new Material(standard);
+
+        // Configure the Standard shader for its "Transparent" rendering mode. This block
+        // mirrors what the Inspector does when you switch the Rendering Mode dropdown.
+        mat.SetFloat("_Mode", 3f);
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.DisableKeyword("_ALPHATEST_ON");
+        mat.DisableKeyword("_ALPHABLEND_ON");
+        mat.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+
+        mat.color = glassColor;
+        mat.SetFloat("_Glossiness", glassSmoothness);
+        mat.SetFloat("_Metallic", glassMetallic);
+
+        return mat;
     }
 
     void OnDestroy()
     {
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= UpdateScoreDisplay;
+
+        if (objectPooler != null)
+        {
+            objectPooler.GemSpawned -= OnGemSpawned;
+        }
     }
 }

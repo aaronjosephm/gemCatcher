@@ -1,6 +1,7 @@
-using System.Collections;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
+using Random = UnityEngine.Random;
 
 public class ObjectPooler : MonoBehaviour
 {
@@ -39,6 +40,15 @@ public class ObjectPooler : MonoBehaviour
     // Timer for catcher placement
     private float placementTimer = 3.0f;
     private bool isPlacementPhase = false;
+
+    // Public events for gameplay state changes. Subscribers should unsubscribe in OnDestroy.
+    public event Action GemSpawned;
+    public event Action<float> PlacementPhaseStarted; // payload = duration
+    public event Action<float> PlacementTimerUpdated; // payload = remaining time
+    public event Action PlacementPhaseEnded;
+
+    // Public accessor so other scripts (e.g. CatcherManager) don't need FindObjectsOfType.
+    public GameObject CurrentActiveGem => currentActiveGem;
 
     void Start()
     {
@@ -100,15 +110,46 @@ public class ObjectPooler : MonoBehaviour
 
         // Subscribe to score change events to update difficulty
         GemCatcher.OnScoreChanged += CheckDifficultyProgression;
+        GemCatcher.OnGameOver += HandleGameOver;
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
     }
 
+    void HandleGameOver()
+    {
+        // Yank the active gem off the screen and stop spawning. The Update loop early-exits
+        // while GemCatcher.IsGameOver is true.
+        if (currentActiveGem != null && currentActiveGem.activeInHierarchy)
+        {
+            currentActiveGem.SetActive(false);
+        }
+        if (isPlacementPhase)
+        {
+            EndPlacementPhase(applySpeedup: false);
+        }
+    }
+
     void Update()
     {
+        // Wait on the main menu — no spawns, no countdowns, no difficulty progression
+        // until the player presses Play.
+        if (!GameState.IsPlaying) return;
+
+        // Freeze gem/obstacle spawning once the player runs out of lives.
+        if (GemCatcher.IsGameOver) return;
+
+        bool gemInactive = currentActiveGem == null || !currentActiveGem.activeInHierarchy;
+
+        // If the gem became inactive (caught or fell off-screen) mid-placement, end the phase now
+        // rather than letting it tick down on a non-existent gem.
+        if (gemInactive && isPlacementPhase)
+        {
+            EndPlacementPhase(applySpeedup: false);
+        }
+
         // Check if the current gem is inactive and it's time to spawn a new one
-        if ((currentActiveGem == null || !currentActiveGem.activeInHierarchy) && Time.time >= nextSpawnTime)
+        if (gemInactive && Time.time >= nextSpawnTime)
         {
             // Clean up any inactive obstacles
             for (int i = activeObstacles.Count - 1; i >= 0; i--)
@@ -135,11 +176,8 @@ public class ObjectPooler : MonoBehaviour
             isPlacementPhase = true;
             placementTimer = 3.0f;
 
-            // Notify the CatcherManager that a new gem has spawned
-            BroadcastMessage("OnGemSpawned", SendMessageOptions.DontRequireReceiver);
-
-            // Notify the UIManager about the placement phase
-            BroadcastMessage("OnPlacementPhaseStarted", placementTimer, SendMessageOptions.DontRequireReceiver);
+            GemSpawned?.Invoke();
+            PlacementPhaseStarted?.Invoke(placementTimer);
         }
 
         // Update the placement timer
@@ -147,28 +185,31 @@ public class ObjectPooler : MonoBehaviour
         {
             placementTimer -= Time.deltaTime;
 
-            // Update the UI with the current timer value
-            BroadcastMessage("OnPlacementTimerUpdated", placementTimer, SendMessageOptions.DontRequireReceiver);
+            PlacementTimerUpdated?.Invoke(placementTimer);
 
-            // When the placement phase ends, increase the gem's speed
             if (placementTimer <= 0)
             {
-                isPlacementPhase = false;
-
-                // Increase the gem's speed to normal
-                if (currentActiveGem != null && currentActiveGem.activeInHierarchy)
-                {
-                    FallingObject fallingObj = currentActiveGem.GetComponent<FallingObject>();
-                    if (fallingObj != null)
-                    {
-                        fallingObj.UpdateFallSpeed(currentFallSpeed);
-                    }
-                }
-
-                // Notify the CatcherManager that the placement phase has ended
-                BroadcastMessage("OnPlacementPhaseEnded", SendMessageOptions.DontRequireReceiver);
+                EndPlacementPhase(applySpeedup: true);
             }
         }
+    }
+
+    private void EndPlacementPhase(bool applySpeedup)
+    {
+        if (!isPlacementPhase) return;
+
+        isPlacementPhase = false;
+
+        if (applySpeedup && currentActiveGem != null && currentActiveGem.activeInHierarchy)
+        {
+            FallingObject fallingObj = currentActiveGem.GetComponent<FallingObject>();
+            if (fallingObj != null)
+            {
+                fallingObj.UpdateFallSpeed(currentFallSpeed);
+            }
+        }
+
+        PlacementPhaseEnded?.Invoke();
     }
 
     void SpawnGem()
@@ -177,9 +218,13 @@ public class ObjectPooler : MonoBehaviour
         GameObject obj = GetRandomPooledObject(objectPool);
         if (obj != null)
         {
-            // Set the spawn position at the top of the screen with a random X position
-            float randomX = Random.Range(-spawnXRange, spawnXRange);
-            obj.transform.position = new Vector3(randomX, Camera.main.orthographicSize, 0f);
+            // Spawn at the top of the safe play area (below any phone notch / camera lens)
+            // and within the safe horizontal bounds. We clamp spawnXRange so a too-large
+            // value in the Inspector doesn't push gems behind a notch on narrow phones.
+            float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+            float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+            float randomX = Random.Range(minX, maxX);
+            obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
 
             // Update the falling object component - ALWAYS set to slow speed initially
             FallingObject fallingObj = obj.GetComponent<FallingObject>();
@@ -210,9 +255,15 @@ public class ObjectPooler : MonoBehaviour
         GameObject obj = GetRandomPooledObject(obstaclePool);
         if (obj != null)
         {
-            // Set a random position for the obstacle (not too close to the top or bottom)
-            float randomX = Random.Range(-spawnXRange, spawnXRange);
-            float randomY = Random.Range(-Camera.main.orthographicSize * 0.5f, Camera.main.orthographicSize * 0.7f);
+            // Stay inside the safe play area; obstacles biased to the upper half so they
+            // don't crowd the catcher band.
+            float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+            float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+            float randomX = Random.Range(minX, maxX);
+            float playHeight = ScreenPadding.WorldTop - ScreenPadding.WorldBottom;
+            float yMin = ScreenPadding.WorldBottom + playHeight * 0.25f;
+            float yMax = ScreenPadding.WorldBottom + playHeight * 0.85f;
+            float randomY = Random.Range(yMin, yMax);
             obj.transform.position = new Vector3(randomX, randomY, 0f);
 
             // Random rotation
@@ -255,7 +306,9 @@ public class ObjectPooler : MonoBehaviour
             {
                 currentDifficultyLevel = i;
                 UpdateDifficultySettings();
+#if UNITY_EDITOR
                 Debug.Log($"Difficulty increased to level {currentDifficultyLevel + 1}! Speed: {currentFallSpeed}, Interval: {currentSpawnInterval}");
+#endif
                 break;
             }
         }
@@ -285,5 +338,6 @@ public class ObjectPooler : MonoBehaviour
     {
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= CheckDifficultyProgression;
+        GemCatcher.OnGameOver -= HandleGameOver;
     }
 }
