@@ -20,6 +20,10 @@ public static class GemIconRenderer
 
   private static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
   private static Camera previewCamera;
+  // Counter so each capture stages its instance at a unique world position. Belt-and-
+  // suspenders against any future change that might leave a previous instance alive
+  // when the next Capture() runs.
+  private static int captureSerial;
 
   // Reset on entering Play Mode so stale references from a previous session (e.g.
   // sprites pointing at destroyed Texture2Ds when Domain Reload is disabled) don't
@@ -29,6 +33,7 @@ public static class GemIconRenderer
   {
     cache.Clear();
     previewCamera = null;
+    captureSerial = 0;
   }
 
   /// <summary>
@@ -55,9 +60,15 @@ public static class GemIconRenderer
     EnsureCamera();
     if (previewCamera == null) return null;
 
-    // Stage the gem far from the gameplay area so even if something goes wrong with
-    // layer culling, the preview won't appear on the main camera.
-    Vector3 stagingOrigin = new Vector3(2000f, 2000f, 0f);
+    // Stage the gem far from the gameplay area, AND give each capture its own X
+    // offset so multiple captures in the same frame can never overlap in the preview
+    // camera's view. Without this, a previous Capture()'s instance (whose Destroy is
+    // deferred to end-of-frame) sits on the PreviewLayer at the staging point and
+    // gets composited into every subsequent icon. We also use DestroyImmediate at the
+    // end of this method so instances are gone before the next capture starts, but
+    // the unique offset is a cheap belt-and-suspenders defence.
+    captureSerial++;
+    Vector3 stagingOrigin = new Vector3(2000f + captureSerial * 50f, 2000f, 0f);
 
     GameObject instance = Object.Instantiate(prefab);
     SetLayerRecursive(instance, PreviewLayer);
@@ -121,7 +132,13 @@ public static class GemIconRenderer
     Sprite sprite = Sprite.Create(tex, new Rect(0, 0, IconSize, IconSize), new Vector2(0.5f, 0.5f));
     sprite.name = prefab.name + "_icon";
 
-    Object.Destroy(instance);
+    // DestroyImmediate (NOT Destroy) so the staged instance is gone before the caller's
+    // next GetOrCapture(). Object.Destroy is deferred to end-of-frame, which causes
+    // every subsequent capture in the same frame to render the previous gem stacked on
+    // top of the new one — that was the "overlapping gem icons" bug on the game-over
+    // screen. DestroyImmediate is the recommended pattern for transient runtime
+    // instances created and consumed within a single function.
+    Object.DestroyImmediate(instance);
     return sprite;
   }
 

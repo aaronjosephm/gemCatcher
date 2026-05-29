@@ -6,6 +6,7 @@
 [Bb]uilds/
 [Ll]ogs/
 [Uu]ser[Ss]ettings/
+.utmp/
 
 # Unity3D generated meta files
 *.pidb.meta
@@ -20,6 +21,14 @@ sysinfo.txt
 *.aab
 *.unitypackage
 *.app
+
+# Signing keys (NEVER commit these)
+*.keystore
+*.jks
+*.p12
+*.p8
+*.mobileprovision
+keystore.properties
 
 # Visual Studio / MonoDevelop generated
 .vs/
@@ -87,6 +96,12 @@ crashlytics-build.properties
 # ScriptableObjects and other assets
 !/[Aa]ssets/**/*.asset
 !/[Aa]ssets/**/*.asset.meta
+
+# App icons (the broad "Icon?" Mac-OS rule above otherwise matches "Icons/")
+!/[Aa]ssets/[Ii]cons/
+!/[Aa]ssets/[Ii]cons/**/*.png
+!/[Aa]ssets/[Ii]cons/**/*.png.meta
+!/[Aa]ssets/[Ii]cons/**/*.meta
 
 # Project settings
 !/[Pp]roject[Ss]ettings/

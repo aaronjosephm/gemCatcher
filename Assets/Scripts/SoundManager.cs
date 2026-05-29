@@ -13,7 +13,9 @@ using Random = UnityEngine.Random;
 //
 // Named sounds the game expects:
 //   "GemCaught", "GemMissed", "Bounce", "ObstacleBounce", "WallBounce",
-//   "CatcherMove", "GameOver", "Win", "BackgroundMusic" (looping, no fallback)
+//   "CatcherMove", "GameOver", "Win", "BonusLife", "PowerUp",
+//   "Bomb", "Milestone",
+//   "BackgroundMusic" (looping, no fallback)
 public class SoundManager : MonoBehaviour
 {
     [Serializable]
@@ -35,6 +37,28 @@ public class SoundManager : MonoBehaviour
     public bool generateProceduralFallbacks = true;
 
     public static SoundManager Instance { get; private set; }
+
+    /// <summary>
+    /// PlayerPrefs key for the sound on/off toggle exposed in the settings panel.
+    /// </summary>
+    public const string SoundPrefKey = "SoundEnabled";
+
+    /// <summary>
+    /// Master sound toggle. Backed by PlayerPrefs and mirrored onto
+    /// <see cref="AudioListener.volume"/> so a single flag silences both
+    /// the procedural fallbacks and any inspector-assigned clips without
+    /// having to gate every Play() call.
+    /// </summary>
+    public static bool SoundEnabled
+    {
+        get => PlayerPrefs.GetInt(SoundPrefKey, 1) == 1;
+        set
+        {
+            PlayerPrefs.SetInt(SoundPrefKey, value ? 1 : 0);
+            PlayerPrefs.Save();
+            AudioListener.volume = value ? 1f : 0f;
+        }
+    }
 
     private Dictionary<string, SoundEffect> soundDictionary;
 
@@ -60,6 +84,10 @@ public class SoundManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
+
+        // Apply any previously-saved mute preference before we start playing
+        // anything (e.g. background music in Start()).
+        AudioListener.volume = SoundEnabled ? 1f : 0f;
 
         soundDictionary = new Dictionary<string, SoundEffect>();
 
@@ -91,6 +119,9 @@ public class SoundManager : MonoBehaviour
 
         GemCatcher.OnGemCaught += HandleGemCaught;
         GemCatcher.OnGemMissed += HandleGemMissed;
+        GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
+        GemCatcher.OnBombHit += HandleBombHit;
+        MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
     }
 
     void Start()
@@ -136,12 +167,42 @@ public class SoundManager : MonoBehaviour
 
     void HandleGemCaught(int amount, Vector3 worldPosition)
     {
-        PlayWithRandomPitch("GemCaught");
+        // Pitch climbs with the combo so a 10-streak literally sounds higher
+        // and brighter than a single catch. Capped at 1.6x so it never gets
+        // chipmunk-level shrill.
+        float comboPitch = 1f + Mathf.Clamp01(ComboManager.CurrentCombo / 10f) * 0.6f;
+        PlayWithFixedPitch("GemCaught", comboPitch);
+    }
+
+    // Plays a sound at a specific pitch. Used for pitch-laddering combos so
+    // the shift isn't random.
+    private void PlayWithFixedPitch(string soundName, float pitch)
+    {
+        if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
+        {
+            sound.source.pitch = pitch;
+            sound.source.Play();
+        }
     }
 
     void HandleGemMissed(int amount, Vector3 worldPosition)
     {
         PlayWithRandomPitch("GemMissed", 0.85f, 1.05f);
+    }
+
+    void HandleBonusLifeAwarded(int count)
+    {
+        Play("BonusLife");
+    }
+
+    void HandleBombHit(Vector3 worldPosition)
+    {
+        PlayWithRandomPitch("Bomb", 0.85f, 1.05f);
+    }
+
+    void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
+    {
+        Play("Milestone");
     }
 
     void OnDestroy()
@@ -150,6 +211,9 @@ public class SoundManager : MonoBehaviour
         {
             GemCatcher.OnGemCaught -= HandleGemCaught;
             GemCatcher.OnGemMissed -= HandleGemMissed;
+            GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;
+            GemCatcher.OnBombHit -= HandleBombHit;
+            MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
             Instance = null;
         }
     }
@@ -169,6 +233,19 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("CatcherMove",   () => CreateBeep(660f, 0.04f, 0.18f));
         RegisterFallback("GameOver",      () => CreateSweep(330f, 80f, 0.75f, 0.32f));
         RegisterFallback("Win",           () => CreateArpeggio(new[] { 523f, 659f, 784f, 1046f }, 0.45f, 0.30f));
+        // Quick rising major-third chime — short and celebratory; pairs with the
+        // "EXTRA LIFE!" banner without stepping on the regular catch sound.
+        RegisterFallback("BonusLife",     () => CreateArpeggio(new[] { 659f, 880f, 1175f, 1568f }, 0.35f, 0.32f));
+        // Brighter, faster fanfare for power-up pickups so it's distinctly more
+        // exciting than a normal catch but doesn't feel as triumphant as a bonus life.
+        RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
+        // Heavy descending impact — bomb explosion. Lower start frequency than
+        // GemMissed and longer duration so it reads as "you really screwed up".
+        RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
+        // Five-note rising fanfare for milestone celebrations. Brighter and
+        // longer than the bonus-life chime so the player notices it through
+        // any other audio chaos.
+        RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)

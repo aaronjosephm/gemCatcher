@@ -13,10 +13,18 @@ using UnityEngine;
 [DisallowMultipleComponent]
 public class SafeAreaFitter : MonoBehaviour
 {
+  [Tooltip(
+    "Extra pixels of inset at the top BEYOND Screen.safeArea. " +
+    "Use this to defend against hardware that the OS doesn't report as part of " +
+    "the notch — front-facing camera lenses on some Android phones sit inside " +
+    "the reported safe area and would otherwise overlap top-aligned UI.")]
+  public float extraTopPixels = 0f;
+
   private RectTransform rt;
   private Rect lastSafeArea;
   private Vector2Int lastScreenSize;
   private ScreenOrientation lastOrientation;
+  private float lastExtraTopPixels;
 
   void Awake()
   {
@@ -31,11 +39,12 @@ public class SafeAreaFitter : MonoBehaviour
   void Update()
   {
     // Cheap to check; only re-apply on actual change (rotation, fold/unfold,
-    // multitasking-window resize, etc.).
+    // multitasking-window resize, runtime tweaks to extraTopPixels, etc.).
     if (Screen.safeArea != lastSafeArea
         || Screen.width != lastScreenSize.x
         || Screen.height != lastScreenSize.y
-        || Screen.orientation != lastOrientation)
+        || Screen.orientation != lastOrientation
+        || !Mathf.Approximately(extraTopPixels, lastExtraTopPixels))
     {
       Apply();
     }
@@ -48,6 +57,16 @@ public class SafeAreaFitter : MonoBehaviour
 
     Rect safe = Screen.safeArea;
     if (Screen.width <= 0 || Screen.height <= 0) return;
+
+    // Apply extra top inset by shrinking the safe-area rect from the top edge.
+    // safeArea is in pixel space with origin at bottom-left, so the top edge is
+    // y + height — pulling height down by extraTopPixels moves the top edge
+    // down without affecting the bottom.
+    if (extraTopPixels > 0f)
+    {
+      float reduce = Mathf.Min(extraTopPixels, safe.height);
+      safe = new Rect(safe.x, safe.y, safe.width, safe.height - reduce);
+    }
 
     // Convert pixel-space safeArea to anchor-space (0..1).
     Vector2 anchorMin = safe.position;
@@ -62,8 +81,9 @@ public class SafeAreaFitter : MonoBehaviour
     rt.offsetMin = Vector2.zero;
     rt.offsetMax = Vector2.zero;
 
-    lastSafeArea = safe;
+    lastSafeArea = Screen.safeArea;
     lastScreenSize = new Vector2Int(Screen.width, Screen.height);
     lastOrientation = Screen.orientation;
+    lastExtraTopPixels = extraTopPixels;
   }
 }

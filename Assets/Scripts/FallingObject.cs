@@ -1,5 +1,22 @@
 using UnityEngine;
 
+/// <summary>
+/// Variant flavor applied to a falling gem at spawn time. Drives points,
+/// life-effects, visuals, and miss-handling. The base prefab stays the same;
+/// the variant just retints / overrides behavior.
+/// </summary>
+public enum SpecialGemType
+{
+    /// <summary>Standard gem — +20 points, normal visuals.</summary>
+    Normal,
+    /// <summary>Rare +100-point gem with bright gold visuals.</summary>
+    Golden,
+    /// <summary>DON'T catch — costs a life and breaks combo on contact. Falling through is the correct play.</summary>
+    Bomb,
+    /// <summary>Restores +1 life on catch. Pink/magenta visuals.</summary>
+    Heart,
+}
+
 public class FallingObject : MonoBehaviour
 {
     public float fallSpeed = 4.0f;
@@ -25,10 +42,50 @@ public class FallingObject : MonoBehaviour
     // Trail effect
     private TrailRenderer trailRenderer;
 
+    // Cached prefab scale captured the first time ApplyScaleFactor runs (or in
+    // Start, whichever happens first). All subsequent rescales multiply this
+    // baseline by the requested factor so we never compound shrinkage across
+    // pooled re-uses.
+    private Vector3 originalScale = Vector3.one;
+    private bool originalScaleCaptured = false;
+
+    // Decomposed scale state. Final transform.localScale is always
+    //   originalScale * currentBaseScaleFactor * currentSpecialScaleFactor
+    // so the score-driven shrink (set via ApplyScaleFactor) and the
+    // special-gem size override (set via ApplySpecialType, e.g. 2x for Bombs)
+    // can vary independently without fighting each other.
+    private float currentBaseScaleFactor = 1f;
+    private float currentSpecialScaleFactor = 1f;
+
+    [Header("Special Gem Sizing")]
+    [Range(0.5f, 4f)]
+    [Tooltip("Visual scale multiplier applied to BOMB gems on top of the score-driven gem-shrink factor. >1 makes bombs harder to dodge by occupying more of the play area horizontally and vertically. The catch hitbox tracks visual size automatically.")]
+    public float bombScaleMultiplier = 2f;
+
+    // ---- Special-gem variant ------------------------------------------------
+    // Set by ObjectPooler at spawn time via ApplySpecialType. Read by GemCatcher
+    // (catch dispatch) and Update (suppress miss penalty for bombs). Pooled gems
+    // reset to Normal between spawns so a Bomb-this-cycle never leaks back as a
+    // Bomb-next-cycle.
+
+    public SpecialGemType specialType { get; private set; } = SpecialGemType.Normal;
+
+    // Cached "natural" material colors so we can restore them when a pooled gem
+    // is reused with a different (or no) special type. Captured lazily on first
+    // ApplySpecialType call.
+    private Color originalAlbedo;
+    private Color originalEmission;
+    private bool originalColorsCaptured = false;
+    private bool emissionWasEnabled = false;
+    private Color originalTrailStart;
+    private Color originalTrailEnd;
+    private bool originalTrailCaptured = false;
+
     void Start()
     {
         // Initialize components and boundaries
         InitializeComponents();
+        CaptureOriginalScaleIfNeeded();
     }
 
     // Method to reset the object when it's reused from the pool
@@ -36,6 +93,177 @@ public class FallingObject : MonoBehaviour
     {
         // Re-initialize components in case anything has changed
         InitializeComponents();
+    }
+
+    // Sets the score-driven base scale factor. Final localScale is
+    // recomputed as originalScale * factor * specialScaleFactor so a
+    // simultaneously-active special-gem size override (e.g. 2x bombs) is
+    // preserved. The first call captures the prefab scale as the baseline.
+    // Also refreshes the cached renderer half-extents so wall-bounce math
+    // stays accurate when this is called on a gem that's already in flight.
+    public void ApplyScaleFactor(float factor)
+    {
+        CaptureOriginalScaleIfNeeded();
+        currentBaseScaleFactor = factor;
+        ApplyComposedScale();
+    }
+
+    // Recomputes localScale from originalScale * base * special and
+    // refreshes the renderer half-extents cache. Centralized so any change
+    // to either factor (score shrink, special-type override) routes through
+    // a single source of truth.
+    private void ApplyComposedScale()
+    {
+        transform.localScale = originalScale * (currentBaseScaleFactor * currentSpecialScaleFactor);
+        RefreshBoundsCache();
+    }
+
+    private void RefreshBoundsCache()
+    {
+        Renderer r = GetComponent<Renderer>();
+        if (r != null)
+        {
+            objectHalfWidth = r.bounds.extents.x;
+            objectHalfHeight = r.bounds.extents.y;
+        }
+    }
+
+    // ---- Special-gem visual application ------------------------------------
+
+    /// <summary>
+    /// Apply (or revert) a special-gem variant. Called by ObjectPooler at spawn
+    /// time. Caches the prefab's natural colors on first call so passing
+    /// SpecialGemType.Normal restores the original look exactly. Also rescales
+    /// the gem (e.g. Bombs render bombScaleMultiplier times larger) so a
+    /// dangerous bomb is harder to dodge purely by occupying more space.
+    /// </summary>
+    public void ApplySpecialType(SpecialGemType type)
+    {
+        specialType = type;
+
+        // Update the special-type scale factor and recompute localScale.
+        // Captured-then-restored on Normal so a pooled gem that was previously
+        // a Bomb doesn't carry over the 2x scale to its next life.
+        CaptureOriginalScaleIfNeeded();
+        currentSpecialScaleFactor = type == SpecialGemType.Bomb ? bombScaleMultiplier : 1f;
+        ApplyComposedScale();
+
+        Renderer r = GetComponent<Renderer>();
+        if (r != null)
+        {
+            // .material auto-instances on first access — that's fine for pooled
+            // objects; they each get their own material instance once and reuse
+            // it for every spawn.
+            Material m = r.material;
+            CaptureOriginalColorsIfNeeded(m);
+
+            VariantPalette pal = GetPalette(type);
+            if (m.HasProperty("_Color"))
+            {
+                m.color = type == SpecialGemType.Normal ? originalAlbedo : pal.albedo;
+            }
+            if (m.HasProperty("_EmissionColor"))
+            {
+                if (type == SpecialGemType.Normal)
+                {
+                    m.SetColor("_EmissionColor", originalEmission);
+                    if (!emissionWasEnabled) m.DisableKeyword("_EMISSION");
+                }
+                else
+                {
+                    m.SetColor("_EmissionColor", pal.emission);
+                    m.EnableKeyword("_EMISSION");
+                }
+            }
+        }
+
+        TrailRenderer tr = GetComponent<TrailRenderer>();
+        if (tr != null)
+        {
+            CaptureOriginalTrailIfNeeded(tr);
+            VariantPalette pal = GetPalette(type);
+            if (type == SpecialGemType.Normal)
+            {
+                tr.startColor = originalTrailStart;
+                tr.endColor = originalTrailEnd;
+            }
+            else
+            {
+                tr.startColor = pal.trailStart;
+                tr.endColor = pal.trailEnd;
+            }
+        }
+    }
+
+    private void CaptureOriginalColorsIfNeeded(Material m)
+    {
+        if (originalColorsCaptured) return;
+        if (m.HasProperty("_Color")) originalAlbedo = m.color;
+        if (m.HasProperty("_EmissionColor")) originalEmission = m.GetColor("_EmissionColor");
+        emissionWasEnabled = m.IsKeywordEnabled("_EMISSION");
+        originalColorsCaptured = true;
+    }
+
+    private void CaptureOriginalTrailIfNeeded(TrailRenderer tr)
+    {
+        if (originalTrailCaptured) return;
+        originalTrailStart = tr.startColor;
+        originalTrailEnd = tr.endColor;
+        originalTrailCaptured = true;
+    }
+
+    private struct VariantPalette
+    {
+        public Color albedo;
+        public Color emission;
+        public Color trailStart;
+        public Color trailEnd;
+    }
+
+    private static VariantPalette GetPalette(SpecialGemType type)
+    {
+        switch (type)
+        {
+            case SpecialGemType.Golden:
+                return new VariantPalette
+                {
+                    albedo = new Color(1.00f, 0.85f, 0.20f),
+                    emission = new Color(1.40f, 1.10f, 0.30f) * 0.9f,
+                    trailStart = new Color(1.00f, 0.95f, 0.55f, 0.95f),
+                    trailEnd = new Color(1.00f, 0.80f, 0.10f, 0.0f),
+                };
+            case SpecialGemType.Bomb:
+                return new VariantPalette
+                {
+                    albedo = new Color(0.13f, 0.13f, 0.16f),
+                    emission = new Color(1.20f, 0.20f, 0.10f) * 0.8f,
+                    trailStart = new Color(1.00f, 0.30f, 0.20f, 0.95f),
+                    trailEnd = new Color(0.30f, 0.05f, 0.05f, 0.0f),
+                };
+            case SpecialGemType.Heart:
+                return new VariantPalette
+                {
+                    albedo = new Color(1.00f, 0.40f, 0.65f),
+                    emission = new Color(1.30f, 0.40f, 0.80f) * 0.8f,
+                    trailStart = new Color(1.00f, 0.65f, 0.85f, 0.95f),
+                    trailEnd = new Color(0.80f, 0.20f, 0.50f, 0.0f),
+                };
+            default:
+                return new VariantPalette
+                {
+                    albedo = Color.white,
+                    emission = Color.black,
+                    trailStart = Color.white,
+                    trailEnd = new Color(1, 1, 1, 0),
+                };
+        }
+    }
+
+    private void CaptureOriginalScaleIfNeeded()
+    {
+        if (originalScaleCaptured) return;
+        originalScale = transform.localScale;
+        originalScaleCaptured = true;
     }
 
     // Method to initialize the object with a specific speed
@@ -99,11 +327,13 @@ public class FallingObject : MonoBehaviour
         // device rotation / multitasking on mobile). Cheap to recompute.
         CalculateBoundaries();
 
+        float dt = Time.deltaTime;
+
         // Rotate the object
-        transform.Rotate(rotationSpeed * Time.deltaTime);
+        transform.Rotate(rotationSpeed * dt);
 
         // Move the object
-        transform.Translate(movementDirection * Time.deltaTime, Space.World);
+        transform.Translate(movementDirection * dt, Space.World);
 
         // Check and enforce boundaries
         EnforceBoundaries();
@@ -118,6 +348,15 @@ public class FallingObject : MonoBehaviour
         // right at the catcher level instead of slipping behind the gesture bar.
         if (transform.position.y < bottomBoundary - objectHalfHeight)
         {
+            // Bombs are SUPPOSED to be missed — letting one fall through is the
+            // correct play, so it's silently retired with no miss penalty,
+            // no combo break, no floating text.
+            if (specialType == SpecialGemType.Bomb)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
             // Report the miss at the gem's last visible position (just above the bottom)
             // so the floating "-10" appears at the edge of play rather than off-screen.
             Vector3 reportPos = transform.position;
@@ -173,7 +412,8 @@ public class FallingObject : MonoBehaviour
 
     void CheckObstacleCollisions()
     {
-        // Cast a ray in the movement direction to detect obstacles
+        // Cast a ray in the movement direction to detect obstacles. Length is
+        // scaled to the actual per-frame movement so we don't over-cast.
         RaycastHit hit;
         float rayDistance = (movementDirection.magnitude * Time.deltaTime) + objectHalfWidth;
 

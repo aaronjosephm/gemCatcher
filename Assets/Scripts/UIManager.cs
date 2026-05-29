@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -45,6 +46,25 @@ public class UIManager : MonoBehaviour
   private float fadeTimer = 0f;
   private Color originalTextColor;
 
+  // The "real" score we're tweening toward (set by UpdateScore from the GemCatcher event)
+  // and the value currently being rendered. Update() interpolates displayedScore toward
+  // targetScore and rewrites the score text once the displayed integer changes.
+  private int targetScore = 0;
+  private float displayedScoreFloat = 0f;
+  private int lastRenderedScore = -1;
+
+  // Active panel fades — each panel transitions from fromAlpha to toAlpha over duration
+  // seconds, then is optionally deactivated. We use unscaled time so menu transitions
+  // are unaffected by the game-over hit-stop.
+  private struct PanelFade
+  {
+    public CanvasGroup group;
+    public GameObject panelObject;
+    public float duration, age, fromAlpha, toAlpha;
+    public bool deactivateOnEnd;
+  }
+  private readonly List<PanelFade> activeFades = new List<PanelFade>();
+
   // TMP-equivalent of `finalScoreText` for the auto-built game over panel. Now only
   // shows the headline "Final Score: X" line; the gem breakdown lives in the icon list.
   private TextMeshProUGUI autoFinalScoreText;
@@ -55,29 +75,92 @@ public class UIManager : MonoBehaviour
   private readonly List<GameObject> spawnedIconRows = new List<GameObject>();
 
   [Header("Menu Panels (auto-created if not assigned)")]
-  [Tooltip("Main menu shown at scene load. Hosts Play / Leaderboard / Help / Exit buttons.")]
+  [Tooltip("Main menu shown at scene load. Hosts Play / Daily Challenge / Help / Exit buttons.")]
   public GameObject mainMenuPanel;
-  [Tooltip("Top-scores panel reached from the main menu. Populated with mock data for now.")]
-  public GameObject leaderboardPanel;
   [Tooltip("How-to-play panel reached from the main menu.")]
   public GameObject helpPanel;
 
-  // Mock leaderboard. Replace with real persistence (PlayerPrefs/server) when ready.
-  private static readonly (string name, int score)[] MockLeaderboard = new[]
-  {
-    ("ACE", 1280),
-    ("BEX",  940),
-    ("CYR",  720),
-    ("DIA",  580),
-    ("EVA",  460),
-    ("FOX",  380),
-    ("GUS",  290),
-    ("HAL",  220),
-    ("IVY",  160),
-    ("JAX",  100),
-  };
+  // Auto-created in EnsureSettingsPanel, opened from a small gear button on
+  // the main menu. Hosts Sound / Haptics toggles backed by PlayerPrefs.
+  private GameObject settingsPanel;
+
+  // Auto-created on first request. Shown when the OS backgrounds the app
+  // (incoming call, home button, app switcher) so the player can resume on
+  // their own terms. Time.timeScale is forced to 0 while it's visible.
+  private GameObject pausePanel;
+
+  // Full-screen colored Image used by FlashVignette to play a brief tinted
+  // wash on power-up activation. Single shared Image (no GC churn between
+  // pickups) modulated via Color.a in Update.
+  private Image vignetteOverlay;
+  private Color vignetteColor;
+  private float vignetteAge;
+  private float vignetteDuration;
+  private float vignettePeakAlpha;
+
+  // Tween state for the count-up number on the game-over panel. Avoids
+  // depending on a tween library; lerped in Update each frame.
+  private float finalScoreTweenAge;
+  private float finalScoreTweenDuration;
+  private int finalScoreTweenTarget;
+  private bool finalScoreTweenActive;
+
+  // ---- Daily Challenge UI references --------------------------------------
+  // Cached so we can refresh the menu button label, hide retry on daily
+  // game-over, and tick the live countdown on the cooldown screen.
+  private Button dailyChallengeMenuButton;
+  private TextMeshProUGUI dailyChallengeButtonLabel;
+  private Image dailyChallengeButtonBg;
+
+  // Cooldown panel — shown when the player taps Daily Challenge but has
+  // already played today.
+  private GameObject dailyCooldownPanel;
+  private TextMeshProUGUI dailyCooldownDayTmp;
+  private TextMeshProUGUI dailyCooldownStreakTmp;
+  private TextMeshProUGUI dailyCooldownScoreTmp;
+  private TextMeshProUGUI dailyCooldownBestTmp;
+  private TextMeshProUGUI dailyCooldownTimerTmp;
+
+  // Daily-mode flavor for the shared game-over panel — title swap and a
+  // subtitle that shows "Day N · Streak X". Cached at panel-build time.
+  private TextMeshProUGUI gameOverTitleTmp;
+  private TextMeshProUGUI gameOverDailySubtitleTmp;
+
+  // ---- Power-up HUD ------------------------------------------------------
+  // Vertical stack of slot rows on the upper-left, one per PowerUpType. Each
+  // row is a colored background + a TMP label like "WIDE  5.2s". Active slots
+  // show their full color; inactive slots are hidden. Built lazily.
+  private RectTransform powerUpHudContainer;
+  private GameObject[] powerUpSlotRoots;
+  private TextMeshProUGUI[] powerUpSlotLabels;
+  private Image[] powerUpSlotBgs;
+
+  // ---- Combo HUD ---------------------------------------------------------
+  // Lives directly below the score, top-right. Hidden when combo == 0; shows
+  // "COMBO ×N" otherwise, with color/scale escalation as the multiplier grows.
+  private RectTransform comboDisplayRoot;
+  private TextMeshProUGUI comboDisplayTmp;
+  // Smoothed scale target so OnComboChanged can pop the HUD without us writing
+  // an animation system — Update() interpolates current scale toward this value
+  // every frame using unscaled time.
+  private float comboTargetScale = 1f;
+  // Set by OnComboTierUp; Update() pulses the HUD on the frame after.
+  private bool comboTierUpPending = false;
 
   private ObjectPooler objectPooler;
+
+  /// <summary>
+  /// Singleton handle other systems use to drive the UI (pause overlay,
+  /// vignette flashes, etc.). Assigned in Awake so it's available as soon
+  /// as auto-bootstrapped managers come online.
+  /// </summary>
+  public static UIManager Instance { get; private set; }
+
+  void Awake()
+  {
+    if (Instance != null && Instance != this) return;
+    Instance = this;
+  }
 
   void Start()
   {
@@ -97,15 +180,36 @@ public class UIManager : MonoBehaviour
     GemCatcher.OnGameOver += HandleGameOverEvent;
     GemCatcher.OnGemCaught += HandleGemCaught;
     GemCatcher.OnGemMissed += HandleGemMissed;
+    GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
+
+    // Power-up events: banner + HUD slot reveal on activate, slot hide on
+    // expire, special "SHIELDED!" floating text when a miss is absorbed.
+    PowerUpManager.OnActivated += HandlePowerUpActivated;
+    PowerUpManager.OnExpired += HandlePowerUpExpired;
+    PowerUpManager.OnShieldConsumed += HandleShieldConsumed;
+
+    // Combo / streak — live HUD updates plus a celebratory "tier up" pulse.
+    ComboManager.OnComboChanged += HandleComboChanged;
+    ComboManager.OnComboTierUp += HandleComboTierUp;
+    ComboManager.OnComboBroken += HandleComboBroken;
+
+    // Score milestones — full-screen banner + power-up gift.
+    MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
+
+    // Bomb / heart special-gem events — distinct floating text + extra fx
+    // beyond the standard catch / miss visuals.
+    GemCatcher.OnBombHit += HandleBombHit;
+    GemCatcher.OnHeartGemCaught += HandleHeartGemCaught;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
     // a game-over panel even if nothing was wired up in the Inspector.
     EnsureHudCanvas();
     EnsureScoreDisplay();
     EnsureLivesDisplay();
+    EnsurePowerUpHud();
+    EnsureComboDisplay();
     EnsureGameOverPanel();
     EnsureMainMenuPanel();
-    EnsureLeaderboardPanel();
     EnsureHelpPanel();
     UpdateLives(GemCatcher.Lives);
 
@@ -143,22 +247,46 @@ public class UIManager : MonoBehaviour
 
   void InitializeGemSpeedupTimer()
   {
-    // Check if we have a reference to the timer text
-    if (gemSpeedupTimerText != null)
+    // Auto-build a big top-center countdown number on the safe-area-aware HUD if the
+    // developer didn't wire one up in the Inspector. This lets the placement-phase
+    // countdown work zero-config and avoids the every-frame error spam we used to
+    // emit when the field was null.
+    if (gemSpeedupTimerText == null)
     {
-      // Store the original color for fading
-      originalTextColor = gemSpeedupTimerText.color;
+      EnsureHudCanvas();
+      if (UiRoot == null) return;
 
-      gemSpeedupTimerText.gameObject.SetActive(true);
+      GameObject go = new GameObject("PlacementCountdown (auto)", typeof(RectTransform));
+      go.transform.SetParent(UiRoot, false);
+      RectTransform rt = go.GetComponent<RectTransform>();
+      rt.anchorMin = new Vector2(0.5f, 1f);
+      rt.anchorMax = new Vector2(0.5f, 1f);
+      rt.pivot = new Vector2(0.5f, 1f);
+      rt.anchoredPosition = new Vector2(0f, -180f);
+      rt.sizeDelta = new Vector2(400f, 220f);
+
+      gemSpeedupTimerText = go.AddComponent<TextMeshProUGUI>();
+      gemSpeedupTimerText.alignment = TextAlignmentOptions.Center;
+      gemSpeedupTimerText.fontSize = 200f;
+      gemSpeedupTimerText.fontStyle = FontStyles.Bold;
+      gemSpeedupTimerText.color = new Color(1f, 0.92f, 0.5f);
+      gemSpeedupTimerText.text = "";
+      gemSpeedupTimerText.gameObject.SetActive(false);
     }
-    else
-    {
-      Debug.LogError("gemSpeedupTimerText is not assigned! Please assign the TextMeshPro component in the Inspector.");
-    }
+
+    originalTextColor = gemSpeedupTimerText.color;
   }
 
   void Update()
   {
+    TickScoreCountUp();
+    TickMenuFades();
+    TickDailyCooldown();
+    RefreshPowerUpHud();
+    TickComboDisplay();
+    TickVignetteFlash();
+    TickFinalScoreCountUp();
+
     // Handle fade out animation if active
     if (isFadingOut && gemSpeedupTimerText != null)
     {
@@ -186,22 +314,148 @@ public class UIManager : MonoBehaviour
 
   void UpdateScore(int newScore)
   {
-    // Update score text
-    if (scoreText != null)
-    {
-      scoreText.text = "Score: " + newScore;
-    }
-    if (scoreDisplay != null)
-    {
-      scoreDisplay.text = "Score: " + newScore;
-    }
+    // Tween toward the new score instead of snapping — Update() drives the display.
+    targetScore = newScore;
 
-    // Check for new high score
+    // Check for new high score immediately (the tween is just visual flavour).
     if (newScore > highScore)
     {
       highScore = newScore;
       PlayerPrefs.SetInt("HighScore", highScore);
       UpdateHighScoreText();
+    }
+  }
+
+  // Drives the visual tween of the score display each frame. Slow on small deltas, fast
+  // on large ones so a "+20" pops a bit but a "+100" doesn't take seconds to roll.
+  void TickScoreCountUp()
+  {
+    bool atRest = Mathf.Approximately(displayedScoreFloat, targetScore) && lastRenderedScore == targetScore;
+
+    if (!atRest)
+    {
+      float diff = targetScore - displayedScoreFloat;
+      // Scale rate by the magnitude of the gap so big jumps catch up fast.
+      float rate = Mathf.Max(40f, Mathf.Abs(diff) * 6f);
+      if (diff > 0) displayedScoreFloat = Mathf.Min(targetScore, displayedScoreFloat + rate * Time.unscaledDeltaTime);
+      else if (diff < 0) displayedScoreFloat = Mathf.Max(targetScore, displayedScoreFloat - rate * Time.unscaledDeltaTime);
+
+      int rendered = Mathf.RoundToInt(displayedScoreFloat);
+      if (rendered != lastRenderedScore)
+      {
+        lastRenderedScore = rendered;
+        if (scoreText != null) scoreText.text = "Score: " + rendered;
+        if (scoreDisplay != null) scoreDisplay.text = "Score: " + rendered;
+
+        // Quick scale pop on the score display when the number changes — a tiny detail
+        // that makes the HUD feel alive. The ease-back below pulls it to 1.0 again.
+        if (scoreDisplay != null)
+        {
+          scoreDisplay.transform.localScale = Vector3.one * 1.18f;
+        }
+      }
+    }
+
+    // Always ease the score display's scale back to 1.0 — even when "at rest" we may
+    // still be recovering from a prior pop.
+    if (scoreDisplay != null && scoreDisplay.transform.localScale != Vector3.one)
+    {
+      scoreDisplay.transform.localScale = Vector3.Lerp(
+          scoreDisplay.transform.localScale, Vector3.one,
+          Mathf.Clamp01(12f * Time.unscaledDeltaTime));
+    }
+
+    // Same ease-back for the lives display. HandleBonusLifeAwarded pops it up to 1.4x;
+    // this brings it back to rest over ~6 frames at 60fps.
+    if (livesDisplay != null && livesDisplay.transform.localScale != Vector3.one)
+    {
+      livesDisplay.transform.localScale = Vector3.Lerp(
+          livesDisplay.transform.localScale, Vector3.one,
+          Mathf.Clamp01(10f * Time.unscaledDeltaTime));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Panel fade transitions — replaces raw SetActive() so menus glide in/out.
+  // ---------------------------------------------------------------------------
+
+  void TickMenuFades()
+  {
+    if (activeFades.Count == 0) return;
+    float dt = Time.unscaledDeltaTime;
+    for (int i = activeFades.Count - 1; i >= 0; i--)
+    {
+      PanelFade f = activeFades[i];
+      f.age += dt;
+      float t = f.duration > 0f ? Mathf.Clamp01(f.age / f.duration) : 1f;
+      // Smoothstep for a softer ease-in / ease-out feel.
+      float eased = t * t * (3f - 2f * t);
+      if (f.group != null) f.group.alpha = Mathf.Lerp(f.fromAlpha, f.toAlpha, eased);
+
+      if (t >= 1f)
+      {
+        if (f.deactivateOnEnd && f.panelObject != null) f.panelObject.SetActive(false);
+        activeFades.RemoveAt(i);
+      }
+      else
+      {
+        activeFades[i] = f;
+      }
+    }
+  }
+
+  // Fade `panel` in or out via its CanvasGroup. Adds the CanvasGroup if missing. While
+  // hiding, the panel's CanvasGroup is set non-interactable immediately so users can't
+  // click a fading-out button.
+  void FadePanel(GameObject panel, bool show, float duration = 0.18f)
+  {
+    if (panel == null) return;
+    CanvasGroup cg = panel.GetComponent<CanvasGroup>();
+    if (cg == null) cg = panel.AddComponent<CanvasGroup>();
+
+    // Cancel any in-flight fade for this group so we don't double-tween.
+    for (int i = activeFades.Count - 1; i >= 0; i--)
+    {
+      if (activeFades[i].group == cg) activeFades.RemoveAt(i);
+    }
+
+    if (show)
+    {
+      if (!panel.activeSelf)
+      {
+        cg.alpha = 0f;
+        panel.SetActive(true);
+        panel.transform.SetAsLastSibling();
+      }
+      cg.interactable = true;
+      cg.blocksRaycasts = true;
+      activeFades.Add(new PanelFade
+      {
+        group = cg,
+        panelObject = panel,
+        duration = duration,
+        age = 0f,
+        fromAlpha = cg.alpha,
+        toAlpha = 1f,
+        deactivateOnEnd = false,
+      });
+    }
+    else
+    {
+      // Block interaction immediately on hide.
+      cg.interactable = false;
+      cg.blocksRaycasts = false;
+      if (!panel.activeSelf) return;
+      activeFades.Add(new PanelFade
+      {
+        group = cg,
+        panelObject = panel,
+        duration = duration,
+        age = 0f,
+        fromAlpha = cg.alpha,
+        toAlpha = 0f,
+        deactivateOnEnd = true,
+      });
     }
   }
 
@@ -262,6 +516,19 @@ public class UIManager : MonoBehaviour
     safeAreaRoot.anchorMax = Vector2.one;
     safeAreaRoot.offsetMin = Vector2.zero;
     safeAreaRoot.offsetMax = Vector2.zero;
+
+    // Many Android phones place the front camera lens INSIDE the safe area
+    // that the OS reports — Unity has no way to detect this and our top-
+    // anchored UI (Game Over title, Daily Done banner, etc.) ends up overlapping
+    // the lens. Add an extra top inset so anything anchored to the top of the
+    // safe area is pushed below the camera bezel.
+    SafeAreaFitter fitter = go.GetComponent<SafeAreaFitter>();
+    if (fitter != null)
+    {
+#if UNITY_ANDROID
+      fitter.extraTopPixels = 60f;
+#endif
+    }
   }
 
   // Auto-create a TMP score display anchored to the top right if none is wired up.
@@ -318,6 +585,150 @@ public class UIManager : MonoBehaviour
     livesDisplay.color = newLives <= 1 ? new Color(1f, 0.45f, 0.45f) : Color.white;
   }
 
+  // -------------------------------------------------------------------------
+  // Power-up HUD — vertical stack of slot rows on the upper-left, below the
+  // lives display. Each PowerUpType gets one slot; visible only while the
+  // power-up is active.
+  // -------------------------------------------------------------------------
+
+  void EnsurePowerUpHud()
+  {
+    if (powerUpHudContainer != null || hudCanvas == null) return;
+    if (UiRoot == null) return;
+
+    // Container anchored top-left, dropped below the lives display (which
+    // ends around y = -140). Width sized so it never crowds the score on
+    // narrower devices; rows stack vertically inside.
+    GameObject container = new GameObject("PowerUpHud (auto)", typeof(RectTransform));
+    container.transform.SetParent(UiRoot, false);
+    powerUpHudContainer = container.GetComponent<RectTransform>();
+    powerUpHudContainer.anchorMin = new Vector2(0f, 1f);
+    powerUpHudContainer.anchorMax = new Vector2(0f, 1f);
+    powerUpHudContainer.pivot = new Vector2(0f, 1f);
+    powerUpHudContainer.anchoredPosition = new Vector2(40f, -160f);
+    powerUpHudContainer.sizeDelta = new Vector2(280f, 230f);
+
+    PowerUpType[] order = new[]
+    {
+      PowerUpType.WiderCatcher,
+      PowerUpType.Shield,
+      PowerUpType.DoubleScore,
+    };
+    powerUpSlotRoots = new GameObject[order.Length];
+    powerUpSlotLabels = new TextMeshProUGUI[order.Length];
+    powerUpSlotBgs = new Image[order.Length];
+
+    const float rowHeight = 50f;
+    const float rowSpacing = 8f;
+
+    for (int i = 0; i < order.Length; i++)
+    {
+      GameObject row = new GameObject(
+          "PowerUpSlot_" + order[i],
+          typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      row.transform.SetParent(container.transform, false);
+      RectTransform rect = row.GetComponent<RectTransform>();
+      rect.anchorMin = new Vector2(0f, 1f);
+      rect.anchorMax = new Vector2(1f, 1f);
+      rect.pivot = new Vector2(0.5f, 1f);
+      rect.anchoredPosition = new Vector2(0f, -i * (rowHeight + rowSpacing));
+      rect.sizeDelta = new Vector2(0f, rowHeight);
+
+      Image bg = row.GetComponent<Image>();
+      Color tint = PowerUpPickup.ColorForType(order[i]);
+      // Slightly darker, semi-transparent backdrop so the white label pops on
+      // any in-game background.
+      bg.color = new Color(tint.r * 0.55f, tint.g * 0.55f, tint.b * 0.55f, 0.85f);
+
+      GameObject labelGo = new GameObject("Label", typeof(RectTransform));
+      labelGo.transform.SetParent(row.transform, false);
+      RectTransform labelRect = labelGo.GetComponent<RectTransform>();
+      labelRect.anchorMin = Vector2.zero;
+      labelRect.anchorMax = Vector2.one;
+      labelRect.offsetMin = new Vector2(16f, 0f);
+      labelRect.offsetMax = new Vector2(-16f, 0f);
+
+      TextMeshProUGUI label = labelGo.AddComponent<TextMeshProUGUI>();
+      label.alignment = TextAlignmentOptions.MidlineLeft;
+      label.fontStyle = FontStyles.Bold;
+      label.color = Color.white;
+      label.enableAutoSizing = true;
+      label.fontSizeMin = 18f;
+      label.fontSizeMax = 32f;
+      label.enableWordWrapping = false;
+
+      powerUpSlotRoots[i] = row;
+      powerUpSlotLabels[i] = label;
+      powerUpSlotBgs[i] = bg;
+
+      // Hidden by default; revealed by RefreshPowerUpHud once a timer is set.
+      row.SetActive(false);
+    }
+  }
+
+  // Refreshes the visible / hidden state of each slot. Power-ups don't tick
+  // down anymore (they're held until the first unshielded miss), so each slot
+  // just shows its label while the corresponding state flag is true.
+  void RefreshPowerUpHud()
+  {
+    if (powerUpSlotRoots == null) return;
+
+    UpdatePowerUpSlot(0, PowerUpType.WiderCatcher, PowerUpManager.WiderCatcherActive);
+    UpdatePowerUpSlot(1, PowerUpType.Shield, PowerUpManager.HasShield);
+    UpdatePowerUpSlot(2, PowerUpType.DoubleScore, PowerUpManager.DoubleScoreActive);
+  }
+
+  void UpdatePowerUpSlot(int idx, PowerUpType type, bool active)
+  {
+    if (powerUpSlotRoots == null || idx >= powerUpSlotRoots.Length) return;
+    GameObject root = powerUpSlotRoots[idx];
+    if (root == null) return;
+
+    if (root.activeSelf != active) root.SetActive(active);
+    if (!active) return;
+
+    string text = PowerUpPickup.LabelForType(type);
+    if (powerUpSlotLabels[idx] != null && powerUpSlotLabels[idx].text != text)
+    {
+      powerUpSlotLabels[idx].text = text;
+    }
+  }
+
+  void HandlePowerUpActivated(PowerUpType type, float duration)
+  {
+    EnsurePowerUpHud();
+    string banner;
+    Color color = PowerUpPickup.ColorForType(type);
+    switch (type)
+    {
+      case PowerUpType.WiderCatcher: banner = "WIDER CATCHER!"; break;
+      case PowerUpType.Shield: banner = "SHIELD UP!"; break;
+      case PowerUpType.DoubleScore: banner = "DOUBLE SCORE!"; break;
+      default: return;
+    }
+    SpawnBannerNotification(banner, color);
+
+    // Brief screen-wide tint in the power-up's color. Sells the activation as
+    // a real "moment" instead of just another banner. Peak alpha is kept low
+    // so it never obscures the falling gems.
+    FlashVignette(color, duration: 0.55f, peakAlpha: 0.30f);
+  }
+
+  void HandlePowerUpExpired(PowerUpType type)
+  {
+    // No banner on expire — the HUD slot fading away is feedback enough, and
+    // expiry can fire several at once (game-over) which would stack banners.
+    RefreshPowerUpHud();
+  }
+
+  // Floating "SHIELDED!" pop-up at the would-have-been miss site. Keeps the
+  // visual focus where the gem fell so the player connects the absorption to
+  // that specific gem.
+  void HandleShieldConsumed(Vector3 worldPosition)
+  {
+    SpawnFloatingText("SHIELDED!", new Color(1f, 0.85f, 0.35f), worldPosition);
+  }
+
   void HandleGameOverEvent()
   {
     GameOver();
@@ -363,6 +774,29 @@ public class UIManager : MonoBehaviour
     title.fontStyle = FontStyles.Bold;
     title.alignment = TextAlignmentOptions.Center;
     title.color = Color.white;
+    gameOverTitleTmp = title;
+
+    // Daily-mode subtitle — empty / hidden when ShowGameOverPanel runs in
+    // Normal mode. Sits between the title and "Final Score" line. Stretches
+    // to the panel width so the streak text doesn't overflow on narrow screens.
+    GameObject dailySubGo = new GameObject("DailySubtitle", typeof(RectTransform));
+    dailySubGo.transform.SetParent(panel.transform, false);
+    RectTransform dailySubRect = dailySubGo.GetComponent<RectTransform>();
+    dailySubRect.anchorMin = new Vector2(0f, 1f);
+    dailySubRect.anchorMax = new Vector2(1f, 1f);
+    dailySubRect.pivot = new Vector2(0.5f, 1f);
+    dailySubRect.sizeDelta = new Vector2(-120f, 50f);
+    dailySubRect.anchoredPosition = new Vector2(0f, -130f);
+    gameOverDailySubtitleTmp = dailySubGo.AddComponent<TextMeshProUGUI>();
+    gameOverDailySubtitleTmp.text = "";
+    gameOverDailySubtitleTmp.fontStyle = FontStyles.Bold;
+    gameOverDailySubtitleTmp.alignment = TextAlignmentOptions.Center;
+    gameOverDailySubtitleTmp.color = new Color(1f, 0.85f, 0.35f);
+    gameOverDailySubtitleTmp.enableAutoSizing = true;
+    gameOverDailySubtitleTmp.fontSizeMin = 22f;
+    gameOverDailySubtitleTmp.fontSizeMax = 38f;
+    gameOverDailySubtitleTmp.enableWordWrapping = false;
+    dailySubGo.SetActive(false);
 
     // Headline "Final Score: X" — one line, anchored just below the title.
     GameObject scoreGo = new GameObject("FinalScore", typeof(RectTransform));
@@ -472,10 +906,10 @@ public class UIManager : MonoBehaviour
   }
 
   // ---------------------------------------------------------------------------
-  // Menu panels (main menu + leaderboard + help)
+  // Menu panels (main menu + help)
   // ---------------------------------------------------------------------------
 
-  // Builds the main menu — title + four buttons (Play / Leaderboard / Help / Exit) —
+  // Builds the main menu — title + four buttons (Play / Daily / Help / Exit) —
   // if no panel was wired up in the Inspector. The panel starts hidden; ShowMainMenu
   // toggles it on.
   void EnsureMainMenuPanel()
@@ -490,37 +924,85 @@ public class UIManager : MonoBehaviour
 
     GameObject panel = BuildFullScreenPanel("MainMenuPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.95f));
 
-    // Title at the top — gradient-ish gold for a bit of "arcade" flavour.
-    GameObject titleGo = new GameObject("Title", typeof(RectTransform));
-    titleGo.transform.SetParent(panel.transform, false);
-    RectTransform titleRect = titleGo.GetComponent<RectTransform>();
-    titleRect.anchorMin = new Vector2(0.5f, 1f);
-    titleRect.anchorMax = new Vector2(0.5f, 1f);
-    titleRect.pivot = new Vector2(0.5f, 1f);
-    titleRect.anchoredPosition = new Vector2(0f, -110f);
-    titleRect.sizeDelta = new Vector2(1200f, 180f);
-    TextMeshProUGUI title = titleGo.AddComponent<TextMeshProUGUI>();
-    title.text = "GEM CATCHER";
-    title.fontSize = 140f;
-    title.fontStyle = FontStyles.Bold;
-    title.alignment = TextAlignmentOptions.Center;
-    title.color = new Color(1f, 0.85f, 0.35f);
+    // ---- Logo --------------------------------------------------------------
+    // Wrapper so the pulse animation scales/rotates the inner title without
+    // moving the layout-anchored RectTransform. Layered structure:
+    //   TitleAnchor (full-width strip, fixed top-anchor)
+    //     └─ TitleLogo (pulses; pivot center)
+    //          ├─ TitleShadow (back-rendered black silhouette, soft blur)
+    //          └─ TitleFace   (gradient + outline + glow)
+    // The shadow is a separate TMP object instead of using TMP's underlay so
+    // we don't depend on the project's font asset having underlay configured.
+    GameObject anchor = new GameObject("TitleAnchor", typeof(RectTransform));
+    anchor.transform.SetParent(panel.transform, false);
+    RectTransform anchorRect = anchor.GetComponent<RectTransform>();
+    anchorRect.anchorMin = new Vector2(0f, 1f);
+    anchorRect.anchorMax = new Vector2(1f, 1f);
+    anchorRect.pivot = new Vector2(0.5f, 1f);
+    anchorRect.sizeDelta = new Vector2(-100f, 220f);
+    anchorRect.anchoredPosition = new Vector2(0f, -90f);
 
-    // Subtitle / tagline.
+    GameObject logo = new GameObject("TitleLogo", typeof(RectTransform));
+    logo.transform.SetParent(anchor.transform, false);
+    RectTransform logoRect = logo.GetComponent<RectTransform>();
+    logoRect.anchorMin = Vector2.zero;
+    logoRect.anchorMax = Vector2.one;
+    logoRect.offsetMin = Vector2.zero;
+    logoRect.offsetMax = Vector2.zero;
+    logoRect.pivot = new Vector2(0.5f, 0.5f);
+
+    BuildLogoTitle(logo.transform);
+
+    // Pulse animation on the wrapper, not the TMP itself, so the inner text
+    // can keep its baseline positioning and auto-size logic without the
+    // animation fighting it.
+    logo.AddComponent<TitlePulse>();
+
+    // ---- Tagline ----------------------------------------------------------
+    // Refined tagline: italic, slightly tighter letter spacing, dropped a
+    // bit further down so it doesn't crowd the bigger logo above.
     GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
     subGo.transform.SetParent(panel.transform, false);
     RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0.5f, 1f);
-    subRect.anchorMax = new Vector2(0.5f, 1f);
+    subRect.anchorMin = new Vector2(0f, 1f);
+    subRect.anchorMax = new Vector2(1f, 1f);
     subRect.pivot = new Vector2(0.5f, 1f);
-    subRect.anchoredPosition = new Vector2(0f, -300f);
-    subRect.sizeDelta = new Vector2(1200f, 60f);
+    subRect.sizeDelta = new Vector2(-120f, 60f);
+    subRect.anchoredPosition = new Vector2(0f, -325f);
     TextMeshProUGUI sub = subGo.AddComponent<TextMeshProUGUI>();
     sub.text = "Catch the gems. Don't miss.";
-    sub.fontSize = 38f;
     sub.fontStyle = FontStyles.Italic;
     sub.alignment = TextAlignmentOptions.Center;
-    sub.color = new Color(0.8f, 0.8f, 0.85f);
+    sub.color = new Color(0.85f, 0.82f, 0.72f);
+    sub.characterSpacing = 6f;
+    sub.enableAutoSizing = true;
+    sub.fontSizeMin = 22f;
+    sub.fontSizeMax = 38f;
+    sub.enableWordWrapping = false;
+
+    // Best score chip — only visible if the player has a saved high score, so the
+    // first run isn't cluttered with "BEST: 0".
+    if (highScore > 0)
+    {
+      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
+      bestGo.transform.SetParent(panel.transform, false);
+      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
+      bestRect.anchorMin = new Vector2(0f, 1f);
+      bestRect.anchorMax = new Vector2(1f, 1f);
+      bestRect.pivot = new Vector2(0.5f, 1f);
+      bestRect.sizeDelta = new Vector2(-120f, 50f);
+      bestRect.anchoredPosition = new Vector2(0f, -395f);
+      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
+      best.text = "BEST  " + highScore;
+      best.fontStyle = FontStyles.Bold;
+      best.alignment = TextAlignmentOptions.Center;
+      best.color = new Color(1f, 0.85f, 0.35f);
+      best.characterSpacing = 8f;
+      best.enableAutoSizing = true;
+      best.fontSizeMin = 22f;
+      best.fontSizeMax = 36f;
+      best.enableWordWrapping = false;
+    }
 
     // Centered button stack — anchored to vertical center for stable layout across resolutions.
     GameObject stackGo = new GameObject("ButtonStack",
@@ -530,6 +1012,7 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
+    // Sized for 4 menu buttons: 4 * 100px tall + 3 * 22px spacing ≈ 466px.
     stackRect.anchoredPosition = new Vector2(0f, -50f);
     stackRect.sizeDelta = new Vector2(520f, 520f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
@@ -541,53 +1024,132 @@ public class UIManager : MonoBehaviour
     vlg.childForceExpandHeight = false;
 
     BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
-    BuildStackedMenuButton(stackGo.transform, "LeaderboardButton", "Leaderboard", new Color(0.20f, 0.45f, 0.80f), OnLeaderboardClicked);
+    // Daily Challenge — second button. The label is rebuilt every time the
+    // menu is shown (NEW / STREAK X / etc.), see RefreshDailyChallengeButton.
+    dailyChallengeMenuButton = BuildStackedMenuButton(
+        stackGo.transform, "DailyChallengeButton", "Daily Challenge",
+        new Color(0.85f, 0.55f, 0.15f), OnDailyChallengeClicked);
+    dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
+    dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Help",        new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
     BuildStackedMenuButton(stackGo.transform, "ExitButton",        "Exit",        new Color(0.55f, 0.20f, 0.20f), OnExitClicked);
+
+    // Small gear button anchored to the top-right corner of the main menu
+    // for sound / haptics toggles. Doubles as the only entry point to the
+    // settings panel.
+    BuildSettingsCornerButton(panel.transform);
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
   }
 
-  // Builds the leaderboard sub-panel: title + mock score list + Back button.
-  void EnsureLeaderboardPanel()
+  // Builds the styled main-menu logo. Layered TMP setup that produces a "real
+  // game logo" look without depending on a custom font / underlay-enabled
+  // material:
+  //   1. A back-rendered TitleShadow TMP draws a slightly larger, soft,
+  //      semi-transparent black silhouette behind the face — a fake drop
+  //      shadow that works on every default TMP font asset.
+  //   2. A TitleFace TMP renders the actual letters with a top-to-bottom
+  //      gold→amber→deep-orange vertex gradient and a dark outline / face
+  //      dilate where the font asset supports it.
+  //   3. The shared parent rect stretches to fill its TitleAnchor strip and
+  //      uses TMP auto-sizing so the logo scales gracefully on portrait
+  //      phones the same way the old single-line title did.
+  // Returns the face TMP so callers can grab a reference if they want.
+  TextMeshProUGUI BuildLogoTitle(Transform parent)
   {
-    if (leaderboardPanel != null)
+    const string text = "GEM CATCHER";
+    const float fontSizeMin = 64f;
+    const float fontSizeMax = 168f;
+    const float characterSpacing = 14f;
+
+    // ---- Drop shadow ------------------------------------------------------
+    GameObject shadowGo = new GameObject("TitleShadow", typeof(RectTransform));
+    shadowGo.transform.SetParent(parent, false);
+    RectTransform shadowRect = shadowGo.GetComponent<RectTransform>();
+    shadowRect.anchorMin = Vector2.zero;
+    shadowRect.anchorMax = Vector2.one;
+    shadowRect.offsetMin = Vector2.zero;
+    shadowRect.offsetMax = Vector2.zero;
+    // Offset the shadow down-right by a few pixels so the face sits slightly
+    // proud of it. Sized in anchored coords so the offset scales with the
+    // panel.
+    shadowRect.anchoredPosition = new Vector2(6f, -8f);
+
+    TextMeshProUGUI shadow = shadowGo.AddComponent<TextMeshProUGUI>();
+    shadow.text = text;
+    shadow.fontStyle = FontStyles.Bold;
+    shadow.alignment = TextAlignmentOptions.Center;
+    shadow.color = new Color(0f, 0f, 0f, 0.55f);
+    shadow.characterSpacing = characterSpacing;
+    shadow.enableAutoSizing = true;
+    shadow.fontSizeMin = fontSizeMin;
+    shadow.fontSizeMax = fontSizeMax;
+    shadow.enableWordWrapping = false;
+    shadow.raycastTarget = false;
+
+    // ---- Face -------------------------------------------------------------
+    GameObject faceGo = new GameObject("TitleFace", typeof(RectTransform));
+    faceGo.transform.SetParent(parent, false);
+    RectTransform faceRect = faceGo.GetComponent<RectTransform>();
+    faceRect.anchorMin = Vector2.zero;
+    faceRect.anchorMax = Vector2.one;
+    faceRect.offsetMin = Vector2.zero;
+    faceRect.offsetMax = Vector2.zero;
+
+    TextMeshProUGUI face = faceGo.AddComponent<TextMeshProUGUI>();
+    face.text = text;
+    face.fontStyle = FontStyles.Bold;
+    face.alignment = TextAlignmentOptions.Center;
+    face.color = Color.white; // base; vertex gradient multiplies in over this
+    face.characterSpacing = characterSpacing;
+    face.enableAutoSizing = true;
+    face.fontSizeMin = fontSizeMin;
+    face.fontSizeMax = fontSizeMax;
+    face.enableWordWrapping = false;
+    face.raycastTarget = false;
+
+    // Top-to-bottom metallic-jewel gradient — bright cream up top fading into
+    // a deep orange at the baseline. Both top corners and both bottom corners
+    // share a row color so the gradient is purely vertical.
+    face.enableVertexGradient = true;
+    face.colorGradient = new VertexGradient(
+        new Color(1.00f, 0.96f, 0.62f), // top-left
+        new Color(1.00f, 0.96f, 0.62f), // top-right
+        new Color(1.00f, 0.55f, 0.10f), // bottom-left
+        new Color(1.00f, 0.55f, 0.10f)  // bottom-right
+    );
+
+    // Outline + face dilate on a private material instance so we don't mutate
+    // the shared TMP default. Wrapped in try/catch because some font assets
+    // ship without these shader properties — the logo still looks good
+    // without the outline thanks to the gradient + drop shadow.
+    try
     {
-      leaderboardPanel.SetActive(false);
-      return;
+      Material runtimeMat = new Material(face.fontMaterial);
+      face.fontMaterial = runtimeMat;
+
+      if (runtimeMat.HasProperty(ShaderUtilities.ID_OutlineWidth))
+      {
+        runtimeMat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.18f);
+      }
+      if (runtimeMat.HasProperty(ShaderUtilities.ID_OutlineColor))
+      {
+        runtimeMat.SetColor(ShaderUtilities.ID_OutlineColor,
+            new Color(0.20f, 0.10f, 0.02f, 1.0f));
+      }
+      if (runtimeMat.HasProperty(ShaderUtilities.ID_FaceDilate))
+      {
+        runtimeMat.SetFloat(ShaderUtilities.ID_FaceDilate, 0.10f);
+      }
     }
-    EnsureHudCanvas();
-    if (hudCanvas == null) return;
+    catch
+    {
+      // Material customization is purely cosmetic — failures shouldn't break
+      // the menu.
+    }
 
-    GameObject panel = BuildFullScreenPanel("LeaderboardPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f));
-
-    // Title.
-    AddPanelTitle(panel.transform, "TOP SCORES", new Color(1f, 0.85f, 0.35f), 100f);
-
-    // Score list — anchored between the title and the Back button.
-    GameObject listGo = new GameObject("ScoreList", typeof(RectTransform));
-    listGo.transform.SetParent(panel.transform, false);
-    RectTransform listRect = listGo.GetComponent<RectTransform>();
-    listRect.anchorMin = new Vector2(0.5f, 0f);
-    listRect.anchorMax = new Vector2(0.5f, 1f);
-    listRect.pivot = new Vector2(0.5f, 0.5f);
-    listRect.anchoredPosition = Vector2.zero;
-    listRect.offsetMin = new Vector2(-360f, 220f);
-    listRect.offsetMax = new Vector2(360f, -260f);
-    TextMeshProUGUI listTmp = listGo.AddComponent<TextMeshProUGUI>();
-    listTmp.alignment = TextAlignmentOptions.Top;
-    listTmp.fontSize = 42f;
-    listTmp.color = Color.white;
-    listTmp.enableWordWrapping = false;
-    listTmp.text = BuildLeaderboardText();
-
-    BuildPanelButton(panel.transform, "BackButton", "Back",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
-        OnLeaderboardBackClicked);
-
-    leaderboardPanel = panel;
-    leaderboardPanel.SetActive(false);
+    return face;
   }
 
   // Builds the help sub-panel: title + instructions text + Back button.
@@ -607,15 +1169,50 @@ public class UIManager : MonoBehaviour
 
     string helpText =
         "Catch the falling gems with your glass cube catcher.\n\n" +
+
         "<b>Controls</b>\n" +
-        "  • During the placement countdown, click any slot at the bottom of the screen to position the catcher.\n" +
+        "  • During the placement countdown, tap any slot at the bottom of the screen to position the catcher.\n" +
         "  • You can reposition the catcher as many times as you want before the countdown ends.\n\n" +
+
         "<b>Scoring</b>\n" +
-        "  • Catching a gem: <color=#7FE787>+20 points</color>.\n" +
-        "  • Missing a gem: <color=#FF7373>-1 life</color>.\n" +
-        "  • Every <b>100 points</b> earns you a bonus life.\n\n" +
+        "  • Catch a gem: <color=#7FE787>+20 points</color>.\n" +
+        "  • Miss a gem: <color=#FF7373>-1 life</color>.\n" +
+        "  • Every <b>100 points</b> earns you a bonus life (capped at <b>10</b>).\n\n" +
+
+        "<b>Combo Streak</b>\n" +
+        "  Catch gems in a row to build a streak \u2014 bigger streaks multiply every catch.\n" +
+        "  • <color=#FFE885>\u00d71.5</color> at 3 catches\n" +
+        "  • <color=#FFC065>\u00d72</color> at 5 catches\n" +
+        "  • <color=#FF8B40>\u00d73</color> at 7 catches\n" +
+        "  • <color=#FF4F4F>\u00d75</color> at 10 catches\n" +
+        "  A miss or a caught bomb breaks the streak. <color=#FFD86A>Shield</color> saves it.\n\n" +
+
+        "<b>Special Gems</b>\n" +
+        "  • <color=#FFD86A>Golden gem</color> (rare): <color=#7FE787>+100 points</color>.\n" +
+        "  • <color=#FF6B5B>Bomb gem</color>: <color=#FF7373>DON'T CATCH IT</color> \u2014 costs a life and breaks your streak. Let it fall past you.\n" +
+        "  • <color=#FF8FB8>Heart gem</color> (very rare): <color=#7FE787>+1 life</color> on catch.\n\n" +
+
+        "<b>Power-Ups</b>\n" +
+        "  After your first <b>10 drops</b>, a glowing pickup arrives every <b>10 drops</b> like clockwork. Catch it to activate \u2014 each effect stays on until your next miss.\n" +
+        "  • <color=#6FD9FF>WIDE CATCHER</color> \u2014 your cube grows wider.\n" +
+        "  • <color=#FFD86A>SHIELD</color> \u2014 absorbs your next miss without penalty.\n" +
+        "  • <color=#7FE787>2\u00d7 SCORE</color> \u2014 every catch is worth double.\n\n" +
+
+        "<b>Milestones</b>\n" +
+        "  Hitting <b>500 / 1000 / 2500 / 5000 / 10000</b> points triggers a celebration banner plus a free reward \u2014 power-ups, bonus lives, or both. The big one at 10000 gives you everything.\n\n" +
+
+        "<b>Difficulty</b>\n" +
+        "  • Gems fall faster as your score climbs.\n" +
+        "  • At <b>1000 points</b> gems shrink to half size \u2014 keep your eyes sharp.\n" +
+        "  • At <b>2000 points</b> your catcher also shrinks to half size \u2014 tighter aim required.\n\n" +
+
+        "<b>Daily Challenge</b>\n" +
+        "  • One run per day with a fixed sequence \u2014 every player faces the same gems.\n" +
+        "  • Locked at <b>3 lives</b>, no bonus lives, ends after 30 gems. Build a streak to climb the daily score.\n\n" +
+
         "<b>Game Over</b>\n" +
-        "  • You start with <b>3 lives</b>. The game ends when you run out.\n\n" +
+        "  • You start with <b>3 lives</b> (max <b>10</b>). The game ends when you run out.\n\n" +
+
         "Good luck!";
 
     BuildScrollableTextBlock(
@@ -720,23 +1317,28 @@ public class UIManager : MonoBehaviour
     return panel;
   }
 
-  // Helper used by the leaderboard and help panels for their headline text.
+  // Helper used by sub-panels (help, daily cooldown) for their headline text. Stretches
+  // horizontally with 60px side margins (sizeDelta.x = -120 in stretched mode) and uses
+  // TMP auto-sizing so the font shrinks on narrow screens.
   void AddPanelTitle(Transform parent, string text, Color color, float topOffset)
   {
     GameObject titleGo = new GameObject("Title", typeof(RectTransform));
     titleGo.transform.SetParent(parent, false);
     RectTransform rect = titleGo.GetComponent<RectTransform>();
-    rect.anchorMin = new Vector2(0.5f, 1f);
-    rect.anchorMax = new Vector2(0.5f, 1f);
+    rect.anchorMin = new Vector2(0f, 1f);
+    rect.anchorMax = new Vector2(1f, 1f);
     rect.pivot = new Vector2(0.5f, 1f);
+    rect.sizeDelta = new Vector2(-120f, 140f);
     rect.anchoredPosition = new Vector2(0f, -topOffset);
-    rect.sizeDelta = new Vector2(1200f, 140f);
     TextMeshProUGUI tmp = titleGo.AddComponent<TextMeshProUGUI>();
     tmp.text = text;
-    tmp.fontSize = 96f;
     tmp.fontStyle = FontStyles.Bold;
     tmp.alignment = TextAlignmentOptions.Center;
     tmp.color = color;
+    tmp.enableAutoSizing = true;
+    tmp.fontSizeMin = 48f;
+    tmp.fontSizeMax = 96f;
+    tmp.enableWordWrapping = false;
   }
 
   // Stacked menu buttons share width/height so they line up nicely under VerticalLayoutGroup.
@@ -776,21 +1378,6 @@ public class UIManager : MonoBehaviour
     return btn;
   }
 
-  string BuildLeaderboardText()
-  {
-    StringBuilder sb = new StringBuilder();
-    for (int i = 0; i < MockLeaderboard.Length; i++)
-    {
-      var entry = MockLeaderboard[i];
-      // Right-align the rank to a fixed width so the columns line up. Score is also
-      // right-padded (TMP renders monospace digits well enough for this scale).
-      sb.AppendFormat("<b>{0,2}.</b>  {1}   <color=#FFD66B>{2}</color>",
-          i + 1, entry.name, entry.score);
-      if (i < MockLeaderboard.Length - 1) sb.Append('\n');
-    }
-    return sb.ToString();
-  }
-
   // ---------------------------------------------------------------------------
   // Menu navigation
   // ---------------------------------------------------------------------------
@@ -799,26 +1386,36 @@ public class UIManager : MonoBehaviour
   {
     GameState.IsPlaying = false;
     SetGameplayHudVisible(false);
-    if (gameOverPanel != null) gameOverPanel.SetActive(false);
-    if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
-    if (helpPanel != null) helpPanel.SetActive(false);
-    if (mainMenuPanel != null)
-    {
-      mainMenuPanel.SetActive(true);
-      mainMenuPanel.transform.SetAsLastSibling();
-    }
+    FadePanel(gameOverPanel, false);
+    FadePanel(helpPanel, false);
+    FadePanel(dailyCooldownPanel, false);
+    FadePanel(settingsPanel, false);
+    // Refresh the daily button label/color in case the streak / lockout state
+    // changed since last menu visit (e.g. UTC midnight rolled over while the
+    // app was foregrounded).
+    RefreshDailyChallengeButton();
+    FadePanel(mainMenuPanel, true, 0.25f);
   }
 
   void ShowGameplay()
   {
-    if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
-    if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
-    if (helpPanel != null) helpPanel.SetActive(false);
-    if (gameOverPanel != null) gameOverPanel.SetActive(false);
+    FadePanel(mainMenuPanel, false);
+    FadePanel(helpPanel, false);
+    FadePanel(gameOverPanel, false);
+    FadePanel(dailyCooldownPanel, false);
 
     SetGameplayHudVisible(true);
     GameState.IsPlaying = true;
     gameIsOver = false;
+
+    // In Daily mode show a brief "DAILY · DAY N" banner so the player knows
+    // they're in the special run. Reuses the existing banner system.
+    if (GameState.Mode == GameState.GameMode.Daily)
+    {
+      SpawnBannerNotification(
+          "DAILY \u2022 DAY " + DailyChallenge.DayNumber,
+          new Color(1f, 0.85f, 0.35f));
+    }
   }
 
   // Toggles the score/lives HUD so they don't bleed through the menu panels.
@@ -833,29 +1430,12 @@ public class UIManager : MonoBehaviour
     ShowGameplay();
   }
 
-  void OnLeaderboardClicked()
-  {
-    if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
-    if (leaderboardPanel != null)
-    {
-      leaderboardPanel.SetActive(true);
-      leaderboardPanel.transform.SetAsLastSibling();
-    }
-  }
-
-  void OnLeaderboardBackClicked()
-  {
-    if (leaderboardPanel != null) leaderboardPanel.SetActive(false);
-    ShowMainMenu();
-  }
-
   void OnHelpClicked()
   {
-    if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
+    FadePanel(mainMenuPanel, false);
+    FadePanel(helpPanel, true);
     if (helpPanel != null)
     {
-      helpPanel.SetActive(true);
-      helpPanel.transform.SetAsLastSibling();
       // Force layout pass now so the ContentSizeFitter inside our scroll view sizes
       // the content to the wrapped TMP text on the same frame the panel becomes
       // visible (otherwise the very first frame can show empty / mis-sized content).
@@ -866,7 +1446,7 @@ public class UIManager : MonoBehaviour
 
   void OnHelpBackClicked()
   {
-    if (helpPanel != null) helpPanel.SetActive(false);
+    FadePanel(helpPanel, false);
     ShowMainMenu();
   }
 
@@ -879,13 +1459,226 @@ public class UIManager : MonoBehaviour
 #endif
   }
 
+  // ---------------------------------------------------------------------------
+  // Daily Challenge
+  // ---------------------------------------------------------------------------
+
+  // Updates the menu button label/color based on whether the player has
+  // already played today. Called every time the main menu is shown so the
+  // badge always reflects the current streak / status.
+  void RefreshDailyChallengeButton()
+  {
+    if (dailyChallengeButtonLabel == null) return;
+
+    if (DailyChallenge.HasPlayedToday)
+    {
+      // Already played — neutral green color, label shows the streak.
+      int streak = DailyChallenge.CurrentStreak;
+      dailyChallengeButtonLabel.text = streak > 0
+          ? "Daily \u2022 Streak " + streak
+          : "Daily \u2022 Done";
+      if (dailyChallengeButtonBg != null)
+      {
+        dailyChallengeButtonBg.color = new Color(0.25f, 0.55f, 0.30f);
+      }
+    }
+    else
+    {
+      // Available — bright orange "play me" call-to-action.
+      dailyChallengeButtonLabel.text = "Daily \u2022 Day " + DailyChallenge.DayNumber;
+      if (dailyChallengeButtonBg != null)
+      {
+        dailyChallengeButtonBg.color = new Color(0.85f, 0.55f, 0.15f);
+      }
+    }
+  }
+
+  // Click handler for the Daily Challenge menu button.
+  // Already played today → cooldown panel.
+  // First play of the day → commit the attempt and reload into Daily mode.
+  void OnDailyChallengeClicked()
+  {
+    if (DailyChallenge.HasPlayedToday)
+    {
+      ShowDailyCooldownPanel();
+      return;
+    }
+
+    // Commit the daily attempt up front. From this moment on the player can't
+    // retry today even if they force-quit mid-round (the strict-Wordle rule).
+    DailyChallenge.MarkStarted();
+
+    // Reset score & lives, set Daily mode, and reload the scene. ObjectPooler.Start
+    // reads GameState.Mode to seed its RNG deterministically, so we MUST reload
+    // (we can't just flip the flag mid-session — the pooler already initialized).
+    GemCatcher.ResetScore();
+    GemCatcher.ResetLives();
+    GameState.Mode = GameState.GameMode.Daily;
+    GameState.SkipMainMenuOnLoad = true;
+    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+  }
+
+  // Show the "come back tomorrow" panel (built lazily on first show).
+  void ShowDailyCooldownPanel()
+  {
+    EnsureDailyCooldownPanel();
+    if (dailyCooldownPanel == null) return;
+    RefreshDailyCooldownPanel();
+    FadePanel(mainMenuPanel, false);
+    FadePanel(dailyCooldownPanel, true);
+  }
+
+  void OnDailyCooldownBackClicked()
+  {
+    FadePanel(dailyCooldownPanel, false);
+    ShowMainMenu();
+  }
+
+  // Builds the cooldown panel: streak / day / today's score / countdown.
+  // Layout mirrors the help panel so the visual feel is consistent.
+  void EnsureDailyCooldownPanel()
+  {
+    if (dailyCooldownPanel != null) return;
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    GameObject panel = BuildFullScreenPanel("DailyCooldownPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f));
+    AddPanelTitle(panel.transform, "DAILY DONE", new Color(0.55f, 0.85f, 0.55f), 100f);
+
+    // "Day 217" subtitle.
+    dailyCooldownDayTmp = AddCooldownLine(panel.transform, "DayTmp",
+        anchoredY: -260f, fontSizeMin: 28f, fontSizeMax: 44f,
+        color: new Color(0.85f, 0.85f, 0.9f), bold: false);
+
+    // Big streak number — the hero element of this screen.
+    dailyCooldownStreakTmp = AddCooldownLine(panel.transform, "StreakTmp",
+        anchoredY: -360f, fontSizeMin: 48f, fontSizeMax: 96f,
+        color: new Color(1f, 0.85f, 0.35f), bold: true);
+
+    // Today's score and best streak — two smaller secondary lines.
+    dailyCooldownScoreTmp = AddCooldownLine(panel.transform, "ScoreTmp",
+        anchoredY: -490f, fontSizeMin: 24f, fontSizeMax: 40f,
+        color: Color.white, bold: false);
+    dailyCooldownBestTmp = AddCooldownLine(panel.transform, "BestTmp",
+        anchoredY: -550f, fontSizeMin: 22f, fontSizeMax: 36f,
+        color: new Color(0.7f, 0.7f, 0.75f), bold: false);
+
+    // Live countdown to next reset — UPDATED EVERY FRAME by TickDailyCooldown.
+    dailyCooldownTimerTmp = AddCooldownLine(panel.transform, "TimerTmp",
+        anchoredY: -680f, fontSizeMin: 24f, fontSizeMax: 40f,
+        color: new Color(0.6f, 0.85f, 1f), bold: true);
+
+    BuildPanelButton(panel.transform, "BackButton", "Back",
+        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
+        OnDailyCooldownBackClicked);
+
+    dailyCooldownPanel = panel;
+    dailyCooldownPanel.SetActive(false);
+  }
+
+  // Helper for the cooldown panel: stretches a TMP line full-width with side
+  // margins, anchored from the top edge of the panel.
+  TextMeshProUGUI AddCooldownLine(Transform parent, string name, float anchoredY,
+      float fontSizeMin, float fontSizeMax, Color color, bool bold)
+  {
+    GameObject go = new GameObject(name, typeof(RectTransform));
+    go.transform.SetParent(parent, false);
+    RectTransform rt = go.GetComponent<RectTransform>();
+    rt.anchorMin = new Vector2(0f, 1f);
+    rt.anchorMax = new Vector2(1f, 1f);
+    rt.pivot = new Vector2(0.5f, 1f);
+    rt.sizeDelta = new Vector2(-120f, fontSizeMax * 1.4f);
+    rt.anchoredPosition = new Vector2(0f, anchoredY);
+    TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+    tmp.alignment = TextAlignmentOptions.Center;
+    tmp.color = color;
+    if (bold) tmp.fontStyle = FontStyles.Bold;
+    tmp.enableAutoSizing = true;
+    tmp.fontSizeMin = fontSizeMin;
+    tmp.fontSizeMax = fontSizeMax;
+    tmp.enableWordWrapping = false;
+    return tmp;
+  }
+
+  // Pulls the latest values from DailyChallenge into the cooldown panel TMPs.
+  // Called once when the panel opens; the live timer is then updated each frame
+  // by TickDailyCooldown.
+  void RefreshDailyCooldownPanel()
+  {
+    if (dailyCooldownPanel == null) return;
+
+    if (dailyCooldownDayTmp != null)
+    {
+      dailyCooldownDayTmp.text = "Day " + DailyChallenge.DayNumber;
+    }
+    if (dailyCooldownStreakTmp != null)
+    {
+      int streak = DailyChallenge.CurrentStreak;
+      dailyCooldownStreakTmp.text = streak > 0
+          ? "STREAK  " + streak
+          : "STREAK  --";
+    }
+    if (dailyCooldownScoreTmp != null)
+    {
+      int last = DailyChallenge.LastScore;
+      dailyCooldownScoreTmp.text = last > 0
+          ? "Today's Score: " + last
+          : "Today: not finished";
+    }
+    if (dailyCooldownBestTmp != null)
+    {
+      int best = DailyChallenge.BestStreak;
+      dailyCooldownBestTmp.text = best > 0 ? "Best Streak: " + best : "";
+    }
+    UpdateDailyCooldownTimer();
+  }
+
+  // Throttle the cooldown timer to one repaint per second — the format is
+  // whole-second granularity so per-frame updates would just thrash TMP.
+  private float dailyCooldownTickAccumulator;
+  void TickDailyCooldown()
+  {
+    if (dailyCooldownPanel == null || !dailyCooldownPanel.activeInHierarchy) return;
+    dailyCooldownTickAccumulator += Time.unscaledDeltaTime;
+    if (dailyCooldownTickAccumulator < 1f) return;
+    dailyCooldownTickAccumulator = 0f;
+    UpdateDailyCooldownTimer();
+  }
+
+  // Repaints just the live countdown — cheap, runs every frame while the
+  // cooldown panel is visible. Falls back to "Resets soon" once the timer
+  // is below a second to keep the format short.
+  void UpdateDailyCooldownTimer()
+  {
+    if (dailyCooldownTimerTmp == null) return;
+    TimeSpan ts = DailyChallenge.TimeUntilNextChallenge;
+    string text;
+    if (ts.TotalSeconds < 1)
+    {
+      text = "New challenge available now!";
+    }
+    else if (ts.TotalHours >= 1)
+    {
+      text = string.Format("Next challenge in {0}h {1:00}m {2:00}s",
+          (int)ts.TotalHours, ts.Minutes, ts.Seconds);
+    }
+    else
+    {
+      text = string.Format("Next challenge in {0:00}m {1:00}s",
+          ts.Minutes, ts.Seconds);
+    }
+    dailyCooldownTimerTmp.text = text;
+  }
+
   // Game over → "Main Menu". Reload the scene without setting SkipMainMenuOnLoad so we
-  // land on the main menu on the next scene start.
+  // land on the main menu on the next scene start. Always reset Mode to Normal —
+  // a daily run is one-and-done, and a normal run obviously stays normal.
   void ReturnToMainMenu()
   {
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;
+    GameState.Mode = GameState.GameMode.Normal;
     SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
   }
 
@@ -895,6 +1688,62 @@ public class UIManager : MonoBehaviour
     GameObject go = CreateFloatingTextHost(worldPosition);
     if (go == null) return;
     go.AddComponent<FloatingScoreText>().Initialize(amount);
+  }
+
+  // -------------------------------------------------------------------------
+  // Bonus-life notification — fired by GemCatcher when the score crosses one
+  // of the POINTS_PER_BONUS_LIFE thresholds.
+  // -------------------------------------------------------------------------
+
+  void HandleBonusLifeAwarded(int count)
+  {
+    string text = count == 1
+        ? "EXTRA LIFE  +1 \u2665"
+        : "EXTRA LIVES  +" + count + " \u2665";
+    SpawnBannerNotification(text, new Color(1f, 0.85f, 0.35f));
+
+    // Quick scale pop on the lives counter so the heart count visibly reacts.
+    if (livesDisplay != null)
+    {
+      livesDisplay.transform.localScale = Vector3.one * 1.4f;
+    }
+  }
+
+  // Spawns a top-of-screen, auto-sizing banner with the given text/color. Self-
+  // destructs after the BannerNotification component finishes its in/hold/out
+  // animation. Positioned below the placement countdown area so the two don't
+  // collide.
+  public void SpawnBannerNotification(string text, Color color)
+  {
+    EnsureHudCanvas();
+    if (UiRoot == null) return;
+
+    GameObject go = new GameObject("BannerNotification (auto)", typeof(RectTransform));
+    go.transform.SetParent(UiRoot, false);
+    RectTransform rt = go.GetComponent<RectTransform>();
+    rt.anchorMin = new Vector2(0f, 1f);
+    rt.anchorMax = new Vector2(1f, 1f);
+    rt.pivot = new Vector2(0.5f, 1f);
+    // sizeDelta.x = -120 with stretched anchors leaves a 60px margin on each side, so
+    // long messages auto-fit any portrait/landscape phone via TMP auto-sizing.
+    rt.sizeDelta = new Vector2(-120f, 110f);
+    // Below the placement countdown number (which lives at -180 to -400) so a banner
+    // shown during a placement phase doesn't sit directly on top of the countdown.
+    rt.anchoredPosition = new Vector2(0f, -460f);
+
+    TextMeshProUGUI tmp = go.AddComponent<TextMeshProUGUI>();
+    tmp.text = text;
+    tmp.color = color;
+    tmp.fontStyle = FontStyles.Bold;
+    tmp.alignment = TextAlignmentOptions.Center;
+    tmp.enableAutoSizing = true;
+    tmp.fontSizeMin = 40f;
+    tmp.fontSizeMax = 90f;
+    tmp.enableWordWrapping = false;
+    // Render above the placement countdown if both ever overlap.
+    rt.SetAsLastSibling();
+
+    go.AddComponent<BannerNotification>().Initialize(text, color);
   }
 
   // Spawn an arbitrary-text pop-up with the given color (used for miss "-1 ♥" pop-ups).
@@ -953,28 +1802,86 @@ public class UIManager : MonoBehaviour
 
   public void GameOver()
   {
-    if (!gameIsOver)
-    {
-      gameIsOver = true;
+    if (gameIsOver) return;
+    gameIsOver = true;
+    StartCoroutine(GameOverSequence());
+  }
 
-      // Show game over panel after a short delay
-      Invoke("ShowGameOverPanel", gameOverDelay);
+  // Hit-stop on the killing blow followed by the panel reveal. Uses unscaled time so
+  // the timing is consistent regardless of the time-scale dip during the hit-stop.
+  // CameraShake also runs on unscaled time, so its shake keeps playing through the dip.
+  System.Collections.IEnumerator GameOverSequence()
+  {
+    const float hitStopScale = 0.12f;
+    const float hitStopDuration = 0.42f;
+
+    float prevScale = Time.timeScale;
+    Time.timeScale = hitStopScale;
+    yield return new WaitForSecondsRealtime(hitStopDuration);
+    // Recover from our own dip but don't stomp on a user-initiated pause that may have
+    // happened in the meantime.
+    if (Mathf.Approximately(Time.timeScale, hitStopScale))
+    {
+      Time.timeScale = prevScale > 0f ? prevScale : 1f;
     }
+
+    float remaining = Mathf.Max(0f, gameOverDelay - hitStopDuration);
+    if (remaining > 0f) yield return new WaitForSecondsRealtime(remaining);
+
+    ShowGameOverPanel();
   }
 
   void ShowGameOverPanel()
   {
-    if (gameOverPanel != null)
+    bool isDaily = GameState.Mode == GameState.GameMode.Daily;
+    int finalScore = GemCatcher.Score;
+
+    if (isDaily)
     {
-      gameOverPanel.SetActive(true);
+      // Daily runs commit their result here. RecordCompletion advances the
+      // streak (or resets it) and persists the score for the cooldown panel.
+      DailyChallenge.RecordCompletion(finalScore);
     }
 
-    // Manual UI.Text fallback still gets the full text breakdown — users who hand-wired
-    // a single Text element on a custom panel keep working without changes.
+    // Title swap + daily subtitle. The subtitle GameObject lives in the same
+    // panel and is just toggled on/off based on mode.
+    if (gameOverTitleTmp != null)
+    {
+      gameOverTitleTmp.text = isDaily ? "Daily Done!" : "Game Over";
+    }
+    if (gameOverDailySubtitleTmp != null)
+    {
+      if (isDaily)
+      {
+        int streak = DailyChallenge.CurrentStreak;
+        gameOverDailySubtitleTmp.text = string.Format(
+            "Day {0}  \u2022  Streak {1}", DailyChallenge.DayNumber, streak);
+        gameOverDailySubtitleTmp.gameObject.SetActive(true);
+      }
+      else
+      {
+        gameOverDailySubtitleTmp.gameObject.SetActive(false);
+      }
+    }
+
+    // Hide "Try Again" in daily mode — one attempt per day is the whole point
+    // of the mode. Main Menu remains as the only path off the screen.
+    if (restartButton != null)
+    {
+      restartButton.gameObject.SetActive(!isDaily);
+    }
+
+    // Populate the breakdown BEFORE fading in so layout is settled when the panel appears.
     if (finalScoreText != null) finalScoreText.text = BuildGameOverSummary();
-    // Auto panel: headline gets only the score; the icon list handles the breakdown.
-    if (autoFinalScoreText != null) autoFinalScoreText.text = "Final Score: " + GemCatcher.Score;
     RebuildGemIcons();
+
+    // Slow fade-in for the game-over panel — feels more like a curtain than a snap.
+    FadePanel(gameOverPanel, true, 0.45f);
+
+    // Count the final-score number up from 0 to its real value as the panel
+    // fades in. Reads as more dramatic / earned than a static number snapping
+    // into place at the same moment as the title.
+    StartFinalScoreCountUp(finalScore, 1.1f);
 
     if (SoundManager.Instance != null)
     {
@@ -1126,6 +2033,11 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
 
+    // "Try Again" only exists for Normal mode (the button is hidden in daily
+    // game-over). Defensively force Mode back to Normal so the next round
+    // can never accidentally re-enter the daily seed.
+    GameState.Mode = GameState.GameMode.Normal;
+
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.
     GameState.SkipMainMenuOnLoad = true;
@@ -1135,26 +2047,20 @@ public class UIManager : MonoBehaviour
   // Called by ObjectPooler when a new placement phase starts
   public void OnPlacementPhaseStarted(float duration)
   {
-    // Show the gem speedup timer at the top of the screen
-    if (gemSpeedupTimerText != null)
-    {
-      // Reset any ongoing fade
-      isFadingOut = false;
-      fadeTimer = 0f;
+    if (gemSpeedupTimerText == null) return;
 
-      // Reset color to full opacity
-      Color resetColor = originalTextColor;
-      resetColor.a = 1f;
-      gemSpeedupTimerText.color = resetColor;
+    // Reset any ongoing fade
+    isFadingOut = false;
+    fadeTimer = 0f;
 
-      // Show the timer and set initial value
-      gemSpeedupTimerText.gameObject.SetActive(true);
-      UpdateCountdownDisplay(duration);
-    }
-    else
-    {
-      Debug.LogError("gemSpeedupTimerText is not assigned! Please assign the TextMeshPro component in the Inspector.");
-    }
+    // Reset color to full opacity
+    Color resetColor = originalTextColor;
+    resetColor.a = 1f;
+    gemSpeedupTimerText.color = resetColor;
+
+    // Show the timer and set initial value
+    gemSpeedupTimerText.gameObject.SetActive(true);
+    UpdateCountdownDisplay(duration);
   }
 
   // Called by ObjectPooler when the placement timer is updated
@@ -1191,6 +2097,358 @@ public class UIManager : MonoBehaviour
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Polish layer — pause overlay, power-up vignette flash, settings panel,
+  // and the count-up tween on the game-over screen. All auto-built on first
+  // demand so the project doesn't need any inspector wiring.
+  // ---------------------------------------------------------------------------
+
+  /// <summary>
+  /// Show the auto-paused overlay with a Resume button. Called from
+  /// <see cref="PauseHandler"/> when the OS backgrounds the app. Safe to call
+  /// repeatedly; the panel is built once and reused.
+  /// </summary>
+  public void ShowPauseOverlay()
+  {
+    EnsurePausePanel();
+    if (pausePanel == null) return;
+    // Use unscaled-time fade because Time.timeScale is already 0 here.
+    FadePanel(pausePanel, true, 0.18f);
+  }
+
+  /// <summary>Hide the pause overlay (called when the player taps Resume).</summary>
+  public void HidePauseOverlay()
+  {
+    if (pausePanel == null) return;
+    FadePanel(pausePanel, false, 0.15f);
+  }
+
+  void EnsurePausePanel()
+  {
+    if (pausePanel != null) return;
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    GameObject panel = BuildFullScreenPanel(
+        "PausePanel (auto)", new Color(0f, 0f, 0f, 0.78f));
+
+    AddPanelTitle(panel.transform, "Paused", new Color(1f, 0.95f, 0.85f), 200f);
+
+    GameObject hintGo = new GameObject("PauseHint", typeof(RectTransform));
+    hintGo.transform.SetParent(panel.transform, false);
+    RectTransform hintRect = hintGo.GetComponent<RectTransform>();
+    hintRect.anchorMin = new Vector2(0.5f, 0.5f);
+    hintRect.anchorMax = new Vector2(0.5f, 0.5f);
+    hintRect.pivot = new Vector2(0.5f, 0.5f);
+    hintRect.sizeDelta = new Vector2(700f, 80f);
+    hintRect.anchoredPosition = new Vector2(0f, 40f);
+    TextMeshProUGUI hint = hintGo.AddComponent<TextMeshProUGUI>();
+    hint.text = "The game paused while you were away.";
+    hint.alignment = TextAlignmentOptions.Center;
+    hint.fontStyle = FontStyles.Italic;
+    hint.color = new Color(0.78f, 0.80f, 0.85f);
+    hint.enableAutoSizing = true;
+    hint.fontSizeMin = 22f;
+    hint.fontSizeMax = 38f;
+    hint.enableWordWrapping = false;
+
+    BuildPanelButton(panel.transform, "ResumeButton", "Resume",
+        new Color(0.20f, 0.60f, 0.35f),
+        new Vector2(0f, 240f), new Vector2(360f, 100f),
+        OnPauseResumeClicked);
+
+    pausePanel = panel;
+    pausePanel.SetActive(false);
+  }
+
+  void OnPauseResumeClicked()
+  {
+    if (PauseHandler.Instance != null) PauseHandler.Instance.Resume();
+    else HidePauseOverlay();
+  }
+
+  /// <summary>
+  /// Briefly tint the screen with <paramref name="color"/>. Used on power-up
+  /// activation to sell the "something cool just happened" moment without
+  /// blocking gameplay or eating much performance budget.
+  /// </summary>
+  public void FlashVignette(Color color, float duration = 0.55f, float peakAlpha = 0.32f)
+  {
+    EnsureVignetteOverlay();
+    if (vignetteOverlay == null) return;
+
+    vignetteColor = color;
+    vignetteDuration = Mathf.Max(0.05f, duration);
+    vignettePeakAlpha = Mathf.Clamp01(peakAlpha);
+    vignetteAge = 0f;
+
+    Color c = color;
+    c.a = 0f;
+    vignetteOverlay.color = c;
+    vignetteOverlay.gameObject.SetActive(true);
+  }
+
+  void EnsureVignetteOverlay()
+  {
+    if (vignetteOverlay != null) return;
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    // Anchored to the canvas root (not the safe-area inset) so the wash
+    // really does cover the whole display, including the top notch area.
+    Transform parent = hudCanvas.transform;
+    GameObject go = new GameObject("VignetteOverlay (auto)",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    go.transform.SetParent(parent, false);
+    // Render below settings/menu panels but above gameplay HUD.
+    go.transform.SetSiblingIndex(0);
+    RectTransform rect = go.GetComponent<RectTransform>();
+    rect.anchorMin = Vector2.zero;
+    rect.anchorMax = Vector2.one;
+    rect.offsetMin = Vector2.zero;
+    rect.offsetMax = Vector2.zero;
+    Image img = go.GetComponent<Image>();
+    img.color = new Color(1f, 1f, 1f, 0f);
+    img.raycastTarget = false; // never block taps on the catcher / slot area
+    vignetteOverlay = img;
+    go.SetActive(false);
+  }
+
+  void TickVignetteFlash()
+  {
+    if (vignetteOverlay == null) return;
+    if (!vignetteOverlay.gameObject.activeSelf) return;
+
+    vignetteAge += Time.unscaledDeltaTime;
+    float t = Mathf.Clamp01(vignetteAge / vignetteDuration);
+
+    // Symmetric ease-in-out: rise to peak around t=0.25, then ease out. Smoothstep
+    // keeps both edges soft so it never feels like a hard flash.
+    float envelope;
+    if (t < 0.25f)
+    {
+      float k = t / 0.25f;
+      envelope = Mathf.SmoothStep(0f, 1f, k);
+    }
+    else
+    {
+      float k = (t - 0.25f) / 0.75f;
+      envelope = Mathf.SmoothStep(1f, 0f, k);
+    }
+
+    Color c = vignetteColor;
+    c.a = vignettePeakAlpha * envelope;
+    vignetteOverlay.color = c;
+
+    if (t >= 1f) vignetteOverlay.gameObject.SetActive(false);
+  }
+
+  // -- Settings panel --------------------------------------------------------
+
+  /// <summary>
+  /// Build the settings panel on first demand. Panel hosts Sound / Haptics
+  /// toggles backed by PlayerPrefs so the choice persists across sessions.
+  /// </summary>
+  void EnsureSettingsPanel()
+  {
+    if (settingsPanel != null) return;
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    GameObject panel = BuildFullScreenPanel(
+        "SettingsPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f));
+
+    AddPanelTitle(panel.transform, "Settings", new Color(1f, 0.85f, 0.35f), 100f);
+
+    // Stack the toggle rows down the middle.
+    GameObject stackGo = new GameObject("ToggleStack",
+        typeof(RectTransform), typeof(VerticalLayoutGroup));
+    stackGo.transform.SetParent(panel.transform, false);
+    RectTransform stackRect = stackGo.GetComponent<RectTransform>();
+    stackRect.anchorMin = new Vector2(0.5f, 0.5f);
+    stackRect.anchorMax = new Vector2(0.5f, 0.5f);
+    stackRect.pivot = new Vector2(0.5f, 0.5f);
+    stackRect.anchoredPosition = new Vector2(0f, 30f);
+    stackRect.sizeDelta = new Vector2(640f, 280f);
+    VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
+    vlg.childAlignment = TextAnchor.MiddleCenter;
+    vlg.spacing = 24f;
+    vlg.childControlWidth = false;
+    vlg.childControlHeight = false;
+    vlg.childForceExpandWidth = false;
+    vlg.childForceExpandHeight = false;
+
+    BuildSettingsToggleRow(stackGo.transform, "Sound", SoundManager.SoundEnabled,
+        v => SoundManager.SoundEnabled = v);
+    BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
+        v => HapticManager.HapticsEnabled = v);
+
+    BuildPanelButton(panel.transform, "SettingsBackButton", "Back",
+        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
+        OnSettingsBackClicked);
+
+    settingsPanel = panel;
+    settingsPanel.SetActive(false);
+  }
+
+  // Visual: "Sound  [ ON ]" / "Sound  [ OFF ]" — a label and a toggle button
+  // colored green when on, gray when off. Cheap and reads instantly.
+  void BuildSettingsToggleRow(Transform parent, string label, bool initial, System.Action<bool> onChange)
+  {
+    GameObject row = new GameObject(label + "Row",
+        typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+    row.transform.SetParent(parent, false);
+    RectTransform rowRect = row.GetComponent<RectTransform>();
+    rowRect.sizeDelta = new Vector2(640f, 90f);
+    LayoutElement le = row.GetComponent<LayoutElement>();
+    le.preferredWidth = 640f;
+    le.preferredHeight = 90f;
+    HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
+    hlg.childAlignment = TextAnchor.MiddleCenter;
+    hlg.spacing = 28f;
+    hlg.childControlWidth = false;
+    hlg.childControlHeight = false;
+    hlg.childForceExpandWidth = false;
+    hlg.childForceExpandHeight = false;
+
+    GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
+    labelGo.transform.SetParent(row.transform, false);
+    LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
+    labelLe.preferredWidth = 280f;
+    labelLe.preferredHeight = 90f;
+    TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
+    labelTmp.text = label;
+    labelTmp.alignment = TextAlignmentOptions.MidlineRight;
+    labelTmp.fontStyle = FontStyles.Bold;
+    labelTmp.color = Color.white;
+    labelTmp.fontSize = 46f;
+
+    GameObject btnGo = new GameObject(label + "Toggle",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
+    btnGo.transform.SetParent(row.transform, false);
+    LayoutElement btnLe = btnGo.GetComponent<LayoutElement>();
+    btnLe.preferredWidth = 220f;
+    btnLe.preferredHeight = 90f;
+    Image bg = btnGo.GetComponent<Image>();
+
+    GameObject lblGo = new GameObject("Label", typeof(RectTransform));
+    lblGo.transform.SetParent(btnGo.transform, false);
+    RectTransform lblRect = lblGo.GetComponent<RectTransform>();
+    lblRect.anchorMin = Vector2.zero;
+    lblRect.anchorMax = Vector2.one;
+    lblRect.offsetMin = Vector2.zero;
+    lblRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI lblTmp = lblGo.AddComponent<TextMeshProUGUI>();
+    lblTmp.fontSize = 42f;
+    lblTmp.fontStyle = FontStyles.Bold;
+    lblTmp.alignment = TextAlignmentOptions.Center;
+    lblTmp.color = Color.white;
+
+    bool current = initial;
+    System.Action apply = () =>
+    {
+      lblTmp.text = current ? "ON" : "OFF";
+      bg.color = current ? new Color(0.20f, 0.55f, 0.30f) : new Color(0.45f, 0.20f, 0.20f);
+    };
+    apply();
+
+    Button btn = btnGo.GetComponent<Button>();
+    btn.targetGraphic = bg;
+    btn.onClick.AddListener(() =>
+    {
+      current = !current;
+      onChange?.Invoke(current);
+      apply();
+    });
+  }
+
+  void OnSettingsButtonClicked()
+  {
+    EnsureSettingsPanel();
+    FadePanel(mainMenuPanel, false);
+    FadePanel(settingsPanel, true, 0.2f);
+  }
+
+  void OnSettingsBackClicked()
+  {
+    FadePanel(settingsPanel, false, 0.15f);
+    ShowMainMenu();
+  }
+
+  // Builds a small "Settings" pill anchored to the top-right of the main-menu
+  // panel. Uses plain text for the label so it renders cleanly with any font
+  // asset (the unicode gear glyph isn't guaranteed in the default TMP atlas).
+  void BuildSettingsCornerButton(Transform parent)
+  {
+    GameObject btnGo = new GameObject("SettingsButton",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    btnGo.transform.SetParent(parent, false);
+    RectTransform rect = btnGo.GetComponent<RectTransform>();
+    rect.anchorMin = new Vector2(1f, 1f);
+    rect.anchorMax = new Vector2(1f, 1f);
+    rect.pivot = new Vector2(1f, 1f);
+    rect.anchoredPosition = new Vector2(-30f, -30f);
+    rect.sizeDelta = new Vector2(220f, 80f);
+    Image bg = btnGo.GetComponent<Image>();
+    bg.color = new Color(0.20f, 0.22f, 0.28f, 0.85f);
+
+    GameObject lblGo = new GameObject("Label", typeof(RectTransform));
+    lblGo.transform.SetParent(btnGo.transform, false);
+    RectTransform lblRect = lblGo.GetComponent<RectTransform>();
+    lblRect.anchorMin = Vector2.zero;
+    lblRect.anchorMax = Vector2.one;
+    lblRect.offsetMin = Vector2.zero;
+    lblRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI tmp = lblGo.AddComponent<TextMeshProUGUI>();
+    tmp.text = "Settings";
+    tmp.fontSize = 32f;
+    tmp.fontStyle = FontStyles.Bold;
+    tmp.alignment = TextAlignmentOptions.Center;
+    tmp.color = Color.white;
+    tmp.characterSpacing = 4f;
+
+    Button btn = btnGo.GetComponent<Button>();
+    btn.targetGraphic = bg;
+    btn.onClick.AddListener(OnSettingsButtonClicked);
+  }
+
+  // -- Final-score count-up tween -------------------------------------------
+
+  /// <summary>
+  /// Start a count-up animation on the auto-built final score TMP. Called
+  /// from <see cref="ShowGameOverPanel"/> right after the panel begins fading
+  /// in, so the viewer's eye is drawn to a number that "earns" itself onto
+  /// the screen instead of just snapping in.
+  /// </summary>
+  void StartFinalScoreCountUp(int targetScore, float duration = 1.1f)
+  {
+    if (autoFinalScoreText == null) return;
+
+    finalScoreTweenTarget = Mathf.Max(0, targetScore);
+    finalScoreTweenDuration = Mathf.Max(0.1f, duration);
+    finalScoreTweenAge = 0f;
+    finalScoreTweenActive = true;
+    autoFinalScoreText.text = "Final Score: 0";
+  }
+
+  void TickFinalScoreCountUp()
+  {
+    if (!finalScoreTweenActive || autoFinalScoreText == null) return;
+
+    finalScoreTweenAge += Time.unscaledDeltaTime;
+    float t = Mathf.Clamp01(finalScoreTweenAge / finalScoreTweenDuration);
+    // EaseOutCubic — fast climb, soft landing on the final value.
+    float eased = 1f - Mathf.Pow(1f - t, 3f);
+    int value = Mathf.RoundToInt(finalScoreTweenTarget * eased);
+    autoFinalScoreText.text = "Final Score: " + value;
+
+    if (t >= 1f)
+    {
+      autoFinalScoreText.text = "Final Score: " + finalScoreTweenTarget;
+      finalScoreTweenActive = false;
+    }
+  }
+
   void OnDestroy()
   {
     // Unsubscribe from events
@@ -1199,6 +2457,16 @@ public class UIManager : MonoBehaviour
     GemCatcher.OnGameOver -= HandleGameOverEvent;
     GemCatcher.OnGemCaught -= HandleGemCaught;
     GemCatcher.OnGemMissed -= HandleGemMissed;
+    GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;
+    PowerUpManager.OnActivated -= HandlePowerUpActivated;
+    PowerUpManager.OnExpired -= HandlePowerUpExpired;
+    PowerUpManager.OnShieldConsumed -= HandleShieldConsumed;
+    ComboManager.OnComboChanged -= HandleComboChanged;
+    ComboManager.OnComboTierUp -= HandleComboTierUp;
+    ComboManager.OnComboBroken -= HandleComboBroken;
+    MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
+    GemCatcher.OnBombHit -= HandleBombHit;
+    GemCatcher.OnHeartGemCaught -= HandleHeartGemCaught;
 
     if (objectPooler != null)
     {
@@ -1212,5 +2480,163 @@ public class UIManager : MonoBehaviour
     {
       restartButton.onClick.RemoveListener(RestartGame);
     }
+
+    if (Instance == this) Instance = null;
+  }
+
+  // ----------------------------------------------------------------------
+  // Combo HUD — top-right, just under the score. Hidden at combo == 0,
+  // grows / changes color as the multiplier climbs.
+  // ----------------------------------------------------------------------
+
+  void EnsureComboDisplay()
+  {
+    if (comboDisplayTmp != null || hudCanvas == null || UiRoot == null) return;
+
+    GameObject go = new GameObject("ComboDisplay (auto)", typeof(RectTransform));
+    go.transform.SetParent(UiRoot, false);
+    comboDisplayRoot = go.GetComponent<RectTransform>();
+    comboDisplayRoot.anchorMin = new Vector2(1f, 1f);
+    comboDisplayRoot.anchorMax = new Vector2(1f, 1f);
+    comboDisplayRoot.pivot = new Vector2(1f, 1f);
+    // Sit just below the score. Score occupies y = -40 to ~-140; combo
+    // anchors at -150 so the two never overlap on portrait phones.
+    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -150f);
+    comboDisplayRoot.sizeDelta = new Vector2(500f, 70f);
+
+    comboDisplayTmp = go.AddComponent<TextMeshProUGUI>();
+    comboDisplayTmp.alignment = TextAlignmentOptions.TopRight;
+    comboDisplayTmp.fontSize = 48f;
+    comboDisplayTmp.fontStyle = FontStyles.Bold;
+    comboDisplayTmp.color = Color.white;
+    comboDisplayTmp.text = string.Empty;
+    go.SetActive(false);
+  }
+
+  void HandleComboChanged(int combo, float multiplier)
+  {
+    if (comboDisplayTmp == null) return;
+
+    if (combo <= 0)
+    {
+      // Hidden state — combo broken or never started.
+      comboDisplayRoot.gameObject.SetActive(false);
+      return;
+    }
+
+    comboDisplayRoot.gameObject.SetActive(true);
+    // Show "x3" only once the multiplier has actually kicked in. Below that
+    // tier the player still sees their streak count climbing — useful for
+    // the next-tier anticipation — but no false multiplier promise.
+    if (multiplier > 1f)
+    {
+      comboDisplayTmp.text = $"COMBO ×{multiplier:0.#}  ({combo})";
+    }
+    else
+    {
+      comboDisplayTmp.text = $"STREAK {combo}";
+    }
+    comboDisplayTmp.color = ColorForMultiplier(multiplier);
+
+    // Quick scale pop on every catch — the ticker eases it back to 1.
+    comboTargetScale = 1.18f;
+  }
+
+  void HandleComboTierUp(int combo, float newMultiplier)
+  {
+    // Bigger pop and a banner when the multiplier itself goes up.
+    comboTierUpPending = true;
+    SpawnBannerNotification($"×{newMultiplier:0.#}  STREAK!", ColorForMultiplier(newMultiplier));
+  }
+
+  void HandleComboBroken(int lostCombo, float lostMultiplier)
+  {
+    // Only show a "lost" banner for streaks the player actually invested in
+    // (multiplier was active). Tiny 1- or 2-streaks just disappear silently
+    // so a normal early-round miss doesn't get framed as a "loss".
+    if (lostMultiplier > 1f)
+    {
+      SpawnBannerNotification(
+          $"STREAK LOST  ×{lostMultiplier:0.#}",
+          new Color(0.85f, 0.85f, 0.85f));
+    }
+  }
+
+  void TickComboDisplay()
+  {
+    if (comboDisplayRoot == null) return;
+
+    // Pop on tier-up: oversize once, then ease back down.
+    if (comboTierUpPending)
+    {
+      comboTargetScale = 1.4f;
+      comboTierUpPending = false;
+    }
+
+    Vector3 current = comboDisplayRoot.localScale;
+    Vector3 target = Vector3.one * comboTargetScale;
+    comboDisplayRoot.localScale = Vector3.Lerp(current, target,
+        Mathf.Clamp01(14f * Time.unscaledDeltaTime));
+
+    // Ease the target itself back to 1 so the next pop has somewhere to go.
+    comboTargetScale = Mathf.Lerp(comboTargetScale, 1f,
+        Mathf.Clamp01(8f * Time.unscaledDeltaTime));
+  }
+
+  static Color ColorForMultiplier(float mult)
+  {
+    if (mult >= 5f) return new Color(1.00f, 0.30f, 0.35f); // bright red
+    if (mult >= 3f) return new Color(1.00f, 0.55f, 0.25f); // orange
+    if (mult >= 2f) return new Color(1.00f, 0.85f, 0.30f); // amber
+    if (mult >= 1.5f) return new Color(1.00f, 1.00f, 0.55f); // pale yellow
+    return Color.white;
+  }
+
+  // ----------------------------------------------------------------------
+  // Milestone celebrations — full-screen banner + tinted flash + a quick
+  // CatchBurst at the catcher position.
+  // ----------------------------------------------------------------------
+
+  void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
+  {
+    Color tint = ColorForMilestoneScore(milestone.score);
+    // Big banner — the existing helper handles the auto-sizing layout.
+    SpawnBannerNotification(milestone.title, tint);
+
+    // Particle pop at the catcher so the eye is drawn down to the play area.
+    GameObject catcher = GameObject.FindWithTag("Catcher");
+    if (catcher != null)
+    {
+      CatchBurst.Spawn(catcher.transform.position, tint);
+    }
+
+    // Camera shake scaled to the milestone — bigger crossings hit harder.
+    float intensity = Mathf.Lerp(0.18f, 0.40f, Mathf.Clamp01(milestone.score / 10000f));
+    CameraShake.Shake(intensity, 0.45f);
+  }
+
+  static Color ColorForMilestoneScore(int score)
+  {
+    if (score >= 10000) return new Color(1.00f, 0.30f, 0.85f); // hot pink for godmode
+    if (score >= 5000) return new Color(0.55f, 0.85f, 1.00f); // ice blue legendary
+    if (score >= 2500) return new Color(1.00f, 0.40f, 0.40f); // red
+    if (score >= 1000) return new Color(1.00f, 0.65f, 0.20f); // orange
+    return new Color(1.00f, 0.90f, 0.40f); // warm yellow
+  }
+
+  // ----------------------------------------------------------------------
+  // Special-gem reactions
+  // ----------------------------------------------------------------------
+
+  void HandleBombHit(Vector3 worldPosition)
+  {
+    SpawnFloatingText("BOOM!  -1 \u2665", new Color(1.00f, 0.35f, 0.30f), worldPosition);
+    // Heavy red burst at the impact point.
+    CatchBurst.Spawn(worldPosition, new Color(1.00f, 0.25f, 0.20f));
+  }
+
+  void HandleHeartGemCaught(Vector3 worldPosition)
+  {
+    SpawnFloatingText("+1 \u2665", new Color(1.00f, 0.60f, 0.85f), worldPosition);
   }
 }

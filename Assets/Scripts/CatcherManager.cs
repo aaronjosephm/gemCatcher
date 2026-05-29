@@ -53,6 +53,16 @@ public class CatcherManager : MonoBehaviour
     [Tooltip("Seconds the catcher takes to settle back to upright once the placement phase ends.")]
     public float catcherSettleDuration = 0.25f;
 
+    [Header("Difficulty: Shrinking Catcher")]
+    [Range(0.1f, 1f)]
+    [Tooltip("Uniform scale factor applied to the catcher from the start of a round. Lower = harder out of the gate. The catcher visually shrinks to this value while the player is below smallCatcherScoreThreshold, then drops further to smallCatcherScaleFactor once they cross it.")]
+    public float baseCatcherScaleFactor = 0.7f;
+    [Tooltip("Score at which the catcher shrinks further. Set very high to disable the second-stage shrink.")]
+    public int smallCatcherScoreThreshold = 2000;
+    [Range(0.1f, 1f)]
+    [Tooltip("Uniform scale factor applied to the catcher once smallCatcherScoreThreshold is reached. Should be smaller than baseCatcherScaleFactor for the difficulty bump to be perceptible.")]
+    public float smallCatcherScaleFactor = 0.5f;
+
     [Header("Sparkle")]
     [Tooltip("If true, a subtle particle sparkle is attached to the catcher.")]
     public bool enableSparkle = true;
@@ -62,6 +72,31 @@ public class CatcherManager : MonoBehaviour
     [Range(0.01f, 0.3f)]
     public float sparkleSize = 0.07f;
     public Color sparkleColor = new Color(1f, 1f, 1f, 0.9f);
+
+    // Tracks the running "feedback" pose offset. Update() interpolates this back to
+    // identity each frame; OnGemCaught/OnGemMissed kick it away from identity so the
+    // catcher squashes / jolts in response to gameplay events.
+    private Vector3 catcherBaseScale = Vector3.one;
+    private Vector3 feedbackScale = Vector3.one;
+    private Vector3 feedbackPositionOffset = Vector3.zero;
+    private float feedbackJitterRemaining = 0f;
+    private float feedbackJitterMagnitude = 0f;
+    // Authoritative "rest" position for the current slot — Update() overlays the
+    // feedback offset on top of this each frame so jolts/squashes can't drift the
+    // catcher away from its slot.
+    private Vector3 catcherAnchorPosition;
+
+    // Wider-Catcher power-up scales the catcher's X size up smoothly on activate
+    // and back down on expire. Held outside `feedbackScale` so squash/jitter
+    // animations multiply with it without fighting it.
+    private float widerCatcherFactor = 1f;
+    private float widerCatcherTargetFactor = 1f;
+
+    // Score-driven uniform shrink. Activates when the player crosses
+    // smallCatcherScoreThreshold; lerped here so the size change reads as a
+    // smooth difficulty ramp rather than a teleport.
+    private float smallCatcherFactor = 1f;
+    private float smallCatcherTargetFactor = 1f;
 
     void Start()
     {
@@ -105,9 +140,21 @@ public class CatcherManager : MonoBehaviour
 
         // Subscribe to score change events
         GemCatcher.OnScoreChanged += UpdateScoreDisplay;
+        // Visual feedback on gameplay events.
+        GemCatcher.OnGemCaught += HandleGemCaughtFeedback;
+        GemCatcher.OnGemMissed += HandleGemMissedFeedback;
+        // Wider-Catcher power-up — smoothly scale the cube's X axis on activate / expire.
+        PowerUpManager.OnActivated += HandlePowerUpActivated;
+        PowerUpManager.OnExpired += HandlePowerUpExpired;
 
-        // Initialize score display
-        UpdateScoreDisplay(0);
+        // Initialize score display. Pull from GemCatcher.Score (rather than
+        // hard-coding 0) so that on a hot-reload or scene re-entry, the
+        // catcher's small-catcher target syncs with whatever the current
+        // score actually is. In practice this is 0 at round start.
+        UpdateScoreDisplay(GemCatcher.Score);
+        // Snap the lerped factor to the target on first frame so we don't
+        // animate from 1.0 → 0.5 if the round somehow starts mid-game.
+        smallCatcherFactor = smallCatcherTargetFactor;
 
         // Initialize trajectory line if assigned
         if (trajectoryLine != null)
@@ -154,6 +201,93 @@ public class CatcherManager : MonoBehaviour
         }
 
         UpdateCatcherSpin();
+        UpdateCatcherFeedback();
+    }
+
+    // Tweens the catcher back to its rest pose after a catch (squash) or miss (jitter)
+    // event nudged it away. Runs every frame so feedback is independent of frame rate.
+    void UpdateCatcherFeedback()
+    {
+        if (catcherInstance == null) return;
+
+        // Smoothly ease scale back to (1,1,1); the multiplicative form means a "0.78
+        // squash" recovers exponentially without overshooting.
+        feedbackScale = Vector3.Lerp(feedbackScale, Vector3.one, Mathf.Clamp01(14f * Time.deltaTime));
+
+        // Compute the desired offset from the miss-jitter, then ease toward it.
+        Vector3 targetOffset = Vector3.zero;
+        if (feedbackJitterRemaining > 0f)
+        {
+            feedbackJitterRemaining -= Time.deltaTime;
+            float t = Mathf.Clamp01(feedbackJitterRemaining / 0.18f);
+            float amp = feedbackJitterMagnitude * t;
+            targetOffset = new Vector3(
+                (Random.value - 0.5f) * 2f * amp,
+                (Random.value - 0.5f) * amp,
+                0f);
+        }
+        feedbackPositionOffset = Vector3.Lerp(feedbackPositionOffset, targetOffset, Mathf.Clamp01(20f * Time.deltaTime));
+
+        // Smoothly ease wider-catcher factor toward its target. The target jumps
+        // to 1.6 on activate and back to 1.0 on expire; the lerp keeps it from
+        // snapping and breaking the player's depth perception of the catcher.
+        widerCatcherFactor = Mathf.Lerp(
+            widerCatcherFactor,
+            widerCatcherTargetFactor,
+            Mathf.Clamp01(8f * Time.deltaTime));
+
+        // Same smoothing for the score-driven small-catcher shrink — slower
+        // so the player has a beat to register the size change.
+        smallCatcherFactor = Mathf.Lerp(
+            smallCatcherFactor,
+            smallCatcherTargetFactor,
+            Mathf.Clamp01(4f * Time.deltaTime));
+
+        // Apply: anchor (the actual slot) + transient offset, with combined scale.
+        // Order of operations:
+        //   baseScale × feedback (squash/jitter, transient)
+        //     → multiply X by widerCatcherFactor (power-up, X-only)
+        //     → multiply ALL axes by smallCatcherFactor (difficulty, uniform)
+        // GemCatcher.IsGemWithinCatcherBounds reads collider.size × lossyScale
+        // every frame, so the catch hitbox tracks the visual size automatically.
+        Transform t2 = catcherInstance.transform;
+        t2.position = catcherAnchorPosition + feedbackPositionOffset;
+        Vector3 finalScale = Vector3.Scale(catcherBaseScale, feedbackScale);
+        finalScale.x *= widerCatcherFactor;
+        finalScale *= smallCatcherFactor;
+        t2.localScale = finalScale;
+    }
+
+    void HandlePowerUpActivated(PowerUpType type, float duration)
+    {
+        if (type == PowerUpType.WiderCatcher)
+        {
+            widerCatcherTargetFactor = PowerUpManager.WiderCatcherWidthFactor;
+        }
+    }
+
+    void HandlePowerUpExpired(PowerUpType type)
+    {
+        if (type == PowerUpType.WiderCatcher)
+        {
+            widerCatcherTargetFactor = 1f;
+        }
+    }
+
+    // Squash the catcher quickly to (1.25, 0.78, 1.25) on a successful catch so it looks
+    // like it absorbed an impact, then UpdateCatcherFeedback eases it back.
+    void HandleGemCaughtFeedback(int amount, Vector3 worldPosition)
+    {
+        feedbackScale = new Vector3(1.25f, 0.78f, 1.25f);
+    }
+
+    // Brief jitter on a miss — feels like the catcher took the hit even though it didn't
+    // catch the gem.
+    void HandleGemMissedFeedback(int amount, Vector3 worldPosition)
+    {
+        feedbackJitterRemaining = 0.18f;
+        feedbackJitterMagnitude = 0.12f;
+        feedbackScale = new Vector3(0.92f, 1.08f, 0.92f);
     }
 
     // Spin the catcher while the placement phase is active so the player can see at a glance
@@ -199,6 +333,15 @@ public class CatcherManager : MonoBehaviour
         {
             scoreText.text = "Score: " + newScore;
         }
+
+        // Drive the difficulty shrink off score crossings. Below the
+        // threshold the catcher sits at baseCatcherScaleFactor (the
+        // out-of-the-gate baseline); above the threshold it drops to the
+        // tighter smallCatcherScaleFactor for the rest of the round (Score
+        // is monotonic non-decreasing now that misses don't subtract points).
+        smallCatcherTargetFactor = newScore >= smallCatcherScoreThreshold
+            ? smallCatcherScaleFactor
+            : baseCatcherScaleFactor;
     }
 
     void UpdatePlacementTimerDisplay()
@@ -306,17 +449,27 @@ public class CatcherManager : MonoBehaviour
             catcherInstance.tag = "Catcher"; // Ensure it has the correct tag
             ApplyGlassAppearance(catcherInstance);
             AddSparkleEffect(catcherInstance);
+            catcherBaseScale = catcherInstance.transform.localScale;
+            feedbackScale = Vector3.one;
         }
         else
         {
             // Move the existing catcher to the new position
             catcherInstance.transform.position = slotPositions[slotIndex];
         }
+        catcherAnchorPosition = slotPositions[slotIndex];
 
         // Play sound effect if available
         if (SoundManager.Instance != null)
         {
             SoundManager.Instance.Play("CatcherMove");
+        }
+
+        // Tactile click — confirms the tap registered before the gem ever
+        // arrives, especially valuable on devices where the audio is muted.
+        if (HapticManager.Instance != null)
+        {
+            HapticManager.Instance.Trigger(HapticManager.Intensity.Light);
         }
     }
 
@@ -445,6 +598,10 @@ public class CatcherManager : MonoBehaviour
     {
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= UpdateScoreDisplay;
+        GemCatcher.OnGemCaught -= HandleGemCaughtFeedback;
+        GemCatcher.OnGemMissed -= HandleGemMissedFeedback;
+        PowerUpManager.OnActivated -= HandlePowerUpActivated;
+        PowerUpManager.OnExpired -= HandlePowerUpExpired;
 
         if (objectPooler != null)
         {
