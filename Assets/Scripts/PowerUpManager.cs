@@ -3,12 +3,29 @@ using UnityEngine;
 /// <summary>
 /// The power-ups currently in the game. Used as a key for active state,
 /// HUD slots, and pickup spawning.
+///
+/// <para>Persistent power-ups (WiderCatcher / Shield / DoubleScore) latch on
+/// catch and clear on the next unshielded miss; they show a HUD slot while
+/// active.</para>
+///
+/// <para>Instant-effect power-ups (ExtraLife) apply their effect immediately on
+/// catch and have no persistent state — they don't appear in the HUD slot
+/// list, can't be revoked, and grant their reward through the existing
+/// <see cref="GemCatcher"/> life path so the bonus-life banner / lives-counter
+/// pop is reused.</para>
 /// </summary>
 public enum PowerUpType
 {
   WiderCatcher,
   Shield,
   DoubleScore,
+  /// <summary>
+  /// Awards <see cref="PowerUpManager.ExtraLifeAwardCount"/> lives on catch,
+  /// capped at <see cref="GemCatcher.MAX_LIVES"/>. Routes through
+  /// <see cref="GemCatcher.AddLives"/> so the existing "EXTRA LIVES!"
+  /// banner + lives-counter scale pop fire automatically.
+  /// </summary>
+  ExtraLife,
 }
 
 /// <summary>
@@ -36,6 +53,14 @@ public class PowerUpManager : MonoBehaviour
 
   public const float WiderCatcherWidthFactor = 1.6f;
   public const int DoubleScoreMultiplierValue = 2;
+  /// <summary>
+  /// Lives awarded by a single <see cref="PowerUpType.ExtraLife"/> catch.
+  /// Routes through <see cref="GemCatcher.AddLives"/>, which clamps the
+  /// total at <see cref="GemCatcher.MAX_LIVES"/>; if the player is near
+  /// the cap, the banner reports the actual count granted (1, 2, or 3)
+  /// rather than the requested amount.
+  /// </summary>
+  public const int ExtraLifeAwardCount = 3;
 
   public static PowerUpManager Instance { get; private set; }
 
@@ -92,6 +117,19 @@ public class PowerUpManager : MonoBehaviour
       case PowerUpType.Shield:
         shieldCharges = 1;
         OnActivated?.Invoke(type, 0f);
+        break;
+      case PowerUpType.ExtraLife:
+        // Instant-effect: route through AddLives so the cap, the
+        // OnLivesChanged event, and the "EXTRA LIVES!" banner / lives-counter
+        // scale pop all fire through the same path the per-100-points bonus
+        // life uses. No HUD slot — this power-up has no persistent state.
+        // We deliberately don't fire OnActivated so UIManager doesn't try to
+        // open a slot for it; the BonusLife banner is the player-facing
+        // confirmation instead. AddLives reports the count actually granted
+        // (1, 2, or 3 depending on how close the player is to MAX_LIVES) so
+        // a player at 9/10 lives sees "EXTRA LIFE +1 ♥" rather than
+        // "EXTRA LIVES +3" — the banner stays accurate to what was awarded.
+        GemCatcher.AddLives(ExtraLifeAwardCount);
         break;
     }
   }

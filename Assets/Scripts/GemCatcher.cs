@@ -14,14 +14,13 @@ public class GemCatcher : MonoBehaviour
     public const int POINTS_PER_CATCH = 20;
     public const int POINTS_PER_MISS = -10;
     public const int POINTS_PER_GOLDEN_CATCH = 100;
+    public const int POINTS_PER_GOLD_BAR_CATCH = 500;
 
     // Lives rules.
     public const int STARTING_LIVES = 3;
     // Hard ceiling on total lives. Hearts, milestone gifts, and the per-100
     // bonus all stop being awarded once the player is at this cap.
     public const int MAX_LIVES = 10;
-    // Players earn one extra life every time their score crosses a multiple of this value.
-    public const int POINTS_PER_BONUS_LIFE = 100;
 
     // Static score & lives tracking.
     public static int Score { get; private set; }
@@ -64,9 +63,11 @@ public class GemCatcher : MonoBehaviour
     // plays a heavier impact sound.
     public static event System.Action<Vector3> OnBombHit;
 
-    // Fired when the player catches a Heart gem. Lets the UI show a +1 ♥ pop-up
-    // anchored at the catch site, distinct from the per-100-points bonus-life banner.
-    public static event System.Action<Vector3> OnHeartGemCaught;
+    // Fired when the player catches a Gold Bar (the +500 jackpot variant). UIManager
+    // shows a celebratory banner + screen flash; SoundManager plays a triumphant
+    // arpeggio; HapticManager fires a success pulse. Distinct from OnGemCaught so
+    // each subsystem can give it the bigger "you hit the jackpot" treatment.
+    public static event System.Action<Vector3> OnGoldBarCaught;
 
     // Internal helper so non-catcher code (e.g. FallingObject's bottom-boundary check)
     // can report a miss without needing to know about both the lives update and the event.
@@ -98,11 +99,14 @@ public class GemCatcher : MonoBehaviour
     }
 
     /// <summary>
-    /// Award N free lives. Used by MilestoneTracker (and any other "gift" path)
-    /// that wants to hand out lives without going through a score threshold.
-    /// Fires OnBonusLifeAwarded so the UI/SFX react identically to the per-100
-    /// bonus path. Caps lives at <see cref="MAX_LIVES"/> so stacks of bonuses
-    /// can't push the heart count past the ceiling.
+    /// Award N free lives. The two callers are (1) the every-third-catch
+    /// combo award in <see cref="HandleVariantCatch"/> and (2) the ExtraLife
+    /// power-up in <see cref="PowerUpManager.Activate"/>. Fires
+    /// <see cref="OnBonusLifeAwarded"/> so the UI/SFX/haptic plumbing reacts
+    /// identically regardless of the source. Caps lives at <see cref="MAX_LIVES"/>
+    /// so stacks of bonuses can't push the heart count past the ceiling, and
+    /// reports the count actually granted (e.g. a player at 9/10 lives
+    /// catching the +3 ExtraLife power-up sees a +1 award, not +3).
     /// </summary>
     public static void AddLives(int count)
     {
@@ -123,30 +127,14 @@ public class GemCatcher : MonoBehaviour
     }
 
     // Add (or subtract) points. Score is clamped at 0; misses never push it negative.
-    // Awards bonus lives whenever the score crosses a POINTS_PER_BONUS_LIFE threshold.
+    // Lives are no longer tied to score — they only come from the ExtraLife
+    // power-up and the every-third-catch combo award (see HandleVariantCatch).
     public static void AddScore(int delta)
     {
         if (IsGameOver) return;
 
-        int previousScore = Score;
         Score = Mathf.Max(0, Score + delta);
         OnScoreChanged?.Invoke(Score);
-
-        // Bonus lives are a Normal-mode mechanic only. The Daily Challenge runs
-    // with a locked life count so every player faces the same survival
-    // pressure regardless of skill.
-    if (delta > 0 && GameState.Mode == GameState.GameMode.Normal)
-        {
-            int previousTier = previousScore / POINTS_PER_BONUS_LIFE;
-            int newTier = Score / POINTS_PER_BONUS_LIFE;
-            if (newTier > previousTier)
-            {
-                // AddLives handles the MAX_LIVES cap and only fires
-                // OnBonusLifeAwarded for the lives actually granted, so a player
-                // already at the ceiling doesn't see a misleading banner.
-                AddLives(newTier - previousTier);
-            }
-        }
     }
 
     /// <summary>
@@ -210,7 +198,7 @@ public class GemCatcher : MonoBehaviour
         OnGemMissed = null;
         OnBonusLifeAwarded = null;
         OnBombHit = null;
-        OnHeartGemCaught = null;
+        OnGoldBarCaught = null;
     }
 
     void Start()
@@ -229,17 +217,56 @@ public class GemCatcher : MonoBehaviour
         {
             Vector3 catchPosition = transform.position;
 
+            // Power-up gems short-circuit the variant routing — they award
+            // no points, don't touch combo, and dispatch to PowerUpManager
+            // for activation. Read isPowerUp BEFORE the variant switch so a
+            // power-up gem (which is internally a Normal-variant gem with
+            // an isPowerUp flag) doesn't accidentally also run the +20
+            // points / combo path.
+            FallingObject fo = GetComponent<FallingObject>();
+            if (fo != null && fo.isPowerUp)
+            {
+                HandlePowerUpCatch(fo.powerUpType, catchPosition);
+                gameObject.SetActive(false);
+                return;
+            }
+
             // What variant did the player just touch? Drives every branch
             // below — bombs hurt, hearts heal, gold doubles points, normal
             // is the standard +20 path. Reads from the FallingObject the
             // gem was spawned with; defaults to Normal if missing.
-            FallingObject fo = GetComponent<FallingObject>();
             SpecialGemType variant = fo != null ? fo.specialType : SpecialGemType.Normal;
 
             HandleVariantCatch(variant, catchPosition);
 
             // Deactivate the gem
             gameObject.SetActive(false);
+        }
+    }
+
+    // Power-up gem catch: activate the buff, fire a tinted catch burst, no
+    // score, no combo change, no record-keeping in the gem-breakdown. We
+    // explicitly DON'T call ComboManager.RegisterCatch because a power-up
+    // is not a "scoring catch" — its reward is the buff itself, not points,
+    // and reusing the combo system would let a redundant power-up roll
+    // (e.g. Wide while Wide is already active) inflate the combo for free.
+    // Conversely we don't break combo either, matching the silent-miss
+    // policy on the off-screen path: power-ups are combo-neutral.
+    private void HandlePowerUpCatch(PowerUpType type, Vector3 catchPosition)
+    {
+        PowerUpManager.Activate(type);
+
+        // Tinted catch burst gives an instant catch confirmation in the
+        // power-up's theme color. PowerUpManager.Activate fires its own
+        // banner / vignette / lives-pop on top of this through the
+        // UIManager subscriptions, so the burst is just the local "you
+        // caught it" sparkle anchored at the catch site.
+        Color burstColor = PowerUpPickup.ColorForType(type);
+        CatchBurst.Spawn(catchPosition, burstColor);
+
+        if (SoundManager.Instance != null)
+        {
+            SoundManager.Instance.Play("PowerUp");
         }
     }
 
@@ -261,26 +288,43 @@ public class GemCatcher : MonoBehaviour
         // tier the catch itself unlocks (combo 3 → ×1.5 applies to that 3rd).
         ComboManager.RegisterCatch();
         float comboMultiplier = ComboManager.CurrentMultiplier;
+        int comboAfterCatch = ComboManager.CurrentCombo;
 
-        // Base points per variant. Hearts award the standard catch value AND
-        // a free life (handled below).
-        int basePoints = variant == SpecialGemType.Golden
-            ? POINTS_PER_GOLDEN_CATCH
-            : POINTS_PER_CATCH;
+        // Base points per variant. Gold Bar is the jackpot tier.
+        int basePoints;
+        switch (variant)
+        {
+            case SpecialGemType.GoldBar: basePoints = POINTS_PER_GOLD_BAR_CATCH; break;
+            case SpecialGemType.Golden:  basePoints = POINTS_PER_GOLDEN_CATCH; break;
+            default:                     basePoints = POINTS_PER_CATCH; break;
+        }
 
         // 2× SCORE power-up stacks multiplicatively with the combo multiplier.
         int awarded = Mathf.RoundToInt(basePoints * comboMultiplier * PowerUpManager.DoubleScoreMultiplier);
         AddScore(awarded);
         OnGemCaught?.Invoke(awarded, catchPosition);
 
-        // Heart gems also give a life on top of the points. We add the life
-        // but DON'T fire OnBonusLifeAwarded — that event is reserved for the
-        // per-100-point bonus and the UI shows a different floating-text
-        // (+1 ♥) for hearts.
-        if (variant == SpecialGemType.Heart)
+        // Combo bonus-life: every third consecutive catch (combo 3, 6, 9, 12,
+        // …) grants +1 life. Combo 10 — the moment the multiplier ladder
+        // tops out at ×5 — does NOT grant a life because 10 % 3 != 0, which
+        // is the explicit "max combo doesn't award" carve-out from the
+        // design. This and the ExtraLife power-up are now the only two ways
+        // to gain a life in normal play. Routed through AddLives so the
+        // MAX_LIVES cap, OnLivesChanged event, and "EXTRA LIFE" banner /
+        // SFX / haptic plumbing all fire through the same path the
+        // power-up takes.
+        if (comboAfterCatch > 0 && comboAfterCatch % 3 == 0)
         {
-            ChangeLives(+1);
-            OnHeartGemCaught?.Invoke(catchPosition);
+            AddLives(1);
+        }
+
+        // Jackpot fan-out — UI banner, gold-bar audio cue, and a beefy
+        // haptic all subscribe to this. Fired AFTER OnGemCaught so the
+        // floating "+N" pop-up from the regular catch flow appears, then
+        // the celebratory banner stacks above it.
+        if (variant == SpecialGemType.GoldBar)
+        {
+            OnGoldBarCaught?.Invoke(catchPosition);
         }
 
         // "(Clone)" is appended by Instantiate; strip it for nicer display in the

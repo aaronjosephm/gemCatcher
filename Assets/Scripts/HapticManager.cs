@@ -118,7 +118,7 @@ public class HapticManager : MonoBehaviour
         GemCatcher.OnGemCaught += HandleGemCaught;
         GemCatcher.OnGemMissed += HandleGemMissed;
         GemCatcher.OnBombHit += HandleBombHit;
-        GemCatcher.OnHeartGemCaught += HandleHeartGem;
+        GemCatcher.OnGoldBarCaught += HandleGoldBar;
         GemCatcher.OnBonusLifeAwarded += HandleBonusLife;
         GemCatcher.OnGameOver += HandleGameOver;
         MilestoneTracker.OnMilestoneReached += HandleMilestone;
@@ -130,7 +130,7 @@ public class HapticManager : MonoBehaviour
         GemCatcher.OnGemCaught -= HandleGemCaught;
         GemCatcher.OnGemMissed -= HandleGemMissed;
         GemCatcher.OnBombHit -= HandleBombHit;
-        GemCatcher.OnHeartGemCaught -= HandleHeartGem;
+        GemCatcher.OnGoldBarCaught -= HandleGoldBar;
         GemCatcher.OnBonusLifeAwarded -= HandleBonusLife;
         GemCatcher.OnGameOver -= HandleGameOver;
         MilestoneTracker.OnMilestoneReached -= HandleMilestone;
@@ -140,7 +140,7 @@ public class HapticManager : MonoBehaviour
     void HandleGemCaught(int amount, Vector3 worldPosition) => Trigger(Intensity.Light);
     void HandleGemMissed(int amount, Vector3 worldPosition) => Trigger(Intensity.Medium);
     void HandleBombHit(Vector3 worldPosition) => Trigger(Intensity.Heavy);
-    void HandleHeartGem(Vector3 worldPosition) => Trigger(Intensity.Success);
+    void HandleGoldBar(Vector3 worldPosition) => Trigger(Intensity.Success);
     void HandleBonusLife(int newLifeTotal) => Trigger(Intensity.Success);
     void HandleGameOver() => Trigger(Intensity.Heavy);
     void HandleMilestone(MilestoneTracker.Milestone _) => Trigger(Intensity.Success);

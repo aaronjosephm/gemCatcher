@@ -135,6 +135,15 @@ public class UIManager : MonoBehaviour
   private TextMeshProUGUI[] powerUpSlotLabels;
   private Image[] powerUpSlotBgs;
 
+  // ---- Test-mode overlay -------------------------------------------------
+  // DEV-ONLY top-of-screen banner that announces "TEST MODE • NEXT: <label>"
+  // while ObjectPooler.powerUpOnlyTestMode is on. The label portion is tinted
+  // to the upcoming power-up's theme color so the developer can preview the
+  // pickup's hue before it drops. Built lazily the first time test mode is
+  // detected; toggled visible via TickTestModeOverlay each frame.
+  private GameObject testModeOverlayRoot;
+  private TextMeshProUGUI testModeOverlayLabel;
+
   // ---- Combo HUD ---------------------------------------------------------
   // Lives directly below the score, top-right. Hidden when combo == 0; shows
   // "COMBO ×N" otherwise, with color/scale escalation as the multiplier grows.
@@ -196,10 +205,10 @@ public class UIManager : MonoBehaviour
     // Score milestones — full-screen banner + power-up gift.
     MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
 
-    // Bomb / heart special-gem events — distinct floating text + extra fx
-    // beyond the standard catch / miss visuals.
+    // Bomb / gold-bar special-gem events — distinct floating text +
+    // extra fx beyond the standard catch / miss visuals.
     GemCatcher.OnBombHit += HandleBombHit;
-    GemCatcher.OnHeartGemCaught += HandleHeartGemCaught;
+    GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
     // a game-over panel even if nothing was wired up in the Inspector.
@@ -286,6 +295,7 @@ public class UIManager : MonoBehaviour
     TickComboDisplay();
     TickVignetteFlash();
     TickFinalScoreCountUp();
+    TickTestModeOverlay();
 
     // Handle fade out animation if active
     if (isFadingOut && gemSpeedupTimerText != null)
@@ -692,6 +702,100 @@ public class UIManager : MonoBehaviour
     {
       powerUpSlotLabels[idx].text = text;
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // Test-mode overlay (DEV-ONLY)
+  // -------------------------------------------------------------------------
+  // Displayed only while ObjectPooler.powerUpOnlyTestMode is on. Auto-creates
+  // a top-center TMP label that reads "TEST MODE • NEXT: <upcoming type>"
+  // with the type label tinted to that power-up's theme color so you can
+  // preview the magenta-fire ExtraLife / blue Wide / yellow Shield / green
+  // 2× look before the pickup actually drops. Polled in Update so the
+  // overlay reacts immediately when the dev toggles the field at runtime.
+  void TickTestModeOverlay()
+  {
+    if (objectPooler == null) return;
+
+    bool active = objectPooler.powerUpOnlyTestMode;
+
+    // Lazy-build the overlay only when test mode actually flips on, so a
+    // shipping build with the toggle off never instantiates the GameObject.
+    if (active && testModeOverlayLabel == null)
+    {
+      EnsureTestModeOverlay();
+    }
+    if (testModeOverlayRoot == null) return;
+
+    if (testModeOverlayRoot.activeSelf != active)
+    {
+      testModeOverlayRoot.SetActive(active);
+    }
+    if (!active) return;
+
+    PowerUpType nextType = objectPooler.TestModeNextPowerUp;
+    string label = PowerUpPickup.LabelForType(nextType);
+    Color tint = PowerUpPickup.ColorForType(nextType);
+    string hex = ColorUtility.ToHtmlStringRGB(tint);
+    // Two-tone rich-text: muted gray prefix + theme-colored label so the
+    // upcoming power-up's HUE is visible at a glance, not just its name.
+    testModeOverlayLabel.text =
+        "<color=#888888>TEST MODE \u2022 NEXT:</color> " +
+        "<color=#" + hex + ">" + label + "</color>";
+  }
+
+  void EnsureTestModeOverlay()
+  {
+    if (testModeOverlayRoot != null || hudCanvas == null) return;
+    if (UiRoot == null) return;
+
+    // Anchor TOP-CENTER, hugging the very top of the screen so it tucks
+    // into the empty horizontal band between the top-left lives display
+    // and the top-right score display. Kept thin (50px high) so it doesn't
+    // crowd the play area, and centered so it never overlaps either of
+    // those text rows even on narrow phones.
+    testModeOverlayRoot = new GameObject(
+        "TestModeOverlay (auto)",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    testModeOverlayRoot.transform.SetParent(UiRoot, false);
+
+    RectTransform rect = testModeOverlayRoot.GetComponent<RectTransform>();
+    rect.anchorMin = new Vector2(0.5f, 1f);
+    rect.anchorMax = new Vector2(0.5f, 1f);
+    rect.pivot = new Vector2(0.5f, 1f);
+    rect.anchoredPosition = new Vector2(0f, -10f);
+    rect.sizeDelta = new Vector2(560f, 50f);
+
+    // Subtle dark backdrop so the rich-text colors stay legible against any
+    // in-game background. Alpha low enough that it doesn't obscure the
+    // catcher / falling gems behind it. raycastTarget=false on both the
+    // backdrop AND the label so touch input passes straight through to the
+    // catcher / drag handlers — the dev overlay never steals taps.
+    Image bg = testModeOverlayRoot.GetComponent<Image>();
+    bg.color = new Color(0f, 0f, 0f, 0.55f);
+    bg.raycastTarget = false;
+
+    GameObject labelGo = new GameObject("Label", typeof(RectTransform));
+    labelGo.transform.SetParent(testModeOverlayRoot.transform, false);
+    RectTransform labelRect = labelGo.GetComponent<RectTransform>();
+    labelRect.anchorMin = Vector2.zero;
+    labelRect.anchorMax = Vector2.one;
+    labelRect.offsetMin = new Vector2(20f, 4f);
+    labelRect.offsetMax = new Vector2(-20f, -4f);
+
+    testModeOverlayLabel = labelGo.AddComponent<TextMeshProUGUI>();
+    testModeOverlayLabel.alignment = TextAlignmentOptions.Center;
+    testModeOverlayLabel.fontSize = 28f;
+    testModeOverlayLabel.fontStyle = FontStyles.Bold;
+    testModeOverlayLabel.color = Color.white;
+    testModeOverlayLabel.richText = true;
+    testModeOverlayLabel.enableWordWrapping = false;
+    testModeOverlayLabel.raycastTarget = false;
+    testModeOverlayLabel.text = "<color=#888888>TEST MODE</color>";
+
+    // Hidden by default — TickTestModeOverlay flips it on the first frame
+    // it observes the toggle as true.
+    testModeOverlayRoot.SetActive(false);
   }
 
   void HandlePowerUpActivated(PowerUpType type, float duration)
@@ -1189,6 +1293,7 @@ public class UIManager : MonoBehaviour
 
         "<b>Special Gems</b>\n" +
         "  • <color=#FFD86A>Golden gem</color> (rare): <color=#7FE787>+100 points</color>.\n" +
+        "  • <color=#FFE066>Gold bar</color> (jackpot, very rare): <color=#7FE787>+500 points</color> \u2014 unmistakable wide gold shape.\n" +
         "  • <color=#FF6B5B>Bomb gem</color>: <color=#FF7373>DON'T CATCH IT</color> \u2014 costs a life and breaks your streak. Let it fall past you.\n" +
         "  • <color=#FF8FB8>Heart gem</color> (very rare): <color=#7FE787>+1 life</color> on catch.\n\n" +
 
@@ -1691,8 +1796,10 @@ public class UIManager : MonoBehaviour
   }
 
   // -------------------------------------------------------------------------
-  // Bonus-life notification — fired by GemCatcher when the score crosses one
-  // of the POINTS_PER_BONUS_LIFE thresholds.
+  // Bonus-life notification — fired by GemCatcher when AddLives runs (the
+  // every-third-catch combo award and the ExtraLife power-up are the two
+  // sources). Banner text adapts to the count actually granted, so a player
+  // near the MAX_LIVES cap doesn't see "EXTRA LIVES +3" when only +1 fit.
   // -------------------------------------------------------------------------
 
   void HandleBonusLifeAwarded(int count)
@@ -2466,7 +2573,7 @@ public class UIManager : MonoBehaviour
     ComboManager.OnComboBroken -= HandleComboBroken;
     MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
-    GemCatcher.OnHeartGemCaught -= HandleHeartGemCaught;
+    GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
 
     if (objectPooler != null)
     {
@@ -2635,8 +2742,14 @@ public class UIManager : MonoBehaviour
     CatchBurst.Spawn(worldPosition, new Color(1.00f, 0.25f, 0.20f));
   }
 
-  void HandleHeartGemCaught(Vector3 worldPosition)
+  // Gold Bar jackpot catch — celebratory banner, screen-edge gold flash, and
+  // an extra particle burst on top of the standard "+N" floating text the
+  // regular OnGemCaught path already produced.
+  void HandleGoldBarCaught(Vector3 worldPosition)
   {
-    SpawnFloatingText("+1 \u2665", new Color(1.00f, 0.60f, 0.85f), worldPosition);
+    Color goldBarColor = new Color(1.00f, 0.85f, 0.30f);
+    SpawnBannerNotification("GOLD BAR! +" + GemCatcher.POINTS_PER_GOLD_BAR_CATCH, goldBarColor);
+    FlashVignette(goldBarColor, duration: 0.65f, peakAlpha: 0.32f);
+    CatchBurst.Spawn(worldPosition, goldBarColor);
   }
 }

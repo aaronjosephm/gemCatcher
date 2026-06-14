@@ -9,11 +9,11 @@ using UnityEngine;
 /// Reward rules:
 ///   - Power-up rewards activate the same flag as catching a pickup —
 ///     persistent until the next unshielded miss, just like normal pickups.
-///   - Life rewards bypass the per-100 throttle and stack up to a hard cap
-///     enforced by GemCatcher.AddLives.
-///   - Daily mode skips life rewards (the daily challenge intentionally locks
-///     the player at 3 lives), but milestone banners + power-up gifts still
-///     fire so daily players still get the celebration.
+///   - Life rewards are currently disabled across all milestones (only the
+///     ExtraLife power-up and the every-third-catch combo award grant lives
+///     under the current design). The bonusLives field is retained so
+///     future tunings can re-enable per-milestone life gifts without
+///     plumbing changes.
 /// </summary>
 public static class MilestoneTracker
 {
@@ -42,19 +42,19 @@ public static class MilestoneTracker
       score = 1000,
       title = "ON FIRE!",
       powerUpRewards = new[] { PowerUpType.WiderCatcher },
-      bonusLives = 1,
+      bonusLives = 0,
     },
     new Milestone {
       score = 2500,
       title = "UNSTOPPABLE!",
       powerUpRewards = new[] { PowerUpType.DoubleScore },
-      bonusLives = 1,
+      bonusLives = 0,
     },
     new Milestone {
       score = 5000,
       title = "LEGENDARY!",
       powerUpRewards = new[] { PowerUpType.WiderCatcher, PowerUpType.Shield },
-      bonusLives = 1,
+      bonusLives = 0,
     },
     new Milestone {
       score = 10000,
@@ -64,7 +64,7 @@ public static class MilestoneTracker
         PowerUpType.DoubleScore,
         PowerUpType.Shield,
       },
-      bonusLives = 2,
+      bonusLives = 0,
     },
   };
 

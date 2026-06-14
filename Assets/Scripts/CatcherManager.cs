@@ -476,6 +476,14 @@ public class CatcherManager : MonoBehaviour
     // Called by ObjectPooler when a new gem is spawned
     void OnGemSpawned()
     {
+        // Skip the auto-reset to middle if a power-up pickup from the previous
+        // cycle is still mid-air. Otherwise the catcher gets ripped out from
+        // under a pickup the player just lined up — the next gem's cycle fires
+        // GemSpawned ~2.5 seconds after the pickup spawn, and pickups take
+        // longer than that to reach the catch line. Player can still tap to
+        // reposition during the new gem's placement phase if they want.
+        if (objectPooler != null && objectPooler.HasActivePickupInFlight) return;
+
         // Reset the catcher position to the middle slot when a new gem spawns
         PlaceCatcherInSlot(numberOfSlots / 2);
     }

@@ -121,6 +121,7 @@ public class SoundManager : MonoBehaviour
         GemCatcher.OnGemMissed += HandleGemMissed;
         GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
         GemCatcher.OnBombHit += HandleBombHit;
+        GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
         MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
     }
 
@@ -200,6 +201,13 @@ public class SoundManager : MonoBehaviour
         PlayWithRandomPitch("Bomb", 0.85f, 1.05f);
     }
 
+    void HandleGoldBarCaught(Vector3 worldPosition)
+    {
+        // Distinct triumphant cue — longer and brighter than the regular catch
+        // sound so the +500 jackpot reads as the moment it is.
+        Play("GoldBar");
+    }
+
     void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
     {
         Play("Milestone");
@@ -213,6 +221,7 @@ public class SoundManager : MonoBehaviour
             GemCatcher.OnGemMissed -= HandleGemMissed;
             GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;
             GemCatcher.OnBombHit -= HandleBombHit;
+            GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
             MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
             Instance = null;
         }
@@ -246,6 +255,11 @@ public class SoundManager : MonoBehaviour
         // longer than the bonus-life chime so the player notices it through
         // any other audio chaos.
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
+        // Six-note descending-then-resolving jackpot fanfare for Gold Bar
+        // catches. Deliberately distinct from the regular catch chord and
+        // longer than the bonus-life chime — the +500 should sound like
+        // hitting a slot-machine win, not just another catch.
+        RegisterFallback("GoldBar",       () => CreateArpeggio(new[] { 1175f, 880f, 1318f, 1568f, 1976f, 2349f }, 0.85f, 0.36f));
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)

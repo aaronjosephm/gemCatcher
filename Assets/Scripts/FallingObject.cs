@@ -13,8 +13,8 @@ public enum SpecialGemType
     Golden,
     /// <summary>DON'T catch — costs a life and breaks combo on contact. Falling through is the correct play.</summary>
     Bomb,
-    /// <summary>Restores +1 life on catch. Pink/magenta visuals.</summary>
-    Heart,
+    /// <summary>Ultra-rare jackpot drop — +500 points. Spawned as a procedural brick-shaped GameObject from <see cref="GoldBarFactory"/>; bypasses the gem-pool tint path entirely so the visual is an actual gold bar, not a retinted gem.</summary>
+    GoldBar,
 }
 
 public class FallingObject : MonoBehaviour
@@ -50,10 +50,12 @@ public class FallingObject : MonoBehaviour
     private bool originalScaleCaptured = false;
 
     // Decomposed scale state. Final transform.localScale is always
-    //   originalScale * currentBaseScaleFactor * currentSpecialScaleFactor
-    // so the score-driven shrink (set via ApplyScaleFactor) and the
+    //   originalScale * (currentBaseScaleFactor * currentSpecialScaleFactor)
+    // so the score-driven shrink (set via ApplyScaleFactor) and the uniform
     // special-gem size override (set via ApplySpecialType, e.g. 2x for Bombs)
-    // can vary independently without fighting each other.
+    // can vary independently without fighting each other. Gold Bars don't
+    // need a per-axis stretch field because they're spawned as a separate
+    // procedural GameObject (see GoldBarFactory) instead of a stretched gem.
     private float currentBaseScaleFactor = 1f;
     private float currentSpecialScaleFactor = 1f;
 
@@ -69,6 +71,18 @@ public class FallingObject : MonoBehaviour
     // Bomb-next-cycle.
 
     public SpecialGemType specialType { get; private set; } = SpecialGemType.Normal;
+
+    // ---- Power-up state ----------------------------------------------------
+    // When isPowerUp is true, this falling gem is acting as a power-up pickup
+    // (a normal gem prefab repainted with the power-up's theme color and
+    // wrapped in a fiery aura — see PowerUpFireEffect). Catch dispatch in
+    // GemCatcher checks this flag FIRST and routes through the power-up
+    // activation path, bypassing the regular variant scoring switch. Set
+    // exclusively by ApplyPowerUpType / cleared by ClearPowerUp; the regular
+    // SpecialGemType is forced to Normal underneath while a power-up is
+    // active so a single gem can never be both a Bomb and a power-up.
+    public bool isPowerUp { get; private set; } = false;
+    public PowerUpType powerUpType { get; private set; } = PowerUpType.WiderCatcher;
 
     // Cached "natural" material colors so we can restore them when a pooled gem
     // is reused with a different (or no) special type. Captured lazily on first
@@ -93,6 +107,13 @@ public class FallingObject : MonoBehaviour
     {
         // Re-initialize components in case anything has changed
         InitializeComponents();
+        // Defensive cleanup of any leftover power-up state from a previous
+        // life. ApplyPowerUpType / ApplySpecialType already handle this when
+        // called, but calling ClearPowerUp here too ensures any future spawn
+        // path that calls ResetObject without immediately repainting the
+        // gem (e.g. an editor tool) can't leave a stale fire effect parented
+        // to a normal-looking gem.
+        ClearPowerUp();
     }
 
     // Sets the score-driven base scale factor. Final localScale is
@@ -110,8 +131,8 @@ public class FallingObject : MonoBehaviour
 
     // Recomputes localScale from originalScale * base * special and
     // refreshes the renderer half-extents cache. Centralized so any change
-    // to either factor (score shrink, special-type override) routes through
-    // a single source of truth.
+    // to either factor (score shrink, uniform special override) routes
+    // through a single source of truth.
     private void ApplyComposedScale()
     {
         transform.localScale = originalScale * (currentBaseScaleFactor * currentSpecialScaleFactor);
@@ -140,10 +161,17 @@ public class FallingObject : MonoBehaviour
     public void ApplySpecialType(SpecialGemType type)
     {
         specialType = type;
+        // Clear any leftover power-up state from the previous time this
+        // pooled instance was used. A gem that's now being respawned as a
+        // regular variant can't ALSO be carrying a power-up flame from its
+        // last life. ClearPowerUp is idempotent and cheap, so it's safe to
+        // call unconditionally.
+        ClearPowerUp();
 
-        // Update the special-type scale factor and recompute localScale.
+        // Update the uniform special-scale factor and recompute localScale.
         // Captured-then-restored on Normal so a pooled gem that was previously
-        // a Bomb doesn't carry over the 2x scale to its next life.
+        // a Bomb doesn't carry over its size override to its next life.
+        // Bombs render at bombScaleMultiplier; everything else renders at 1x.
         CaptureOriginalScaleIfNeeded();
         currentSpecialScaleFactor = type == SpecialGemType.Bomb ? bombScaleMultiplier : 1f;
         ApplyComposedScale();
@@ -193,6 +221,103 @@ public class FallingObject : MonoBehaviour
                 tr.endColor = pal.trailEnd;
             }
         }
+
+        // ClearPowerUp at the top of this method already tore down any
+        // leftover power-up flame from a previous pool cycle. Variant gems
+        // (Normal / Golden / Bomb / GoldBar) never carry a flame of their
+        // own — the magenta fiery aura is reserved exclusively for the
+        // ExtraLife power-up, which routes through ApplyPowerUpType — so
+        // there's nothing more to attach here.
+    }
+
+    /// <summary>
+    /// Tags this falling object as a particular variant for catch-time
+    /// scoring purposes WITHOUT touching the renderer / trail / scale.
+    /// Used by <see cref="ObjectPooler.SpawnGoldBar"/> for procedural Gold
+    /// Bars — the bar already has its own gold material and brick-shaped
+    /// mesh from <see cref="GoldBarFactory"/>, so retinting it via the
+    /// regular palette path would erase the polished metallic look.
+    /// </summary>
+    public void SetSpecialTypeWithoutVisuals(SpecialGemType type)
+    {
+        specialType = type;
+    }
+
+    /// <summary>
+    /// Convert this falling gem into a power-up pickup of the given type.
+    /// Repaints the prefab's material and trail in the power-up's theme
+    /// color, attaches a tinted fiery aura via <see cref="PowerUpFireEffect"/>,
+    /// and flips the <see cref="isPowerUp"/> flag so the catch dispatch and
+    /// the off-screen miss handler take the power-up path instead of the
+    /// regular variant path.
+    ///
+    /// <para>The underlying <see cref="specialType"/> is forced to Normal —
+    /// a gem can never be both a power-up AND a Bomb / Golden / GoldBar at
+    /// the same time, since the catch routing for those would fight the
+    /// power-up activation routing.</para>
+    /// </summary>
+    public void ApplyPowerUpType(PowerUpType type, Color tint)
+    {
+        // Force the variant back to Normal first — this also wipes any
+        // leftover Bomb-scale override (currentSpecialScaleFactor) and
+        // restores the prefab's natural colors before we overpaint with the
+        // power-up tint, so we don't double-apply on a pooled gem that was
+        // previously a Bomb.
+        ApplySpecialType(SpecialGemType.Normal);
+
+        isPowerUp = true;
+        powerUpType = type;
+
+        // Paint the gem body + trail in the power-up's theme color. Same
+        // render-channel hooks as ApplySpecialType uses for variants — we
+        // just reach for them again here with the power-up palette.
+        Renderer r = GetComponent<Renderer>();
+        if (r != null)
+        {
+            Material m = r.material;
+            CaptureOriginalColorsIfNeeded(m);
+            if (m.HasProperty("_Color")) m.color = tint;
+            if (m.HasProperty("_EmissionColor"))
+            {
+                // Emission boosted ~1.4x so the gem reads as glowing under
+                // the additive flame. Below 1.0 and the fire just looks
+                // pasted on; above ~1.6 the gem itself starts to bloom out
+                // and lose its shape silhouette.
+                m.SetColor("_EmissionColor", tint * 1.4f);
+                m.EnableKeyword("_EMISSION");
+            }
+        }
+
+        TrailRenderer tr = GetComponent<TrailRenderer>();
+        if (tr != null)
+        {
+            CaptureOriginalTrailIfNeeded(tr);
+            Color trailHead = tint;
+            trailHead.a = 0.95f;
+            Color trailTail = tint;
+            trailTail.a = 0f;
+            tr.startColor = trailHead;
+            tr.endColor = trailTail;
+        }
+
+        PowerUpFireEffect.Attach(gameObject, tint);
+    }
+
+    /// <summary>
+    /// Strip the power-up state off this falling gem (flame off, flag off).
+    /// Idempotent — safe to call on gems that were never power-ups. Material
+    /// + trail color restoration is handled by the next ApplySpecialType
+    /// call (which captures-then-restores the prefab's natural look on
+    /// Normal); we don't need to roll those back here because every code
+    /// path that exits power-up state does so via ApplySpecialType anyway.
+    /// </summary>
+    public void ClearPowerUp()
+    {
+        if (!isPowerUp) return;
+        isPowerUp = false;
+        // Don't touch powerUpType — leaving it at the last value is harmless
+        // because callers gate on isPowerUp before reading it.
+        PowerUpFireEffect.Detach(gameObject);
     }
 
     private void CaptureOriginalColorsIfNeeded(Material m)
@@ -240,14 +365,13 @@ public class FallingObject : MonoBehaviour
                     trailStart = new Color(1.00f, 0.30f, 0.20f, 0.95f),
                     trailEnd = new Color(0.30f, 0.05f, 0.05f, 0.0f),
                 };
-            case SpecialGemType.Heart:
-                return new VariantPalette
-                {
-                    albedo = new Color(1.00f, 0.40f, 0.65f),
-                    emission = new Color(1.30f, 0.40f, 0.80f) * 0.8f,
-                    trailStart = new Color(1.00f, 0.65f, 0.85f, 0.95f),
-                    trailEnd = new Color(0.80f, 0.20f, 0.50f, 0.0f),
-                };
+            // GoldBar intentionally has no palette entry — Gold Bars are
+            // spawned as a separate procedural GameObject (see GoldBarFactory)
+            // with their material baked in, so they never traverse this
+            // visual-tint code path. If someone calls ApplySpecialType with
+            // GoldBar by mistake, they'll get the default white palette
+            // (visible but obviously wrong) which surfaces the bug fast
+            // instead of silently retinting a procedural bar.
             default:
                 return new VariantPalette
                 {
@@ -353,6 +477,19 @@ public class FallingObject : MonoBehaviour
             // no combo break, no floating text.
             if (specialType == SpecialGemType.Bomb)
             {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // Power-up gems are also silent on miss — the player just loses
+            // the buff opportunity. No life lost, no combo break, no
+            // revocation of OTHER active power-ups. This matches the legacy
+            // capsule-pickup behavior so a redundant power-up roll (e.g. a
+            // Wide drop while Wide is already active) can't punish the
+            // player for ignoring it.
+            if (isPowerUp)
+            {
+                ClearPowerUp();
                 gameObject.SetActive(false);
                 return;
             }

@@ -32,6 +32,10 @@ public class ObjectPooler : MonoBehaviour
     [Tooltip("Hard cap on simultaneous active pickups. Kept at 1 so only one pickup is ever in flight at a time — the player must catch (or miss) it before another appears. Acts as a safety net; the deterministic schedule already prevents back-to-back pickups.")]
     public int maxActivePickups = 1;
 
+    [Header("Internal Test Modes")]
+    [Tooltip("DEV-ONLY. When enabled, every spawn cycle is a power-up — no regular gems, no obstacles, no warmup, no cadence — and the spawner cycles deterministically through all PowerUpType values in enum order (WiderCatcher → Shield → DoubleScore → ExtraLife → repeat) so you can eyeball each variant's mesh + tint + fiery aura in one session. Daily-mode gem cap is also bypassed so the round doesn't end after 30 'gems' in test mode. MUST be off in shipped builds.")]
+    public bool powerUpOnlyTestMode = false;
+
     [Tooltip("Score threshold at which gems start spawning at half size. Set to a very large number to disable.")]
     public int smallGemScoreThreshold = 1000;
     [Range(0.1f, 1f)]
@@ -46,10 +50,8 @@ public class ObjectPooler : MonoBehaviour
     [Tooltip("Chance per gem spawn that the gem is a Bomb (don't catch — costs a life and breaks combo on contact).")]
     public float bombGemChance = 0.07f;
     [Range(0f, 1f)]
-    [Tooltip("Chance per gem spawn that the gem is a Heart gem (+1 life on catch). Skipped if the player is already at full lives.")]
-    public float heartGemChance = 0.03f;
-    [Tooltip("Don't spawn Heart gems while lives are at or above this cap (prevents wasted hearts). Should match GemCatcher.MAX_LIVES so hearts spawn anywhere below the ceiling.")]
-    public int heartLivesCap = 10;
+    [Tooltip("Chance per gem spawn that the gem is a Gold Bar (+500 points jackpot — procedurally-built brick GameObject from GoldBarFactory). Currently disabled (0) — bump to ~0.02 (2%) to re-enable without touching code.")]
+    public float goldBarChance = 0f;
 
     // Difficulty progression
     public DifficultyLevel[] difficultyLevels;
@@ -69,6 +71,38 @@ public class ObjectPooler : MonoBehaviour
     private List<GameObject> activeObstacles; // Currently active obstacles
     private GameObject currentActiveGem; // Currently active gem
     private List<GameObject> activePickups = new List<GameObject>(); // Active power-up pickups
+
+    // Procedurally-built Gold Bar instances. Kept separate from the regular
+    // gem pool because Gold Bars are a different mesh (a stacked-cube brick,
+    // not a gem) — sharing the pool would mean tinting / stretching a sphere
+    // into something that doesn't read as a bar. Built by GoldBarFactory at
+    // Start and reused round-to-round just like gems are. Pool stays
+    // populated even when goldBarChance is 0 so re-enabling Gold Bars from
+    // the Inspector works without a script reload.
+    private List<GameObject> goldBarPool;
+    private const int GoldBarPoolSize = 3;
+
+    /// <summary>
+    /// True while at least one power-up pickup is mid-air (spawned but neither
+    /// caught nor fallen off-screen). Used by <see cref="CatcherManager"/> to
+    /// suppress the middle-slot auto-reset that normally fires on every new
+    /// gem spawn — without this, a pickup that's still falling will get its
+    /// catcher snatched out from under it the instant the next gem cycle
+    /// begins (~2.5 seconds after the pickup spawn).
+    /// </summary>
+    public bool HasActivePickupInFlight
+    {
+        get
+        {
+            for (int i = 0; i < activePickups.Count; i++)
+            {
+                GameObject p = activePickups[i];
+                if (p != null && p.activeInHierarchy) return true;
+            }
+            return false;
+        }
+    }
+
     private float nextSpawnTime;
     private float currentFallSpeed;
     private float currentSpawnInterval;
@@ -89,6 +123,30 @@ public class ObjectPooler : MonoBehaviour
     // counter exceeds powerUpWarmupDrops AND has the right modulus relative
     // to powerUpEveryNDrops. Reset on round restart and game over.
     private int dropCounter = 0;
+
+    // Internal-test-mode index. Cycles WiderCatcher → Shield → DoubleScore →
+    // ExtraLife → repeat across pickup spawns when powerUpOnlyTestMode is on
+    // so the developer sees every variant in deterministic order without
+    // having to wait for RNG to surface each one. Reset on round restart so
+    // a fresh play session always starts at WiderCatcher.
+    private int testModePowerUpIndex = 0;
+
+    /// <summary>
+    /// Read-only accessor: which <see cref="PowerUpType"/> the test-mode
+    /// spawner will use on its next pickup. Used by the test-mode debug
+    /// overlay in <see cref="UIManager"/> so the developer can see what's
+    /// coming before it actually drops. Always returns a valid enum value
+    /// regardless of <see cref="powerUpOnlyTestMode"/>'s state — callers
+    /// should gate their UI on the toggle separately.
+    /// </summary>
+    public PowerUpType TestModeNextPowerUp
+    {
+        get
+        {
+            int typeCount = System.Enum.GetValues(typeof(PowerUpType)).Length;
+            return (PowerUpType)(testModePowerUpIndex % System.Math.Max(1, typeCount));
+        }
+    }
 
     // ---- Deterministic RNG (Daily Challenge) ---------------------------------
     // All random choices that affect gameplay (gem type, X position, horizontal
@@ -146,6 +204,9 @@ public class ObjectPooler : MonoBehaviour
         // power-up.
         dropCounter = 0;
         placementForPickupOnly = false;
+        // Test mode also restarts at the first PowerUpType so each session
+        // begins with WiderCatcher and walks through the enum in order.
+        testModePowerUpIndex = 0;
 
         // Initialize the pools
         objectPool = new List<GameObject>();
@@ -189,6 +250,19 @@ public class ObjectPooler : MonoBehaviour
             }
         }
 
+        // Initialize gold-bar pool. Procedurally built (no prefab needed) so
+        // the bar shape, material, and trail are guaranteed to be correct
+        // every play — no risk of an artist accidentally swapping the prefab
+        // for a gem and turning the jackpot back into a stretched sphere.
+        goldBarPool = new List<GameObject>(GoldBarPoolSize);
+        for (int i = 0; i < GoldBarPoolSize; i++)
+        {
+            GameObject bar = GoldBarFactory.Create();
+            FallingObject fallingObj = bar.GetComponent<FallingObject>();
+            if (fallingObj != null) fallingObj.fallSpeed = currentFallSpeed;
+            goldBarPool.Add(bar);
+        }
+
         // Initialize obstacle pool if there are obstacle prefabs
         if (obstaclePrefabs != null && obstaclePrefabs.Length > 0)
         {
@@ -227,10 +301,20 @@ public class ObjectPooler : MonoBehaviour
         dropCounter = 0;
 
         // Despawn any pickups still falling so they don't survive into the
-        // game-over screen / next round.
+        // game-over screen / next round. Pickups now ride on pooled gem
+        // instances (see TrySpawnPowerUp), so we SetActive(false) rather
+        // than Destroy — destroying would leak the pool slot and a HeartGem
+        // / StarGem / TopazGem / GreenVolcom mesh would be permanently
+        // unavailable for the rest of the run. ClearPowerUp tears down the
+        // fiery aura so the next time this instance is pulled from the
+        // pool it doesn't carry a stale flame.
         for (int i = activePickups.Count - 1; i >= 0; i--)
         {
-            if (activePickups[i] != null) Destroy(activePickups[i]);
+            GameObject p = activePickups[i];
+            if (p == null) continue;
+            FallingObject fo = p.GetComponent<FallingObject>();
+            if (fo != null) fo.ClearPowerUp();
+            p.SetActive(false);
         }
         activePickups.Clear();
     }
@@ -301,8 +385,13 @@ public class ObjectPooler : MonoBehaviour
             // decide gem vs. pickup. Counter is 1-indexed: cycles 1..warmup
             // are gems, then every (warmup + N*every) cycle is a power-up.
             // E.g. warmup=10, every=10 → pickups on drops 11, 21, 31, ...
+            //
+            // Internal test mode short-circuits the cadence and forces every
+            // cycle to be a pickup. We also skip obstacle spawning and the
+            // daily-mode gem cap below so the developer can sit and watch
+            // power-ups roll in indefinitely.
             dropCounter++;
-            bool wantPickup = ShouldDropPickupOnCycle(dropCounter);
+            bool wantPickup = powerUpOnlyTestMode || ShouldDropPickupOnCycle(dropCounter);
 
             // Pickup spawn can still fail (e.g. activePickups already at cap),
             // in which case fall through to a normal gem so the cycle isn't
@@ -314,6 +403,15 @@ public class ObjectPooler : MonoBehaviour
                 // Pickup-only cycle: no gem, no count toward the daily cap, no
                 // obstacle. The placement phase still runs so the catcher spins
                 // and the player can reposition before the pickup arrives.
+                placementForPickupOnly = true;
+            }
+            else if (powerUpOnlyTestMode)
+            {
+                // Test mode never falls through to a regular-gem spawn — if
+                // TrySpawnPowerUp aborted (pool exhausted, max-active hit),
+                // we just idle this cycle and try again next time. Keeps the
+                // visual signal clean: while test mode is on, the player is
+                // ONLY ever seeing power-ups.
                 placementForPickupOnly = true;
             }
             else
@@ -379,15 +477,35 @@ public class ObjectPooler : MonoBehaviour
 
     void SpawnGem()
     {
-        // Daily mode: pick the prefab type via the seeded RNG so the gem
-        // sequence is identical for every player. Normal mode just grabs any
-        // inactive instance from the shared pool, same as before.
-        GameObject obj = null;
+        // Roll the variant FIRST so we can fork the spawn path: a Gold Bar roll
+        // pulls from the dedicated procedural-bar pool (different mesh, can't
+        // share with the gem pool); everything else uses the gem pool. Rolling
+        // here also keeps the daily-mode RNG stream deterministic — same number
+        // of advances per spawn cycle either way.
+        SpecialGemType variant = RollSpecialType();
+
+        if (variant == SpecialGemType.GoldBar)
+        {
+            SpawnGoldBar();
+            return;
+        }
+
+        // Prefab selection: any inactive pooled instance is fair game,
+        // including HeartGem. The heart-shaped mesh is no longer reserved
+        // for the ExtraLife power-up — a plain HeartGem catch awards the
+        // standard +20 points like any other gem; it's the magenta tint +
+        // fiery aura that signals "this is the ExtraLife power-up, +3
+        // lives". In daily mode we still route the prefab choice through
+        // the seeded RNG (one Next() advance per spawn) so every player
+        // sees the same gem sequence on the same date.
+        GameObject obj;
         if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
         {
             int prefabIdx = rng.Next(0, objectPrefabs.Length);
             string targetName = objectPrefabs[prefabIdx] != null ? objectPrefabs[prefabIdx].name : null;
             obj = GetInactivePooledObjectByPrefabName(objectPool, targetName);
+            // Pool exhausted for the rolled prefab: fall back to any inactive
+            // instance so the spawn cycle isn't dropped on the floor.
             if (obj == null) obj = GetRandomPooledObject(objectPool);
         }
         else
@@ -429,16 +547,58 @@ public class ObjectPooler : MonoBehaviour
                 // Make sure the object initializes with the slow speed
                 fallingObj.InitializeMovement(placementPhaseFallSpeed);
 
-                // Roll for a special-gem variant (Golden / Bomb / Heart) and
-                // apply the visual tint + override flag. Done after movement
-                // setup so the variant doesn't change physics behavior — just
-                // visuals and catch-time scoring rules.
-                fallingObj.ApplySpecialType(RollSpecialType());
+                // Apply the variant we rolled at the top of SpawnGem (Normal /
+                // Golden / Bomb — Gold Bar forked off into SpawnGoldBar
+                // before this branch). Done after movement setup so the
+                // variant doesn't change physics behavior — just visuals and
+                // catch-time scoring rules.
+                fallingObj.ApplySpecialType(variant);
             }
 
             obj.SetActive(true);
             currentActiveGem = obj;
         }
+    }
+
+    // Spawns the next Gold Bar from the dedicated procedural pool. Mirrors the
+    // gem-spawn setup (random horizontal start, score-driven scale, slow
+    // placement-phase fall speed, randomized horizontal drift) so the bar
+    // behaves like a regular falling object — only its shape, material, and
+    // variant tag set it apart.
+    void SpawnGoldBar()
+    {
+        GameObject bar = GetRandomPooledObject(goldBarPool);
+        if (bar == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = RngRange(minX, maxX);
+        bar.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
+
+        FallingObject fallingObj = bar.GetComponent<FallingObject>();
+        if (fallingObj != null)
+        {
+            // Apply the score-driven gem-shrink to the bar too. Gold Bars are
+            // already a fairly chunky shape so the small-gem rescale (0.5x at
+            // 2000+ points) helps keep them from dominating the screen at
+            // higher scores.
+            fallingObj.ApplyScaleFactor(GetCurrentGemScaleFactor());
+            fallingObj.ResetObject();
+            fallingObj.fallSpeed = placementPhaseFallSpeed;
+
+            float horizontalBias = RngRange(-0.8f, 0.8f);
+            fallingObj.horizontalSpeed = Mathf.Sign(horizontalBias) * RngRange(0.5f, 1.0f);
+
+            fallingObj.InitializeMovement(placementPhaseFallSpeed);
+
+            // Tag the variant without touching visuals — the bar already
+            // looks like a bar; we just need GemCatcher to award +500 points
+            // when it's caught.
+            fallingObj.SetSpecialTypeWithoutVisuals(SpecialGemType.GoldBar);
+        }
+
+        bar.SetActive(true);
+        currentActiveGem = bar;
     }
 
     void SpawnObstacle()
@@ -491,27 +651,94 @@ public class ObjectPooler : MonoBehaviour
     // pickups under normal play). Uses the seeded RNG to choose pickup TYPE
     // so daily-mode pickup variety is identical for every player on a given
     // UTC day.
+    //
+    // Pickups now ride on the existing gem prefabs: each PowerUpType has a
+    // designated mesh (Star = Wide, Topaz = Shield, Volcom = 2x, Heart =
+    // ExtraLife) and the spawner pulls an inactive instance of that prefab
+    // out of the regular gem pool. The standard FallingObject + GemCatcher
+    // scripts handle motion + catch detection — we just paint the gem in the
+    // power-up's theme color and attach a tinted fiery aura via
+    // FallingObject.ApplyPowerUpType. This means power-ups now drift, bounce
+    // off walls, and require the same trajectory prediction as a normal gem
+    // catch (visual contract: "if it falls like a gem, you have to catch it
+    // like a gem"). The off-screen miss is still silent — see
+    // FallingObject.Update's isPowerUp branch.
     bool TrySpawnPowerUp()
     {
         // Drop dead references first.
         for (int i = activePickups.Count - 1; i >= 0; i--)
         {
-            if (activePickups[i] == null) activePickups.RemoveAt(i);
+            if (activePickups[i] == null || !activePickups[i].activeInHierarchy)
+            {
+                activePickups.RemoveAt(i);
+            }
         }
 
         if (activePickups.Count >= maxActivePickups) return false;
 
         int typeCount = System.Enum.GetValues(typeof(PowerUpType)).Length;
-        PowerUpType type = (PowerUpType)rng.Next(0, typeCount);
+        PowerUpType type;
+        if (powerUpOnlyTestMode)
+        {
+            // Walk the enum in declaration order so a session in test mode
+            // shows every variant before repeating. Wrap with modulo on
+            // typeCount so adding a new PowerUpType in the future picks up
+            // automatically without touching this branch.
+            type = (PowerUpType)(testModePowerUpIndex % typeCount);
+            testModePowerUpIndex++;
+        }
+        else
+        {
+            type = (PowerUpType)rng.Next(0, typeCount);
+        }
 
+        // Pull the gem instance whose prefab name matches this power-up's
+        // designated mesh. If the pool has no free instance (every gem of
+        // that mesh is currently in flight as a regular gem), we abort the
+        // pickup spawn — the caller falls through to a regular gem this
+        // cycle and the next scheduled pickup attempt covers the gap.
+        string prefabName = PowerUpPickup.GemPrefabNameForType(type);
+        if (string.IsNullOrEmpty(prefabName)) return false;
+
+        GameObject pickup = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
+        if (pickup == null) return false;
+
+        // Position + motion setup mirrors SpawnGem's so a power-up is visually
+        // indistinguishable from a normal gem at spawn time apart from the
+        // theme-colored body and the fiery aura. Same X range, same drift, same
+        // placement-phase slow-fall.
         float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
         float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
         float x = RngRange(minX, maxX);
+        pickup.transform.position = new Vector3(x, ScreenPadding.WorldTop, 0f);
 
-        GameObject pickup = PowerUpPickup.Create(type, new Vector3(x, ScreenPadding.WorldTop, 0f));
-        if (pickup == null) return false;
+        FallingObject fallingObj = pickup.GetComponent<FallingObject>();
+        if (fallingObj != null)
+        {
+            // Reuse the score-driven gem-shrink so a power-up at 2000+
+            // points is small like its sibling gems.
+            fallingObj.ApplyScaleFactor(GetCurrentGemScaleFactor());
+            fallingObj.ResetObject();
+            fallingObj.fallSpeed = placementPhaseFallSpeed;
 
+            float horizontalBias = RngRange(-0.8f, 0.8f);
+            fallingObj.horizontalSpeed = Mathf.Sign(horizontalBias) * RngRange(0.5f, 1.0f);
+            fallingObj.InitializeMovement(placementPhaseFallSpeed);
+
+            // Apply the power-up paint AFTER motion init so ApplyPowerUpType's
+            // call to ApplySpecialType(Normal) doesn't fight the motion setup
+            // — Normal is the default state, so the call is essentially a
+            // visual reset before we paint the power-up tint on top.
+            fallingObj.ApplyPowerUpType(type, PowerUpPickup.ColorForType(type));
+        }
+
+        pickup.SetActive(true);
         activePickups.Add(pickup);
+        // Track the active "gem" pointer so the cycle's catcher-placement /
+        // early-termination logic still has something to watch — without
+        // this, the placement phase can't tell when the power-up has been
+        // caught vs. is still in flight.
+        currentActiveGem = pickup;
         return true;
     }
 
@@ -589,21 +816,21 @@ public class ObjectPooler : MonoBehaviour
 
     // Picks a special-gem variant (or Normal) for the next spawn. Uses the
     // seeded RNG so daily mode produces the same special-gem sequence for
-    // every player. Order: Heart → Golden → Bomb → Normal, so each chance
-    // value reads "chance OUT OF the remaining mass after earlier rolls". The
-    // total of all three should stay below 1 — if they sum past 1, Normal
-    // simply never spawns.
+    // every player. Order: GoldBar → Golden → Bomb → Normal, so each chance
+    // value reads "chance OUT OF the remaining mass after earlier rolls".
+    // GoldBar comes BEFORE Golden so a low-percentage jackpot roll always
+    // wins out over a higher-percentage golden roll on the same RNG slice.
+    // The total of all three chances should stay below 1 — if they sum past
+    // 1, Normal simply never spawns.
+    //
+    // Note: random-roll Heart variant gems were removed — the only ways to
+    // gain a life are now (1) catching the ExtraLife power-up and (2) the
+    // every-third-catch combo award handled in GemCatcher.HandleVariantCatch.
     private SpecialGemType RollSpecialType()
     {
-        // Suppress hearts when the player is already loaded up so we never
-        // waste a slot on an unneeded life. The slot reverts to a normal gem
-        // for that spawn cycle (no re-roll — keeps daily-mode RNG stream
-        // deterministic with the same number of advances).
-        bool heartAllowed = GemCatcher.Lives < heartLivesCap;
-
         float r = RngFloat();
-        if (heartAllowed && r < heartGemChance) return SpecialGemType.Heart;
-        r -= heartGemChance;
+        if (r < goldBarChance) return SpecialGemType.GoldBar;
+        r -= goldBarChance;
         if (r < goldenGemChance) return SpecialGemType.Golden;
         r -= goldenGemChance;
         if (r < bombGemChance) return SpecialGemType.Bomb;

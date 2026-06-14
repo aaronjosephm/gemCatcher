@@ -1,107 +1,35 @@
 using UnityEngine;
 
 /// <summary>
-/// A falling collectible that grants a power-up when caught. Spawned by
-/// <see cref="ObjectPooler"/> at intervals; falls straight down (subject to
-/// the slow-motion multiplier just like gems); on overlap with the catcher it
-/// activates the power-up and self-destructs.
+/// Static metadata helpers for the power-up pickup system. Used to be a
+/// MonoBehaviour that owned a procedural sphere pickup; pickups now ride on
+/// the regular gem prefabs (each power-up has a designated prefab + tint +
+/// fiery particle effect — see <see cref="ObjectPooler.TrySpawnPowerUp"/>),
+/// so the only thing left here is the type→visual lookup tables that the HUD
+/// + the spawner share.
 ///
-/// Has its own catcher-overlap test rather than reusing FallingObject so the
-/// pickup behavior stays decoupled from the gem code path. Pickups don't
-/// bounce off walls, deduct points on miss, or count toward the daily gem cap.
+/// Keeping the class name <c>PowerUpPickup</c> for backwards compatibility
+/// with <see cref="UIManager"/> call sites (PowerUpPickup.ColorForType /
+/// LabelForType) — renaming would churn references for no functional gain.
 /// </summary>
-public class PowerUpPickup : MonoBehaviour
+public static class PowerUpPickup
 {
-  public PowerUpType type;
-  public float fallSpeed = 2.5f;
-
-  // Cached catcher reference; refreshed lazily if the catcher hasn't been built
-  // yet (CatcherManager creates it on first PlaceCatcherInSlot, which may run
-  // a frame after the pickup spawns).
-  private Transform catcher;
-  private BoxCollider catcherCollider;
-  private Vector3 catcherSize;
-  private Vector3 catcherCenter;
-  private const float pickupRadius = 0.45f;
-
-  // Latches once a pickup is consumed so the same instance can't double-fire
-  // its activation between catch and Destroy.
-  private bool consumed;
-
-  void Start()
-  {
-    FindCatcher();
-  }
-
-  void FindCatcher()
-  {
-    GameObject catcherGo = GameObject.FindWithTag("Catcher");
-    if (catcherGo != null)
-    {
-      catcher = catcherGo.transform;
-      catcherCollider = catcher.GetComponent<BoxCollider>();
-    }
-  }
-
-  void Update()
-  {
-    if (consumed) return;
-
-    if (GemCatcher.IsGameOver)
-    {
-      Destroy(gameObject);
-      return;
-    }
-
-    float dt = Time.deltaTime;
-    transform.Translate(Vector3.down * fallSpeed * dt, Space.World);
-
-    // Idle rotation so the pickup is unmistakable as a special object.
-    transform.Rotate(45f * dt, 90f * dt, 30f * dt, Space.World);
-
-    if (transform.position.y < ScreenPadding.WorldBottom - 0.5f)
-    {
-      // Off-screen: silent miss — no penalty.
-      Destroy(gameObject);
-      return;
-    }
-
-    if (IsInCatcher())
-    {
-      consumed = true;
-      PowerUpManager.Activate(type);
-      CatchBurst.Spawn(transform.position, ColorForType(type));
-      if (SoundManager.Instance != null)
-      {
-        SoundManager.Instance.Play("PowerUp");
-      }
-      Destroy(gameObject);
-    }
-  }
-
-  bool IsInCatcher()
-  {
-    if (catcher == null || catcherCollider == null) FindCatcher();
-    if (catcher == null || catcherCollider == null) return false;
-
-    catcherSize = Vector3.Scale(catcherCollider.size, catcher.lossyScale);
-    catcherCenter = catcher.TransformPoint(catcherCollider.center);
-
-    Vector3 p = transform.position;
-    return Mathf.Abs(p.x - catcherCenter.x) <= catcherSize.x / 2f + pickupRadius
-        && Mathf.Abs(p.y - catcherCenter.y) <= catcherSize.y / 2f + pickupRadius
-        && Mathf.Abs(p.z - catcherCenter.z) <= catcherSize.z / 2f + pickupRadius;
-  }
-
-  /// <summary>Color used for the pickup body, trail, and catch burst.</summary>
+  /// <summary>
+  /// Theme color for a power-up type. Used by:
+  ///   • the HUD slot tint (active power-up indicators);
+  ///   • the gem albedo / emission override applied at spawn time;
+  ///   • the catch-burst / fire particle tint;
+  ///   • banner notifications fired on activation.
+  /// </summary>
   public static Color ColorForType(PowerUpType type)
   {
     switch (type)
     {
-      case PowerUpType.WiderCatcher: return new Color(0.40f, 0.85f, 1.00f);
-      case PowerUpType.Shield: return new Color(1.00f, 0.85f, 0.35f);
-      case PowerUpType.DoubleScore: return new Color(0.45f, 1.00f, 0.55f);
-      default: return Color.white;
+      case PowerUpType.WiderCatcher: return new Color(0.40f, 0.85f, 1.00f); // sky blue
+      case PowerUpType.Shield:       return new Color(1.00f, 0.85f, 0.35f); // warm yellow
+      case PowerUpType.DoubleScore:  return new Color(0.45f, 1.00f, 0.55f); // bright green
+      case PowerUpType.ExtraLife:    return new Color(1.00f, 0.30f, 0.90f); // hot magenta
+      default:                       return Color.white;
     }
   }
 
@@ -111,70 +39,37 @@ public class PowerUpPickup : MonoBehaviour
     switch (type)
     {
       case PowerUpType.WiderCatcher: return "WIDE";
-      case PowerUpType.Shield: return "SHIELD";
-      case PowerUpType.DoubleScore: return "2\u00d7 SCORE";
-      default: return "";
+      case PowerUpType.Shield:       return "SHIELD";
+      case PowerUpType.DoubleScore:  return "2\u00d7 SCORE";
+      // Mirrors PowerUpManager.ExtraLifeAwardCount so the test-mode
+      // "NEXT: …" preview overlay matches what the player will actually
+      // receive. Not shown in the in-game HUD slot list (ExtraLife has no
+      // slot — it's instant-effect) so this is dev-facing only.
+      case PowerUpType.ExtraLife:    return "+" + PowerUpManager.ExtraLifeAwardCount + " \u2665";
+      default:                       return "";
     }
   }
 
   /// <summary>
-  /// Builds a procedurally-styled pickup at the given world position. The
-  /// returned GameObject has a glowing colored sphere, a trail, and a
-  /// PowerUpPickup component already configured with <paramref name="type"/>.
+  /// Prefab-name prefix that this power-up should ride on. Matched against
+  /// <see cref="ObjectPooler.objectPrefabs"/> by name prefix (pool clones are
+  /// "&lt;Prefab&gt;(Clone)") so the spawner can pull the correct gem mesh
+  /// out of the existing pool — no separate power-up pool needed.
+  ///
+  /// <para>The mapping is intentionally locked here in code (not Inspector-
+  /// wired) because the design is: <i>a heart shape always means a life</i>,
+  /// <i>a star shape always means wider catch</i>, etc. — moving this to the
+  /// Inspector would let a designer accidentally break that contract.</para>
   /// </summary>
-  public static GameObject Create(PowerUpType type, Vector3 position)
+  public static string GemPrefabNameForType(PowerUpType type)
   {
-    GameObject go = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-    go.name = "PowerUp_" + type;
-    go.transform.position = position;
-    go.transform.localScale = Vector3.one * 0.55f;
-
-    // Drop the auto-added physics collider — we do our own bounds check and
-    // don't want the pickup to interact with gems/obstacles.
-    Collider col = go.GetComponent<Collider>();
-    if (col != null) Destroy(col);
-
-    Color c = ColorForType(type);
-
-    Renderer rend = go.GetComponent<Renderer>();
-    if (rend != null)
+    switch (type)
     {
-      Material mat = new Material(Shader.Find("Standard"));
-      mat.color = c;
-      mat.SetColor("_EmissionColor", c * 1.6f);
-      mat.EnableKeyword("_EMISSION");
-      mat.SetFloat("_Glossiness", 0.85f);
-      mat.SetFloat("_Metallic", 0.20f);
-      rend.material = mat;
+      case PowerUpType.DoubleScore:  return "GreenVolcom";
+      case PowerUpType.WiderCatcher: return "StarGem";
+      case PowerUpType.Shield:       return "TopazGem";
+      case PowerUpType.ExtraLife:    return "HeartGem";
+      default:                       return null;
     }
-
-    // Bright trail makes the pickup easy to spot among gems and obstacles.
-    TrailRenderer trail = go.AddComponent<TrailRenderer>();
-    trail.time = 0.45f;
-    trail.startWidth = 0.40f;
-    trail.endWidth = 0.05f;
-    trail.minVertexDistance = 0.05f;
-    Shader spriteShader = Shader.Find("Sprites/Default");
-    if (spriteShader != null)
-    {
-      trail.material = new Material(spriteShader);
-    }
-    Gradient grad = new Gradient();
-    grad.SetKeys(
-      new[]
-      {
-        new GradientColorKey(c, 0f),
-        new GradientColorKey(c, 1f),
-      },
-      new[]
-      {
-        new GradientAlphaKey(0.85f, 0f),
-        new GradientAlphaKey(0f, 1f),
-      });
-    trail.colorGradient = grad;
-
-    PowerUpPickup pickup = go.AddComponent<PowerUpPickup>();
-    pickup.type = type;
-    return go;
   }
 }
