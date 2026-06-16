@@ -88,7 +88,15 @@ public static class PowerUpFireEffect
     var velOverLife = ps.velocityOverLifetime;
     velOverLife.enabled = true;
     velOverLife.space = ParticleSystemSimulationSpace.Local;
+    // All three axes MUST be assigned a MinMaxCurve of the SAME mode. Setting
+    // only Y leaves X/Z at their default Constant(0) mode while Y becomes
+    // TwoConstants(1,2), which trips Unity's runtime check and logs
+    // "Particle Velocity curves must all be in the same mode" the moment
+    // the effect spawns. Zero-out X and Z explicitly in the same
+    // TwoConstants mode so particles still drift only upward.
+    velOverLife.x = new ParticleSystem.MinMaxCurve(0f, 0f);
     velOverLife.y = new ParticleSystem.MinMaxCurve(1.0f, 2.0f);
+    velOverLife.z = new ParticleSystem.MinMaxCurve(0f, 0f);
 
     // Gradient: hot core (white/yellow) → tinted middle → fade to transparent.
     // Using the supplied tint at the middle keypoint makes each power-up's

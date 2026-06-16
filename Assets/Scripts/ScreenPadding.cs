@@ -24,14 +24,16 @@ public class ScreenPadding : MonoBehaviour
   [Header("Extra padding (in world units, on top of Screen.safeArea)")]
   [Tooltip("Lifts the catcher and the gem-miss line away from the bottom of the screen.")]
   public float extraBottom = 0.6f;
-  [Tooltip("Lowers gem spawn / play-area top below the safe area's top edge so gems don't appear behind a notch.")]
-  public float extraTop = 0.4f;
+  [Tooltip(
+    "Lowers gem spawn / play-area top below the safe area's top edge so gems don't appear behind a notch, Dynamic Island, or front-camera lens. " +
+    "Tuned to 1.2 world units (~12% of a 10-unit-tall view) so a gem's full body — not just its center — clears every iPhone's top hardware, from the original notch through iPhone 17 Pro's Dynamic Island.")]
+  public float extraTop = 1.2f;
   [Tooltip("Inset on each side, useful for phones with curved screens.")]
   public float extraSide = 0.0f;
 
   // Static mirrors of the Inspector fields. Other scripts read these.
   public static float ExtraBottom = 0.6f;
-  public static float ExtraTop = 0.4f;
+  public static float ExtraTop = 1.2f;
   public static float ExtraSide = 0.0f;
 
   void Awake()
@@ -68,7 +70,7 @@ public class ScreenPadding : MonoBehaviour
   private static void ResetStaticState()
   {
     ExtraBottom = 0.6f;
-    ExtraTop = 0.4f;
+    ExtraTop = 1.2f;
     ExtraSide = 0.0f;
   }
 

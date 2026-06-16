@@ -852,7 +852,8 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
-    // Full-screen dim overlay.
+    // Full-screen dim overlay. Stays full-screen (extends behind notch / home
+    // indicator) so the entire screen darkens, not just the safe area.
     GameObject panel = new GameObject("GameOverPanel (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     panel.transform.SetParent(UiRoot, false);
     RectTransform panelRect = panel.GetComponent<RectTransform>();
@@ -863,9 +864,26 @@ public class UIManager : MonoBehaviour
     Image bg = panel.GetComponent<Image>();
     bg.color = new Color(0f, 0f, 0f, 0.65f);
 
-    // Title — anchored to the top of the screen so it's always above the breakdown.
+    // Safe-area inset wrapper. All readable content (title, score, buttons)
+    // hangs off this so its top/bottom anchors land BELOW the Dynamic Island
+    // / front-camera lens (top) and ABOVE the home-indicator gesture bar
+    // (bottom), on every iPhone and iPad. SafeAreaFitter recomputes anchors
+    // each frame from Screen.safeArea, so this also adapts to device rotation
+    // and to runtime safe-area changes (split-view on iPad, etc.).
+    GameObject safeAreaGo = new GameObject("SafeArea", typeof(RectTransform));
+    safeAreaGo.transform.SetParent(panel.transform, false);
+    RectTransform safeRect = safeAreaGo.GetComponent<RectTransform>();
+    safeRect.anchorMin = Vector2.zero;
+    safeRect.anchorMax = Vector2.one;
+    safeRect.offsetMin = Vector2.zero;
+    safeRect.offsetMax = Vector2.zero;
+    safeAreaGo.AddComponent<SafeAreaFitter>();
+    Transform contentParent = safeAreaGo.transform;
+
+    // Title — anchored to the top of the safe area so it's always above the
+    // breakdown AND below the Dynamic Island / camera lens.
     GameObject titleGo = new GameObject("Title", typeof(RectTransform));
-    titleGo.transform.SetParent(panel.transform, false);
+    titleGo.transform.SetParent(contentParent, false);
     RectTransform titleRect = titleGo.GetComponent<RectTransform>();
     titleRect.anchorMin = new Vector2(0.5f, 1f);
     titleRect.anchorMax = new Vector2(0.5f, 1f);
@@ -884,7 +902,7 @@ public class UIManager : MonoBehaviour
     // Normal mode. Sits between the title and "Final Score" line. Stretches
     // to the panel width so the streak text doesn't overflow on narrow screens.
     GameObject dailySubGo = new GameObject("DailySubtitle", typeof(RectTransform));
-    dailySubGo.transform.SetParent(panel.transform, false);
+    dailySubGo.transform.SetParent(contentParent, false);
     RectTransform dailySubRect = dailySubGo.GetComponent<RectTransform>();
     dailySubRect.anchorMin = new Vector2(0f, 1f);
     dailySubRect.anchorMax = new Vector2(1f, 1f);
@@ -904,7 +922,7 @@ public class UIManager : MonoBehaviour
 
     // Headline "Final Score: X" — one line, anchored just below the title.
     GameObject scoreGo = new GameObject("FinalScore", typeof(RectTransform));
-    scoreGo.transform.SetParent(panel.transform, false);
+    scoreGo.transform.SetParent(contentParent, false);
     RectTransform scoreRect = scoreGo.GetComponent<RectTransform>();
     scoreRect.anchorMin = new Vector2(0.5f, 1f);
     scoreRect.anchorMax = new Vector2(0.5f, 1f);
@@ -920,7 +938,7 @@ public class UIManager : MonoBehaviour
 
     // "Gems Caught:" subhead.
     GameObject labelGo = new GameObject("GemsCaughtLabel", typeof(RectTransform));
-    labelGo.transform.SetParent(panel.transform, false);
+    labelGo.transform.SetParent(contentParent, false);
     RectTransform labelRect = labelGo.GetComponent<RectTransform>();
     labelRect.anchorMin = new Vector2(0.5f, 1f);
     labelRect.anchorMax = new Vector2(0.5f, 1f);
@@ -938,7 +956,7 @@ public class UIManager : MonoBehaviour
     // and the retry button at the bottom; rows are stacked by VerticalLayoutGroup.
     GameObject iconsGo = new GameObject("GemIconsContainer",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
-    iconsGo.transform.SetParent(panel.transform, false);
+    iconsGo.transform.SetParent(contentParent, false);
     autoGemIconsContainer = iconsGo.GetComponent<RectTransform>();
     autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0f);
     autoGemIconsContainer.anchorMax = new Vector2(0.5f, 1f);
@@ -958,13 +976,13 @@ public class UIManager : MonoBehaviour
     // "Try Again" + "Main Menu" stacked at the bottom of the panel. Try Again is
     // primary (blue), Main Menu is secondary (gray).
     Button retryBtn = BuildPanelButton(
-        panel.transform, "RetryButton", "Try Again",
+        contentParent, "RetryButton", "Try Again",
         new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 175f), new Vector2(360f, 100f),
         RestartGame);
     restartButton = retryBtn;
 
     BuildPanelButton(
-        panel.transform, "MainMenuButton", "Main Menu",
+        contentParent, "MainMenuButton", "Main Menu",
         new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 55f), new Vector2(360f, 100f),
         ReturnToMainMenu);
 
@@ -1026,7 +1044,7 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
-    GameObject panel = BuildFullScreenPanel("MainMenuPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.95f));
+    GameObject panel = BuildFullScreenPanel("MainMenuPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.95f), out Transform contentParent);
 
     // ---- Logo --------------------------------------------------------------
     // Wrapper so the pulse animation scales/rotates the inner title without
@@ -1038,7 +1056,7 @@ public class UIManager : MonoBehaviour
     // The shadow is a separate TMP object instead of using TMP's underlay so
     // we don't depend on the project's font asset having underlay configured.
     GameObject anchor = new GameObject("TitleAnchor", typeof(RectTransform));
-    anchor.transform.SetParent(panel.transform, false);
+    anchor.transform.SetParent(contentParent, false);
     RectTransform anchorRect = anchor.GetComponent<RectTransform>();
     anchorRect.anchorMin = new Vector2(0f, 1f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
@@ -1066,7 +1084,7 @@ public class UIManager : MonoBehaviour
     // Refined tagline: italic, slightly tighter letter spacing, dropped a
     // bit further down so it doesn't crowd the bigger logo above.
     GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
-    subGo.transform.SetParent(panel.transform, false);
+    subGo.transform.SetParent(contentParent, false);
     RectTransform subRect = subGo.GetComponent<RectTransform>();
     subRect.anchorMin = new Vector2(0f, 1f);
     subRect.anchorMax = new Vector2(1f, 1f);
@@ -1089,7 +1107,7 @@ public class UIManager : MonoBehaviour
     if (highScore > 0)
     {
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
-      bestGo.transform.SetParent(panel.transform, false);
+      bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
       bestRect.anchorMin = new Vector2(0f, 1f);
       bestRect.anchorMax = new Vector2(1f, 1f);
@@ -1111,7 +1129,7 @@ public class UIManager : MonoBehaviour
     // Centered button stack — anchored to vertical center for stable layout across resolutions.
     GameObject stackGo = new GameObject("ButtonStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
-    stackGo.transform.SetParent(panel.transform, false);
+    stackGo.transform.SetParent(contentParent, false);
     RectTransform stackRect = stackGo.GetComponent<RectTransform>();
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -1140,8 +1158,9 @@ public class UIManager : MonoBehaviour
 
     // Small gear button anchored to the top-right corner of the main menu
     // for sound / haptics toggles. Doubles as the only entry point to the
-    // settings panel.
-    BuildSettingsCornerButton(panel.transform);
+    // settings panel. Parented to the SAFE AREA so the gear stays inside the
+    // visible play area on iPhones with a Dynamic Island.
+    BuildSettingsCornerButton(contentParent);
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
@@ -1162,7 +1181,7 @@ public class UIManager : MonoBehaviour
   // Returns the face TMP so callers can grab a reference if they want.
   TextMeshProUGUI BuildLogoTitle(Transform parent)
   {
-    const string text = "GEM CATCHER";
+    const string text = "GEM CATCH";
     const float fontSizeMin = 64f;
     const float fontSizeMax = 168f;
     const float characterSpacing = 14f;
@@ -1267,9 +1286,9 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
-    GameObject panel = BuildFullScreenPanel("HelpPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f));
+    GameObject panel = BuildFullScreenPanel("HelpPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(panel.transform, "HOW TO PLAY", new Color(1f, 0.85f, 0.35f), 100f);
+    AddPanelTitle(contentParent, "HOW TO PLAY", new Color(1f, 0.85f, 0.35f), 100f);
 
     string helpText =
         "Catch the falling gems with your glass cube catcher.\n\n" +
@@ -1321,13 +1340,13 @@ public class UIManager : MonoBehaviour
         "Good luck!";
 
     BuildScrollableTextBlock(
-        panel.transform, "HelpScroll", helpText,
+        contentParent, "HelpScroll", helpText,
         // Reserve ~240 px at the top (title + a bit of breathing room) and ~210 px
         // at the bottom for the Back button and its margin.
         offsetMin: new Vector2(-560f, 210f),
         offsetMax: new Vector2(560f, -240f));
 
-    BuildPanelButton(panel.transform, "BackButton", "Back",
+    BuildPanelButton(contentParent, "BackButton", "Back",
         new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
         OnHelpBackClicked);
 
@@ -1407,7 +1426,14 @@ public class UIManager : MonoBehaviour
   }
 
   // Builds a full-screen, near-opaque panel that hosts a single menu screen.
-  GameObject BuildFullScreenPanel(string name, Color bgColor)
+  // The returned panel's RectTransform fills the WHOLE screen (so background
+  // dim/color extends behind the Dynamic Island, notch, home indicator, etc.),
+  // but a SafeArea child is automatically created and returned via
+  // <paramref name="contentParent"/>. Callers MUST parent readable content
+  // (titles, buttons, text blocks) to <paramref name="contentParent"/> — not
+  // to the panel directly — or that content will sit under the device's
+  // hardware cutouts on iPhone (and modern iPad in some split views).
+  GameObject BuildFullScreenPanel(string name, Color bgColor, out Transform contentParent)
   {
     GameObject panel = new GameObject(name,
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -1419,6 +1445,21 @@ public class UIManager : MonoBehaviour
     rect.offsetMax = Vector2.zero;
     Image bg = panel.GetComponent<Image>();
     bg.color = bgColor;
+
+    // Safe-area inset wrapper. SafeAreaFitter rewrites anchorMin/Max each
+    // frame to match Screen.safeArea — so a child anchored to anchorMax=(.5,1)
+    // ends up at the top edge of the SAFE AREA, not the top of the screen,
+    // keeping titles out from under the Dynamic Island / notch / camera lens.
+    GameObject safeAreaGo = new GameObject("SafeArea", typeof(RectTransform));
+    safeAreaGo.transform.SetParent(panel.transform, false);
+    RectTransform safeRect = safeAreaGo.GetComponent<RectTransform>();
+    safeRect.anchorMin = Vector2.zero;
+    safeRect.anchorMax = Vector2.one;
+    safeRect.offsetMin = Vector2.zero;
+    safeRect.offsetMax = Vector2.zero;
+    safeAreaGo.AddComponent<SafeAreaFitter>();
+    contentParent = safeAreaGo.transform;
+
     return panel;
   }
 
@@ -1647,33 +1688,33 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
-    GameObject panel = BuildFullScreenPanel("DailyCooldownPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f));
-    AddPanelTitle(panel.transform, "DAILY DONE", new Color(0.55f, 0.85f, 0.55f), 100f);
+    GameObject panel = BuildFullScreenPanel("DailyCooldownPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
+    AddPanelTitle(contentParent, "DAILY DONE", new Color(0.55f, 0.85f, 0.55f), 100f);
 
     // "Day 217" subtitle.
-    dailyCooldownDayTmp = AddCooldownLine(panel.transform, "DayTmp",
+    dailyCooldownDayTmp = AddCooldownLine(contentParent, "DayTmp",
         anchoredY: -260f, fontSizeMin: 28f, fontSizeMax: 44f,
         color: new Color(0.85f, 0.85f, 0.9f), bold: false);
 
     // Big streak number — the hero element of this screen.
-    dailyCooldownStreakTmp = AddCooldownLine(panel.transform, "StreakTmp",
+    dailyCooldownStreakTmp = AddCooldownLine(contentParent, "StreakTmp",
         anchoredY: -360f, fontSizeMin: 48f, fontSizeMax: 96f,
         color: new Color(1f, 0.85f, 0.35f), bold: true);
 
     // Today's score and best streak — two smaller secondary lines.
-    dailyCooldownScoreTmp = AddCooldownLine(panel.transform, "ScoreTmp",
+    dailyCooldownScoreTmp = AddCooldownLine(contentParent, "ScoreTmp",
         anchoredY: -490f, fontSizeMin: 24f, fontSizeMax: 40f,
         color: Color.white, bold: false);
-    dailyCooldownBestTmp = AddCooldownLine(panel.transform, "BestTmp",
+    dailyCooldownBestTmp = AddCooldownLine(contentParent, "BestTmp",
         anchoredY: -550f, fontSizeMin: 22f, fontSizeMax: 36f,
         color: new Color(0.7f, 0.7f, 0.75f), bold: false);
 
     // Live countdown to next reset — UPDATED EVERY FRAME by TickDailyCooldown.
-    dailyCooldownTimerTmp = AddCooldownLine(panel.transform, "TimerTmp",
+    dailyCooldownTimerTmp = AddCooldownLine(contentParent, "TimerTmp",
         anchoredY: -680f, fontSizeMin: 24f, fontSizeMax: 40f,
         color: new Color(0.6f, 0.85f, 1f), bold: true);
 
-    BuildPanelButton(panel.transform, "BackButton", "Back",
+    BuildPanelButton(contentParent, "BackButton", "Back",
         new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
         OnDailyCooldownBackClicked);
 
@@ -2237,12 +2278,12 @@ public class UIManager : MonoBehaviour
     if (hudCanvas == null) return;
 
     GameObject panel = BuildFullScreenPanel(
-        "PausePanel (auto)", new Color(0f, 0f, 0f, 0.78f));
+        "PausePanel (auto)", new Color(0f, 0f, 0f, 0.78f), out Transform contentParent);
 
-    AddPanelTitle(panel.transform, "Paused", new Color(1f, 0.95f, 0.85f), 200f);
+    AddPanelTitle(contentParent, "Paused", new Color(1f, 0.95f, 0.85f), 200f);
 
     GameObject hintGo = new GameObject("PauseHint", typeof(RectTransform));
-    hintGo.transform.SetParent(panel.transform, false);
+    hintGo.transform.SetParent(contentParent, false);
     RectTransform hintRect = hintGo.GetComponent<RectTransform>();
     hintRect.anchorMin = new Vector2(0.5f, 0.5f);
     hintRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -2259,7 +2300,7 @@ public class UIManager : MonoBehaviour
     hint.fontSizeMax = 38f;
     hint.enableWordWrapping = false;
 
-    BuildPanelButton(panel.transform, "ResumeButton", "Resume",
+    BuildPanelButton(contentParent, "ResumeButton", "Resume",
         new Color(0.20f, 0.60f, 0.35f),
         new Vector2(0f, 240f), new Vector2(360f, 100f),
         OnPauseResumeClicked);
@@ -2363,14 +2404,14 @@ public class UIManager : MonoBehaviour
     if (hudCanvas == null) return;
 
     GameObject panel = BuildFullScreenPanel(
-        "SettingsPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f));
+        "SettingsPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(panel.transform, "Settings", new Color(1f, 0.85f, 0.35f), 100f);
+    AddPanelTitle(contentParent, "Settings", new Color(1f, 0.85f, 0.35f), 100f);
 
     // Stack the toggle rows down the middle.
     GameObject stackGo = new GameObject("ToggleStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
-    stackGo.transform.SetParent(panel.transform, false);
+    stackGo.transform.SetParent(contentParent, false);
     RectTransform stackRect = stackGo.GetComponent<RectTransform>();
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
@@ -2390,7 +2431,7 @@ public class UIManager : MonoBehaviour
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
 
-    BuildPanelButton(panel.transform, "SettingsBackButton", "Back",
+    BuildPanelButton(contentParent, "SettingsBackButton", "Back",
         new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
         OnSettingsBackClicked);
 
