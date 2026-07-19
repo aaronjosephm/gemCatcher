@@ -75,13 +75,13 @@ public class UIManager : MonoBehaviour
   private readonly List<GameObject> spawnedIconRows = new List<GameObject>();
 
   [Header("Menu Panels (auto-created if not assigned)")]
-  [Tooltip("Main menu shown at scene load. Hosts Play / Daily Challenge / Help / Exit buttons.")]
+  [Tooltip("Main menu shown at scene load. Hosts Play / Daily Challenge / Help buttons.")]
   public GameObject mainMenuPanel;
   [Tooltip("How-to-play panel reached from the main menu.")]
   public GameObject helpPanel;
 
   // Auto-created in EnsureSettingsPanel, opened from a small gear button on
-  // the main menu. Hosts Sound / Haptics toggles backed by PlayerPrefs.
+  // the main menu. Hosts Music / SFX volume sliders and Haptics toggle.
   private GameObject settingsPanel;
 
   // Auto-created on first request. Shown when the OS backgrounds the app
@@ -1031,7 +1031,7 @@ public class UIManager : MonoBehaviour
   // Menu panels (main menu + help)
   // ---------------------------------------------------------------------------
 
-  // Builds the main menu — title + four buttons (Play / Daily / Help / Exit) —
+  // Builds the main menu — title + three buttons (Play / Daily / Help) —
   // if no panel was wired up in the Inspector. The panel starts hidden; ShowMainMenu
   // toggles it on.
   void EnsureMainMenuPanel()
@@ -1134,9 +1134,9 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    // Sized for 4 menu buttons: 4 * 100px tall + 3 * 22px spacing ≈ 466px.
+    // Sized for 3 menu buttons: 3 * 100px tall + 2 * 22px spacing ≈ 344px.
     stackRect.anchoredPosition = new Vector2(0f, -50f);
-    stackRect.sizeDelta = new Vector2(520f, 520f);
+    stackRect.sizeDelta = new Vector2(520f, 400f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 22f;
@@ -1154,7 +1154,6 @@ public class UIManager : MonoBehaviour
     dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
     dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Help",        new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
-    BuildStackedMenuButton(stackGo.transform, "ExitButton",        "Exit",        new Color(0.55f, 0.20f, 0.20f), OnExitClicked);
 
     // Small gear button anchored to the top-right corner of the main menu
     // for sound / haptics toggles. Doubles as the only entry point to the
@@ -1294,7 +1293,7 @@ public class UIManager : MonoBehaviour
         "Catch the falling gems with your glass cube catcher.\n\n" +
 
         "<b>Controls</b>\n" +
-        "  • During the placement countdown, tap any slot at the bottom of the screen to position the catcher.\n" +
+        "  • During the placement countdown, tap any slot at the bottom of the screen to position the catcher — or drag left/right to slide it.\n" +
         "  • You can reposition the catcher as many times as you want before the countdown ends.\n\n" +
 
         "<b>Scoring</b>\n" +
@@ -1594,15 +1593,6 @@ public class UIManager : MonoBehaviour
   {
     FadePanel(helpPanel, false);
     ShowMainMenu();
-  }
-
-  void OnExitClicked()
-  {
-#if UNITY_EDITOR
-    UnityEditor.EditorApplication.isPlaying = false;
-#else
-    Application.Quit();
-#endif
   }
 
   // ---------------------------------------------------------------------------
@@ -2394,8 +2384,8 @@ public class UIManager : MonoBehaviour
   // -- Settings panel --------------------------------------------------------
 
   /// <summary>
-  /// Build the settings panel on first demand. Panel hosts Sound / Haptics
-  /// toggles backed by PlayerPrefs so the choice persists across sessions.
+  /// Build the settings panel on first demand. Music / SFX volume sliders and
+  /// Haptics toggle, all backed by PlayerPrefs.
   /// </summary>
   void EnsureSettingsPanel()
   {
@@ -2408,7 +2398,6 @@ public class UIManager : MonoBehaviour
 
     AddPanelTitle(contentParent, "Settings", new Color(1f, 0.85f, 0.35f), 100f);
 
-    // Stack the toggle rows down the middle.
     GameObject stackGo = new GameObject("ToggleStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
@@ -2416,18 +2405,20 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    stackRect.anchoredPosition = new Vector2(0f, 30f);
-    stackRect.sizeDelta = new Vector2(640f, 280f);
+    stackRect.anchoredPosition = new Vector2(0f, 40f);
+    stackRect.sizeDelta = new Vector2(720f, 420f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 24f;
+    vlg.spacing = 22f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
     vlg.childForceExpandHeight = false;
 
-    BuildSettingsToggleRow(stackGo.transform, "Sound", SoundManager.SoundEnabled,
-        v => SoundManager.SoundEnabled = v);
+    BuildSettingsVolumeRow(stackGo.transform, "Music", SoundManager.MusicVolume,
+        v => SoundManager.MusicVolume = v);
+    BuildSettingsVolumeRow(stackGo.transform, "Sound FX", SoundManager.SfxVolume,
+        v => SoundManager.SfxVolume = v);
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
 
@@ -2439,7 +2430,148 @@ public class UIManager : MonoBehaviour
     settingsPanel.SetActive(false);
   }
 
-  // Visual: "Sound  [ ON ]" / "Sound  [ OFF ]" — a label and a toggle button
+  // "Music  [========·---]  70%" — label, slider, percent readout.
+  void BuildSettingsVolumeRow(Transform parent, string label, float initial, System.Action<float> onChange)
+  {
+    GameObject row = new GameObject(label + "VolumeRow",
+        typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+    row.transform.SetParent(parent, false);
+    RectTransform rowRect = row.GetComponent<RectTransform>();
+    rowRect.sizeDelta = new Vector2(720f, 90f);
+    LayoutElement le = row.GetComponent<LayoutElement>();
+    le.preferredWidth = 720f;
+    le.preferredHeight = 90f;
+    HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
+    hlg.childAlignment = TextAnchor.MiddleCenter;
+    hlg.spacing = 16f;
+    hlg.childControlWidth = false;
+    hlg.childControlHeight = false;
+    hlg.childForceExpandWidth = false;
+    hlg.childForceExpandHeight = false;
+
+    GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
+    labelGo.transform.SetParent(row.transform, false);
+    LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
+    labelLe.preferredWidth = 200f;
+    labelLe.preferredHeight = 90f;
+    TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
+    labelTmp.text = label;
+    labelTmp.alignment = TextAlignmentOptions.MidlineRight;
+    labelTmp.fontStyle = FontStyles.Bold;
+    labelTmp.color = Color.white;
+    labelTmp.fontSize = 40f;
+
+    // Slider root
+    GameObject sliderGo = new GameObject(label + "Slider",
+        typeof(RectTransform), typeof(Slider), typeof(LayoutElement));
+    sliderGo.transform.SetParent(row.transform, false);
+    LayoutElement sliderLe = sliderGo.GetComponent<LayoutElement>();
+    sliderLe.preferredWidth = 360f;
+    sliderLe.preferredHeight = 48f;
+    RectTransform sliderRect = sliderGo.GetComponent<RectTransform>();
+    sliderRect.sizeDelta = new Vector2(360f, 48f);
+
+    Sprite whiteSprite = CreateUiWhiteSprite();
+
+    // Background track
+    GameObject bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    bgGo.transform.SetParent(sliderGo.transform, false);
+    RectTransform bgRect = bgGo.GetComponent<RectTransform>();
+    bgRect.anchorMin = new Vector2(0f, 0.25f);
+    bgRect.anchorMax = new Vector2(1f, 0.75f);
+    bgRect.offsetMin = Vector2.zero;
+    bgRect.offsetMax = Vector2.zero;
+    Image bgImg = bgGo.GetComponent<Image>();
+    bgImg.sprite = whiteSprite;
+    bgImg.color = new Color(0.25f, 0.27f, 0.32f, 1f);
+    bgImg.type = Image.Type.Simple;
+
+    // Fill area + fill
+    GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
+    fillArea.transform.SetParent(sliderGo.transform, false);
+    RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
+    fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
+    fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
+    fillAreaRect.offsetMin = new Vector2(6f, 0f);
+    fillAreaRect.offsetMax = new Vector2(-6f, 0f);
+
+    GameObject fillGo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    fillGo.transform.SetParent(fillArea.transform, false);
+    RectTransform fillRect = fillGo.GetComponent<RectTransform>();
+    fillRect.anchorMin = Vector2.zero;
+    fillRect.anchorMax = Vector2.one;
+    fillRect.offsetMin = Vector2.zero;
+    fillRect.offsetMax = Vector2.zero;
+    Image fillImg = fillGo.GetComponent<Image>();
+    fillImg.sprite = whiteSprite;
+    fillImg.color = new Color(0.25f, 0.65f, 0.95f, 1f);
+
+    // Handle
+    GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
+    handleArea.transform.SetParent(sliderGo.transform, false);
+    RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
+    handleAreaRect.anchorMin = Vector2.zero;
+    handleAreaRect.anchorMax = Vector2.one;
+    handleAreaRect.offsetMin = new Vector2(12f, 0f);
+    handleAreaRect.offsetMax = new Vector2(-12f, 0f);
+
+    GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    handleGo.transform.SetParent(handleArea.transform, false);
+    RectTransform handleRect = handleGo.GetComponent<RectTransform>();
+    handleRect.sizeDelta = new Vector2(36f, 36f);
+    Image handleImg = handleGo.GetComponent<Image>();
+    handleImg.sprite = whiteSprite;
+    handleImg.color = Color.white;
+
+    // Percent label
+    GameObject pctGo = new GameObject("Percent", typeof(RectTransform), typeof(LayoutElement));
+    pctGo.transform.SetParent(row.transform, false);
+    LayoutElement pctLe = pctGo.GetComponent<LayoutElement>();
+    pctLe.preferredWidth = 100f;
+    pctLe.preferredHeight = 90f;
+    TextMeshProUGUI pctTmp = pctGo.AddComponent<TextMeshProUGUI>();
+    pctTmp.alignment = TextAlignmentOptions.MidlineLeft;
+    pctTmp.fontStyle = FontStyles.Bold;
+    pctTmp.color = new Color(0.85f, 0.85f, 0.9f);
+    pctTmp.fontSize = 36f;
+
+    Slider slider = sliderGo.GetComponent<Slider>();
+    slider.targetGraphic = handleImg;
+    slider.fillRect = fillRect;
+    slider.handleRect = handleRect;
+    slider.direction = Slider.Direction.LeftToRight;
+    slider.minValue = 0f;
+    slider.maxValue = 1f;
+    slider.wholeNumbers = false;
+    slider.value = Mathf.Clamp01(initial);
+
+    System.Action refreshPct = () =>
+    {
+      pctTmp.text = Mathf.RoundToInt(slider.value * 100f) + "%";
+    };
+    refreshPct();
+
+    slider.onValueChanged.AddListener(v =>
+    {
+      onChange?.Invoke(v);
+      refreshPct();
+    });
+  }
+
+  static Sprite s_uiWhiteSprite;
+  static Sprite CreateUiWhiteSprite()
+  {
+    if (s_uiWhiteSprite != null) return s_uiWhiteSprite;
+    Texture2D tex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
+    Color[] pixels = new Color[16];
+    for (int i = 0; i < 16; i++) pixels[i] = Color.white;
+    tex.SetPixels(pixels);
+    tex.Apply(false, true);
+    s_uiWhiteSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
+    return s_uiWhiteSprite;
+  }
+
+  // Visual: "Haptics  [ ON ]" / "Haptics  [ OFF ]" — a label and a toggle button
   // colored green when on, gray when off. Cheap and reads instantly.
   void BuildSettingsToggleRow(Transform parent, string label, bool initial, System.Action<bool> onChange)
   {

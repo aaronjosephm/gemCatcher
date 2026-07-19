@@ -5,17 +5,11 @@ using Random = UnityEngine.Random;
 
 // Centralised audio playback.
 //
-// Sounds can be configured two ways:
-//   1. Drag AudioClips into the `soundEffects` array in the Inspector.
-//   2. Leave them empty and rely on the procedural fallbacks below — short synth tones
-//      generated at runtime so the game has audible feedback without any asset setup.
-//      Set `generateProceduralFallbacks = false` to disable.
-//
 // Named sounds the game expects:
 //   "GemCaught", "GemMissed", "Bounce", "ObstacleBounce", "WallBounce",
 //   "CatcherMove", "GameOver", "Win", "BonusLife", "PowerUp",
-//   "Bomb", "Milestone",
-//   "BackgroundMusic" (looping, no fallback)
+//   "Bomb", "Milestone", "GoldBar",
+//   "BackgroundMusic" (looping — only while GameState.IsPlaying and not game-over)
 public class SoundManager : MonoBehaviour
 {
     [Serializable]
@@ -38,32 +32,73 @@ public class SoundManager : MonoBehaviour
 
     public static SoundManager Instance { get; private set; }
 
-    /// <summary>
-    /// PlayerPrefs key for the sound on/off toggle exposed in the settings panel.
-    /// </summary>
+    public const string MusicVolumePrefKey = "MusicVolume";
+    public const string SfxVolumePrefKey = "SfxVolume";
+
+    /// <summary>Legacy mute key — if set to 0 on first run of the new prefs, volumes start at 0.</summary>
     public const string SoundPrefKey = "SoundEnabled";
 
-    /// <summary>
-    /// Master sound toggle. Backed by PlayerPrefs and mirrored onto
-    /// <see cref="AudioListener.volume"/> so a single flag silences both
-    /// the procedural fallbacks and any inspector-assigned clips without
-    /// having to gate every Play() call.
-    /// </summary>
-    public static bool SoundEnabled
+    /// <summary>0–1 music volume (background track only). Persisted in PlayerPrefs.</summary>
+    public static float MusicVolume
     {
-        get => PlayerPrefs.GetInt(SoundPrefKey, 1) == 1;
+        get => Mathf.Clamp01(PlayerPrefs.GetFloat(MusicVolumePrefKey, DefaultMusicVolume()));
         set
         {
-            PlayerPrefs.SetInt(SoundPrefKey, value ? 1 : 0);
+            PlayerPrefs.SetFloat(MusicVolumePrefKey, Mathf.Clamp01(value));
             PlayerPrefs.Save();
-            AudioListener.volume = value ? 1f : 0f;
+            if (Instance != null) Instance.ApplyVolumes();
+        }
+    }
+
+    /// <summary>0–1 sound-effects volume. Persisted in PlayerPrefs.</summary>
+    public static float SfxVolume
+    {
+        get => Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumePrefKey, DefaultSfxVolume()));
+        set
+        {
+            PlayerPrefs.SetFloat(SfxVolumePrefKey, Mathf.Clamp01(value));
+            PlayerPrefs.Save();
+            if (Instance != null) Instance.ApplyVolumes();
+        }
+    }
+
+    // Kept for any old callers; maps to both volumes being non-zero.
+    public static bool SoundEnabled
+    {
+        get => MusicVolume > 0.001f || SfxVolume > 0.001f;
+        set
+        {
+            if (value)
+            {
+                if (MusicVolume < 0.001f) MusicVolume = 0.7f;
+                if (SfxVolume < 0.001f) SfxVolume = 1f;
+            }
+            else
+            {
+                MusicVolume = 0f;
+                SfxVolume = 0f;
+            }
         }
     }
 
     private Dictionary<string, SoundEffect> soundDictionary;
+    private bool musicWasWanted;
 
-    // Bootstraps a SoundManager into the scene after load if the developer hasn't
-    // placed one manually. Means the game gets audio without any scene setup.
+    static float DefaultMusicVolume()
+    {
+        // Honor a previous global mute if the new keys were never written.
+        if (!PlayerPrefs.HasKey(MusicVolumePrefKey) && PlayerPrefs.GetInt(SoundPrefKey, 1) == 0)
+            return 0f;
+        return 0.7f;
+    }
+
+    static float DefaultSfxVolume()
+    {
+        if (!PlayerPrefs.HasKey(SfxVolumePrefKey) && PlayerPrefs.GetInt(SoundPrefKey, 1) == 0)
+            return 0f;
+        return 1f;
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureInstance()
     {
@@ -85,9 +120,8 @@ public class SoundManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // Apply any previously-saved mute preference before we start playing
-        // anything (e.g. background music in Start()).
-        AudioListener.volume = SoundEnabled ? 1f : 0f;
+        // Per-bus volumes — do not mute the whole AudioListener.
+        AudioListener.volume = 1f;
 
         soundDictionary = new Dictionary<string, SoundEffect>();
 
@@ -105,17 +139,19 @@ public class SoundManager : MonoBehaviour
             RegisterFallbacks();
         }
 
-        // Create an AudioSource per sound now that the dictionary is fully populated.
+        EnsureBackgroundMusicFromResources();
+
         foreach (SoundEffect sound in soundDictionary.Values)
         {
             if (sound.source != null) continue;
             sound.source = gameObject.AddComponent<AudioSource>();
             sound.source.clip = sound.clip;
-            sound.source.volume = sound.volume;
             sound.source.pitch = sound.pitch;
             sound.source.loop = sound.loop;
             sound.source.playOnAwake = false;
         }
+
+        ApplyVolumes();
 
         GemCatcher.OnGemCaught += HandleGemCaught;
         GemCatcher.OnGemMissed += HandleGemMissed;
@@ -123,15 +159,12 @@ public class SoundManager : MonoBehaviour
         GemCatcher.OnBombHit += HandleBombHit;
         GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
         MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
+        GemCatcher.OnGameOver += HandleGameOver;
     }
 
-    void Start()
+    void Update()
     {
-        // Play background music only if a clip was actually assigned (no procedural music).
-        if (soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm) && bgm.clip != null)
-        {
-            bgm.source.Play();
-        }
+        SyncGameplayMusic();
     }
 
     // ----- Public API -----
@@ -140,6 +173,8 @@ public class SoundManager : MonoBehaviour
     {
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
+            if (IsMusic(soundName)) return; // music is driven by SyncGameplayMusic only
+            sound.source.volume = sound.volume * SfxVolume;
             sound.source.Play();
         }
     }
@@ -156,6 +191,7 @@ public class SoundManager : MonoBehaviour
     {
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
+            sound.source.volume = sound.volume * SfxVolume;
             sound.source.pitch = Random.Range(minPitch, maxPitch);
             sound.source.Play();
         }
@@ -164,23 +200,64 @@ public class SoundManager : MonoBehaviour
     public void PlayGameOverSound() => Play("GameOver");
     public void PlayWinSound() => Play("Win");
 
+    public void ApplyVolumes()
+    {
+        if (soundDictionary == null) return;
+        foreach (var kv in soundDictionary)
+        {
+            SoundEffect sound = kv.Value;
+            if (sound.source == null) continue;
+            float bus = IsMusic(kv.Key) ? MusicVolume : SfxVolume;
+            sound.source.volume = sound.volume * bus;
+        }
+    }
+
+    // ----- Music gating -----
+
+    void SyncGameplayMusic()
+    {
+        if (!soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm)
+            || bgm.source == null || bgm.clip == null)
+        {
+            return;
+        }
+
+        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver;
+        bgm.source.volume = bgm.volume * MusicVolume;
+
+        if (wantMusic)
+        {
+            if (!bgm.source.isPlaying)
+            {
+                // Fresh start each time a round begins (menu → play, or after game over).
+                if (!musicWasWanted) bgm.source.time = 0f;
+                bgm.source.Play();
+            }
+        }
+        else if (bgm.source.isPlaying)
+        {
+            bgm.source.Stop();
+        }
+
+        musicWasWanted = wantMusic;
+    }
+
+    static bool IsMusic(string soundName) =>
+        string.Equals(soundName, "BackgroundMusic", StringComparison.Ordinal);
+
     // ----- Event handlers -----
 
     void HandleGemCaught(int amount, Vector3 worldPosition)
     {
-        // Pitch climbs with the combo so a 10-streak literally sounds higher
-        // and brighter than a single catch. Capped at 1.6x so it never gets
-        // chipmunk-level shrill.
         float comboPitch = 1f + Mathf.Clamp01(ComboManager.CurrentCombo / 10f) * 0.6f;
         PlayWithFixedPitch("GemCaught", comboPitch);
     }
 
-    // Plays a sound at a specific pitch. Used for pitch-laddering combos so
-    // the shift isn't random.
     private void PlayWithFixedPitch(string soundName, float pitch)
     {
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
+            sound.source.volume = sound.volume * SfxVolume;
             sound.source.pitch = pitch;
             sound.source.Play();
         }
@@ -203,14 +280,19 @@ public class SoundManager : MonoBehaviour
 
     void HandleGoldBarCaught(Vector3 worldPosition)
     {
-        // Distinct triumphant cue — longer and brighter than the regular catch
-        // sound so the +500 jackpot reads as the moment it is.
         Play("GoldBar");
     }
 
     void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
     {
         Play("Milestone");
+    }
+
+    void HandleGameOver()
+    {
+        // Stop BGM immediately; SyncGameplayMusic will also catch this next frame.
+        Stop("BackgroundMusic");
+        musicWasWanted = false;
     }
 
     void OnDestroy()
@@ -223,14 +305,40 @@ public class SoundManager : MonoBehaviour
             GemCatcher.OnBombHit -= HandleBombHit;
             GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
             MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
+            GemCatcher.OnGameOver -= HandleGameOver;
             Instance = null;
         }
     }
 
+    private void EnsureBackgroundMusicFromResources()
+    {
+        if (soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect existing)
+            && existing.clip != null)
+        {
+            existing.loop = true;
+            return;
+        }
+
+        AudioClip clip = Resources.Load<AudioClip>("Audio/BackgroundMusic");
+        if (clip == null)
+        {
+            Debug.LogWarning("[SoundManager] No Resources/Audio/BackgroundMusic found — BGM skipped.");
+            return;
+        }
+
+        SoundEffect bgm = existing ?? new SoundEffect
+        {
+            name = "BackgroundMusic",
+            volume = 0.55f,
+            pitch = 1f,
+        };
+        bgm.clip = clip;
+        bgm.loop = true;
+        if (bgm.volume <= 0f) bgm.volume = 0.55f;
+        soundDictionary["BackgroundMusic"] = bgm;
+    }
+
     // ----- Procedural fallback audio -----
-    //
-    // These produce simple, short synth tones (sine + exponential decay envelope). They're
-    // intended as scaffolding; replace with proper SFX by assigning AudioClips in the Inspector.
 
     private void RegisterFallbacks()
     {
@@ -242,29 +350,15 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("CatcherMove",   () => CreateBeep(660f, 0.04f, 0.18f));
         RegisterFallback("GameOver",      () => CreateSweep(330f, 80f, 0.75f, 0.32f));
         RegisterFallback("Win",           () => CreateArpeggio(new[] { 523f, 659f, 784f, 1046f }, 0.45f, 0.30f));
-        // Quick rising major-third chime — short and celebratory; pairs with the
-        // "EXTRA LIFE!" banner without stepping on the regular catch sound.
         RegisterFallback("BonusLife",     () => CreateArpeggio(new[] { 659f, 880f, 1175f, 1568f }, 0.35f, 0.32f));
-        // Brighter, faster fanfare for power-up pickups so it's distinctly more
-        // exciting than a normal catch but doesn't feel as triumphant as a bonus life.
         RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
-        // Heavy descending impact — bomb explosion. Lower start frequency than
-        // GemMissed and longer duration so it reads as "you really screwed up".
         RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
-        // Five-note rising fanfare for milestone celebrations. Brighter and
-        // longer than the bonus-life chime so the player notices it through
-        // any other audio chaos.
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
-        // Six-note descending-then-resolving jackpot fanfare for Gold Bar
-        // catches. Deliberately distinct from the regular catch chord and
-        // longer than the bonus-life chime — the +500 should sound like
-        // hitting a slot-machine win, not just another catch.
         RegisterFallback("GoldBar",       () => CreateArpeggio(new[] { 1175f, 880f, 1318f, 1568f, 1976f, 2349f }, 0.85f, 0.36f));
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)
     {
-        // Don't override an Inspector-assigned clip.
         if (soundDictionary.TryGetValue(soundName, out SoundEffect existing) && existing.clip != null)
         {
             return;
@@ -326,7 +420,6 @@ public class SoundManager : MonoBehaviour
         {
             float t = (float)i / SampleRate;
             float u = t / duration;
-            // Logarithmic frequency interpolation for a natural-sounding sweep.
             float freq = Mathf.Lerp(startFreq, endFreq, u);
             phase += 2f * Mathf.PI * freq * invSampleRate;
             samples[i] = volume * Envelope(t, duration) * Mathf.Sin(phase);
@@ -354,8 +447,6 @@ public class SoundManager : MonoBehaviour
         return clip;
     }
 
-    // Short linear attack + exponential decay. Prevents the audible "click" you'd get from
-    // starting/ending a sine wave at non-zero amplitude.
     private static float Envelope(float t, float duration)
     {
         const float attack = 0.005f;

@@ -25,6 +25,11 @@ public class CatcherManager : MonoBehaviour
     private float placementTimer = 0f;
     private ObjectPooler objectPooler;
 
+    // Drag-to-reposition: once the player presses in the catcher band (or on the
+    // catcher itself), the catcher follows the pointer's X smoothly. Sound /
+    // haptic fire once on finger-up, not while sliding.
+    private bool isDraggingCatcher = false;
+
     // Tracking for the rotate-during-placement / settle-after animation.
     private bool wasInPlacementPhase = false;
     private Quaternion catcherSettleStart;
@@ -35,15 +40,15 @@ public class CatcherManager : MonoBehaviour
     public int trajectoryPoints = 10;
     public float trajectoryTimeStep = 0.1f;
 
-    [Header("Glass Catcher Appearance")]
-    [Tooltip("Tint and transparency of the glass catcher. Alpha controls how see-through it is.")]
-    public Color glassColor = new Color(0.65f, 0.85f, 1.00f, 0.30f);
+    [Header("Catcher Appearance")]
+    [Tooltip("Tint of the catcher. Fully opaque — alpha is forced to 1.")]
+    public Color glassColor = new Color(0.65f, 0.85f, 1.00f, 1.00f);
     [Range(0f, 1f)]
-    [Tooltip("How smooth/shiny the glass surface is. 1 = mirror-like.")]
-    public float glassSmoothness = 0.95f;
+    [Tooltip("Surface smoothness. Keep low so the catcher stays a solid color and does not mirror falling gems.")]
+    public float glassSmoothness = 0.25f;
     [Range(0f, 1f)]
-    [Tooltip("Metallic factor. Keep low for glass; a touch of metallic gives it some sheen.")]
-    public float glassMetallic = 0.1f;
+    [Tooltip("Metallic factor. Keep at 0 so gem colors are not reflected into the catcher.")]
+    public float glassMetallic = 0f;
 
     [Header("Placement Phase Spin")]
     [Tooltip("Degrees per second the catcher spins while the placement countdown is running.")]
@@ -186,22 +191,79 @@ public class CatcherManager : MonoBehaviour
             }
         }
 
-        // The catcher can be repositioned freely while the placement countdown is active —
-        // every click during the phase moves it to the clicked slot.
-        if (isPlacementPhase && Input.GetMouseButtonDown(0))
-        {
-            Vector3 clickPosition = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-            clickPosition.z = 0f;
-
-            int slotIndex = GetSlotFromClick(clickPosition);
-            if (slotIndex != -1)
-            {
-                PlaceCatcherInSlot(slotIndex);
-            }
-        }
+        HandleCatcherPlacementInput();
 
         UpdateCatcherSpin();
         UpdateCatcherFeedback();
+    }
+
+    // Tap or drag during the placement countdown. Drag follows the finger
+    // smoothly along X (no slot snapping mid-drag). Sound / haptic play once
+    // when the finger lifts, not while sliding.
+    void HandleCatcherPlacementInput()
+    {
+        if (!isPlacementPhase)
+        {
+            isDraggingCatcher = false;
+            return;
+        }
+
+        if (Camera.main == null) return;
+
+        Vector3 pointerWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        pointerWorld.z = 0f;
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            bool startDrag = GetSlotFromClick(pointerWorld) != -1
+                || IsPointerNearCatcher(pointerWorld);
+            if (startDrag)
+            {
+                isDraggingCatcher = true;
+                // Silent move under the finger immediately — feedback waits for lift.
+                MoveCatcherToX(pointerWorld.x, playFeedback: false);
+            }
+        }
+        else if (Input.GetMouseButton(0) && isDraggingCatcher)
+        {
+            MoveCatcherToX(pointerWorld.x, playFeedback: false);
+        }
+        else if (Input.GetMouseButtonUp(0) && isDraggingCatcher)
+        {
+            // Final position under the finger, then one confirmation sound.
+            MoveCatcherToX(pointerWorld.x, playFeedback: true);
+            isDraggingCatcher = false;
+        }
+    }
+
+    // Smooth free-X placement along the catcher row. Clamped so the catcher's
+    // body stays inside the safe play area.
+    void MoveCatcherToX(float worldX, bool playFeedback)
+    {
+        float catcherY = ScreenPadding.WorldBottom + slotHeight / 2.0f;
+        float halfExtent = GetCatcherHalfWidth();
+        float minX = ScreenPadding.WorldLeft + halfExtent;
+        float maxX = ScreenPadding.WorldRight - halfExtent;
+        if (minX > maxX)
+        {
+            // Degenerate (catcher wider than play area) — pin to center.
+            float mid = (ScreenPadding.WorldLeft + ScreenPadding.WorldRight) * 0.5f;
+            minX = maxX = mid;
+        }
+        float x = Mathf.Clamp(worldX, minX, maxX);
+        MoveCatcherTo(new Vector3(x, catcherY, 0f), playFeedback);
+    }
+
+    float GetCatcherHalfWidth()
+    {
+        // Prefer live renderer bounds when available; fall back to slot width
+        // scaled by the same factors UpdateCatcherFeedback applies.
+        if (catcherInstance != null)
+        {
+            Renderer r = catcherInstance.GetComponentInChildren<Renderer>();
+            if (r != null) return Mathf.Max(0.05f, r.bounds.extents.x);
+        }
+        return (slotWidth * 0.45f) * widerCatcherFactor * smallCatcherFactor;
     }
 
     // Tweens the catcher back to its rest pose after a catch (squash) or miss (jitter)
@@ -417,36 +479,62 @@ public class CatcherManager : MonoBehaviour
 
         if (clickPosition.y >= bottomY && clickPosition.y <= catcherBandTop)
         {
-            float startX = ScreenPadding.WorldLeft;
-            int slotIndex = (int)((clickPosition.x - startX) / slotWidth);
-
-            // Ensure the slotIndex is within the valid range
-            if (slotIndex >= 0 && slotIndex < numberOfSlots)
-            {
-                return slotIndex;
-            }
+            return GetSlotFromX(clickPosition.x);
         }
 
         // If the click was outside the slot area
         return -1;
     }
 
+    // Maps a world X coordinate to a slot index, clamping into the playable
+    // horizontal range. Used by drag so the catcher keeps tracking even when
+    // the finger is above the catcher band.
+    int GetSlotFromX(float worldX)
+    {
+        float startX = ScreenPadding.WorldLeft;
+        float playWidth = Mathf.Max(0.01f, ScreenPadding.WorldRight - ScreenPadding.WorldLeft);
+        // Clamp into the play area so dragging past the edges parks on the
+        // end slots instead of returning -1 and freezing the catcher.
+        float clampedX = Mathf.Clamp(worldX, startX, startX + playWidth - 0.001f);
+        int slotIndex = (int)((clampedX - startX) / slotWidth);
+        if (slotIndex < 0 || slotIndex >= numberOfSlots) return -1;
+        return slotIndex;
+    }
+
+    // Generous hit test so the player can grab the catcher by its visual body,
+    // not only by the thin slot strip under it.
+    bool IsPointerNearCatcher(Vector3 worldPos)
+    {
+        if (catcherInstance == null) return false;
+        Vector3 catcherPos = catcherAnchorPosition;
+        float halfW = slotWidth * 0.75f * widerCatcherFactor * smallCatcherFactor;
+        float halfH = slotHeight * 0.85f;
+        return Mathf.Abs(worldPos.x - catcherPos.x) <= halfW
+            && Mathf.Abs(worldPos.y - catcherPos.y) <= halfH;
+    }
+
     void PlaceCatcherInSlot(int slotIndex)
     {
-        // Deactivate all slot highlights first
+        if (slotIndex < 0 || slotIndex >= numberOfSlots) return;
+        MoveCatcherTo(slotPositions[slotIndex], playFeedback: true);
+    }
+
+    void MoveCatcherTo(Vector3 worldPosition, bool playFeedback)
+    {
+        // Highlight the nearest slot under the catcher (visual only).
+        int nearestSlot = GetSlotFromX(worldPosition.x);
         for (int i = 0; i < slotHighlights.Length; i++)
         {
             if (slotHighlights[i] != null)
             {
-                slotHighlights[i].SetActive(i == slotIndex); // Only activate the selected slot
+                slotHighlights[i].SetActive(i == nearestSlot);
             }
         }
 
-        // If catcher doesn't exist, create it
         if (catcherInstance == null)
         {
-            catcherInstance = Instantiate(catcherPrefab, slotPositions[slotIndex], Quaternion.identity);
-            catcherInstance.tag = "Catcher"; // Ensure it has the correct tag
+            catcherInstance = Instantiate(catcherPrefab, worldPosition, Quaternion.identity);
+            catcherInstance.tag = "Catcher";
             ApplyGlassAppearance(catcherInstance);
             AddSparkleEffect(catcherInstance);
             catcherBaseScale = catcherInstance.transform.localScale;
@@ -454,19 +542,16 @@ public class CatcherManager : MonoBehaviour
         }
         else
         {
-            // Move the existing catcher to the new position
-            catcherInstance.transform.position = slotPositions[slotIndex];
+            catcherInstance.transform.position = worldPosition;
         }
-        catcherAnchorPosition = slotPositions[slotIndex];
+        catcherAnchorPosition = worldPosition;
 
-        // Play sound effect if available
+        if (!playFeedback) return;
+
         if (SoundManager.Instance != null)
         {
             SoundManager.Instance.Play("CatcherMove");
         }
-
-        // Tactile click — confirms the tap registered before the gem ever
-        // arrives, especially valuable on devices where the audio is muted.
         if (HapticManager.Instance != null)
         {
             HapticManager.Instance.Trigger(HapticManager.Intensity.Light);
@@ -488,9 +573,8 @@ public class CatcherManager : MonoBehaviour
         PlaceCatcherInSlot(numberOfSlots / 2);
     }
 
-    // Swaps every Renderer on the catcher prefab over to a translucent glass material so
-    // the player can see falling gems through it. Called once when the catcher is first
-    // instantiated.
+    // Swaps every Renderer on the catcher prefab over to the solid catcher material.
+    // Called once when the catcher is first instantiated.
     void ApplyGlassAppearance(GameObject catcherObject)
     {
         if (catcherObject == null) return;
@@ -500,9 +584,6 @@ public class CatcherManager : MonoBehaviour
         Renderer[] renderers = catcherObject.GetComponentsInChildren<Renderer>(true);
         foreach (Renderer r in renderers)
         {
-            // Replace every submaterial on the renderer with the glass material. Using a
-            // single shared material keeps the per-instance Material count low (this only
-            // ever runs once, but it's still tidier).
             Material[] mats = new Material[r.sharedMaterials.Length];
             for (int i = 0; i < mats.Length; i++) mats[i] = glass;
             r.sharedMaterials = mats;
@@ -579,25 +660,30 @@ public class CatcherManager : MonoBehaviour
 
     Material CreateGlassMaterial()
     {
-        // Built-in Render Pipeline (Standard shader). If the project later moves to URP,
-        // swap this shader name for "Universal Render Pipeline/Lit".
+        // Built-in Render Pipeline (Standard shader). Opaque so the catcher
+        // never shows the cave / gems through its body.
         Shader standard = Shader.Find("Standard");
         Material mat = new Material(standard);
 
-        // Configure the Standard shader for its "Transparent" rendering mode. This block
-        // mirrors what the Inspector does when you switch the Rendering Mode dropdown.
-        mat.SetFloat("_Mode", 3f);
+        mat.SetFloat("_Mode", 0f); // Opaque
         mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        mat.SetInt("_ZWrite", 0);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+        mat.SetInt("_ZWrite", 1);
         mat.DisableKeyword("_ALPHATEST_ON");
         mat.DisableKeyword("_ALPHABLEND_ON");
-        mat.EnableKeyword("_ALPHAPREMULTIPLY_ON");
-        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
 
-        mat.color = glassColor;
+        Color opaque = glassColor;
+        opaque.a = 1f;
+        mat.color = opaque;
         mat.SetFloat("_Glossiness", glassSmoothness);
         mat.SetFloat("_Metallic", glassMetallic);
+        // Kill specular highlights so bright / emissive gems cannot tint the catcher.
+        mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+        mat.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
+        mat.SetFloat("_SpecularHighlights", 0f);
+        mat.SetFloat("_GlossyReflections", 0f);
 
         return mat;
     }
