@@ -145,11 +145,13 @@ public static class GoldBarFactory
         // If a project ever migrates to URP/HDRP this falls back gracefully —
         // the magenta-error case would still draw the cube silhouette so the
         // gameplay shape stays visible while the artist swaps shaders.
-        Shader standard = Shader.Find("Standard");
+        Shader standard = Shader.Find("Universal Render Pipeline/Lit")
+                      ?? Shader.Find("Standard");
         Material m = new Material(standard != null ? standard : Shader.Find("Sprites/Default"));
         m.name = "GoldBarMat";
 
-        if (m.HasProperty("_Color"))     m.color = BarAlbedo;
+        if (m.HasProperty("_BaseColor"))  m.SetColor("_BaseColor", BarAlbedo);
+        else if (m.HasProperty("_Color"))  m.color = BarAlbedo;
         if (m.HasProperty("_Metallic"))  m.SetFloat("_Metallic", 1.0f);
         if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.85f);
         if (m.HasProperty("_Smoothness")) m.SetFloat("_Smoothness", 0.85f);
@@ -168,8 +170,9 @@ public static class GoldBarFactory
     /// </summary>
     private static Material BuildTrailMaterial()
     {
-        Shader s = Shader.Find("Sprites/Default");
-        Material m = new Material(s != null ? s : Shader.Find("Standard"));
+        Shader s = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+              ?? Shader.Find("Sprites/Default");
+        Material m = new Material(s != null ? s : Shader.Find("Universal Render Pipeline/Lit"));
         m.name = "GoldBarTrailMat";
         return m;
     }

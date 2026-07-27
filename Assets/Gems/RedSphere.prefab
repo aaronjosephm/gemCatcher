@@ -74,9 +74,6 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: -927199367670048503, guid: 7666e67ee07ef9d4ea141e50dbd72b87, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 7711587483616378873}
-    - targetCorrespondingSourceObject: {fileID: -927199367670048503, guid: 7666e67ee07ef9d4ea141e50dbd72b87, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 5374380073561756572}
     - targetCorrespondingSourceObject: {fileID: -927199367670048503, guid: 7666e67ee07ef9d4ea141e50dbd72b87, type: 3}
       insertIndex: -1
@@ -87,23 +84,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: -927199367670048503, guid: 7666e67ee07ef9d4ea141e50dbd72b87, type: 3}
   m_PrefabInstance: {fileID: 7484456396959702129}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &7711587483616378873
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1513152738876294520}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8b9a305e18de0c04dbd257a21cd47087, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  sharedProfile: {fileID: 11400000, guid: 9fec0dea236e04149985d4c0441bfab4, type: 2}
-  isGlobal: 1
-  blendDistance: 0
-  weight: 1
-  priority: 0
 --- !u!114 &5374380073561756572
 MonoBehaviour:
   m_ObjectHideFlags: 0

@@ -139,8 +139,9 @@ public static class PowerUpFireEffect
 
     // Additive renderer so the flame brightens whatever gem color is behind
     // it — this is what reads as "glowing fire" rather than "colored cloud."
-    Shader additive = Shader.Find("Particles/Standard Unlit");
-    if (additive == null) additive = Shader.Find("Sprites/Default");
+    Shader additive = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                   ?? Shader.Find("Particles/Standard Unlit")
+                   ?? Shader.Find("Sprites/Default");
     if (additive != null)
     {
       Material mat = new Material(additive);

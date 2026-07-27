@@ -13,8 +13,8 @@ public class CaveBackgroundFit : MonoBehaviour
 
   public float wallZ = 2f;
 
-  // Cave art is 576×1024 → width/height.
-  [SerializeField] float textureAspect = 576f / 1024f;
+  // Cave art is 1024×1536 → width/height.
+  [SerializeField] float textureAspect = 1024f / 1536f;
 
   private Camera cam;
   private float lastAspect = -1f;
