@@ -17,13 +17,13 @@ public class CaveRockFrame : MonoBehaviour
 
     [Header("Placement")]
     [Tooltip("Z depth for foreground rocks. Negative = in front of gameplay.")]
-    public float rockZ = -0.5f;
+    public float rockZ = 0.5f;
 
     [Tooltip("How much rocks are pushed outward beyond the screen edge (world units).")]
     public float edgeInset = 0.5f;
 
     [Tooltip("Scale multiplier for placed rocks.")]
-    public float rockScale = 0.6f;
+    public float rockScale = 0.06f;
 
     [Tooltip("Darken foreground rocks so they feel like shadowed cave walls.")]
     [Range(0f, 1f)]
