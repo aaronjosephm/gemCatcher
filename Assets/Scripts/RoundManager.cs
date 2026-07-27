@@ -195,10 +195,13 @@ public class RoundManager : MonoBehaviour
 
     // ---- Bootstrap ---------------------------------------------------------
 
+    private static bool applicationQuitting;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticState()
     {
         Instance = null;
+        applicationQuitting = false;
     }
 
     // Runs at AfterSceneLoad like other managers (PowerUpManager, SoundManager).
@@ -206,6 +209,7 @@ public class RoundManager : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     public static void EnsureInstance()
     {
+        if (applicationQuitting) return;
         if (Instance != null) return;
         if (FindObjectOfType<RoundManager>() != null) return;
 
@@ -229,5 +233,18 @@ public class RoundManager : MonoBehaviour
         IsGameOver = false;
         if (CatchesByGemName == null) CatchesByGemName = new Dictionary<string, int>();
         else CatchesByGemName.Clear();
+    }
+
+    void OnApplicationQuit()
+    {
+        applicationQuitting = true;
+    }
+
+    void OnDestroy()
+    {
+        if (Instance == this)
+        {
+            Instance = null;
+        }
     }
 }
