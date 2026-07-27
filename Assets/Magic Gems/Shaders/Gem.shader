@@ -122,7 +122,7 @@ Shader "FX/Gem"
             {
                 half3 cubeSample = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb;
                 half3 refraction = cubeSample * _Color.rgb;
-                half3 reflection = cubeSample * _ReflectionStrength * i.fresnel;
+                half3 reflection = cubeSample * _ReflectionStrength * i.fresnel * _Color.rgb;
                 half3 multiplier = cubeSample * _EnvironmentLight + _Emission;
                 return half4(reflection + refraction * multiplier, 1.0);
             }
