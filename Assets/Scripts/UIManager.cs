@@ -283,6 +283,10 @@ public class UIManager : MonoBehaviour
       gemSpeedupTimerText.gameObject.SetActive(false);
     }
 
+    // Hide the countdown until the placement phase actually starts.
+    gemSpeedupTimerText.text = "";
+    gemSpeedupTimerText.gameObject.SetActive(false);
+
     originalTextColor = gemSpeedupTimerText.color;
   }
 
