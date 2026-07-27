@@ -13,6 +13,9 @@ public class MidgroundLayer : MonoBehaviour
     [Tooltip("Z depth. Must be between background (2) and gameplay (~0). Lower = closer to camera.")]
     public float midgroundZ = 1.5f;
 
+    [Tooltip("Vertical offset in world units. Negative = shift image down.")]
+    public float verticalOffset = -2f;
+
     private Camera cam;
     private float lastAspect = -1f;
     private float lastOrtho = -1f;
@@ -115,7 +118,7 @@ public class MidgroundLayer : MonoBehaviour
         }
 
         transform.localScale = new Vector3(worldW / PlaneMeshSize, 1f, worldH / PlaneMeshSize);
-        transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, midgroundZ);
+        transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y + verticalOffset, midgroundZ);
         transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
     }
 
