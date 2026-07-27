@@ -1,5 +1,7 @@
 // URP-compatible port of the original FX/Gem shader.
 // Two-pass transparent gem: back-face refraction + front-face additive reflection.
+// Uses the per-gem cubemap (_RefractTex) for both refraction and environment
+// lighting, avoiding fragile reflection-probe sampling across pipeline versions.
 Shader "FX/Gem"
 {
     Properties
@@ -20,8 +22,6 @@ Shader "FX/Gem"
             "RenderType" = "Transparent"
         }
 
-        // Shared HLSL included by both passes via HLSLINCLUDE so the
-        // CBUFFER is identical (SRP batcher requirement).
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
@@ -32,15 +32,14 @@ Shader "FX/Gem"
             half  _Emission;
         CBUFFER_END
 
-        TEXTURECUBE(_RefractTex);   SAMPLER(sampler_RefractTex);
+        TEXTURECUBE(_RefractTex);
+        SAMPLER(sampler_RefractTex);
 
-        // Sample the default reflection probe. URP populates unity_SpecCube0
-        // automatically for every rendered object.
-        half3 SampleReflectionProbe(float3 dir)
+        struct Attributes
         {
-            half4 raw = SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, dir, 0);
-            return DecodeHDREnvironment(raw, unity_SpecCube0_HDR);
-        }
+            float4 posOS    : POSITION;
+            float3 normalOS : NORMAL;
+        };
         ENDHLSL
 
         // ── Pass 0: Back-faces (inside of gem) ─────────────────────────
@@ -57,12 +56,6 @@ Shader "FX/Gem"
             #pragma vertex vert
             #pragma fragment frag
 
-            struct Attributes
-            {
-                float4 posOS    : POSITION;
-                float3 normalOS : NORMAL;
-            };
-
             struct Varyings
             {
                 float4 posCS  : SV_POSITION;
@@ -74,18 +67,18 @@ Shader "FX/Gem"
                 Varyings o;
                 o.posCS = TransformObjectToHClip(v.posOS.xyz);
 
-                float3 camWS  = GetCameraPositionWS();
-                float3 viewOS = normalize(TransformWorldToObject(camWS) - v.posOS.xyz);
-                float3 reflOS = -reflect(viewOS, v.normalOS);
-                o.cubeUV = TransformObjectToWorldDir(reflOS);
+                float3 posWS   = TransformObjectToWorld(v.posOS.xyz);
+                float3 viewDir = normalize(GetCameraPositionWS() - posWS);
+                float3 normWS  = TransformObjectToWorldNormal(v.normalOS);
+                o.cubeUV = reflect(-viewDir, -normWS);
                 return o;
             }
 
             half4 frag(Varyings i) : SV_Target
             {
-                half3 refraction = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb * _Color.rgb;
-                half3 probe      = SampleReflectionProbe(i.cubeUV);
-                half3 multiplier = probe * _EnvironmentLight + _Emission;
+                half3 cubeSample = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb;
+                half3 refraction = cubeSample * _Color.rgb;
+                half3 multiplier = cubeSample * _EnvironmentLight + _Emission;
                 return half4(refraction * multiplier, 1.0);
             }
             ENDHLSL
@@ -105,12 +98,6 @@ Shader "FX/Gem"
             #pragma vertex vert
             #pragma fragment frag
 
-            struct Attributes
-            {
-                float4 posOS    : POSITION;
-                float3 normalOS : NORMAL;
-            };
-
             struct Varyings
             {
                 float4 posCS   : SV_POSITION;
@@ -123,77 +110,54 @@ Shader "FX/Gem"
                 Varyings o;
                 o.posCS = TransformObjectToHClip(v.posOS.xyz);
 
-                float3 camWS  = GetCameraPositionWS();
-                float3 viewOS = normalize(TransformWorldToObject(camWS) - v.posOS.xyz);
-                float3 reflOS = -reflect(viewOS, v.normalOS);
-                o.cubeUV  = TransformObjectToWorldDir(reflOS);
-                o.fresnel = 1.0 - saturate(dot(v.normalOS, viewOS));
+                float3 posWS   = TransformObjectToWorld(v.posOS.xyz);
+                float3 viewDir = normalize(GetCameraPositionWS() - posWS);
+                float3 normWS  = TransformObjectToWorldNormal(v.normalOS);
+                o.cubeUV  = reflect(-viewDir, normWS);
+                o.fresnel = 1.0 - saturate(dot(normWS, viewDir));
                 return o;
             }
 
             half4 frag(Varyings i) : SV_Target
             {
-                half3 refraction = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb * _Color.rgb;
-                half3 probe      = SampleReflectionProbe(i.cubeUV);
-                half3 reflection = probe * _ReflectionStrength * i.fresnel;
-                half3 multiplier = probe * _EnvironmentLight + _Emission;
+                half3 cubeSample = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb;
+                half3 refraction = cubeSample * _Color.rgb;
+                half3 reflection = cubeSample * _ReflectionStrength * i.fresnel;
+                half3 multiplier = cubeSample * _EnvironmentLight + _Emission;
                 return half4(reflection + refraction * multiplier, 1.0);
             }
             ENDHLSL
         }
 
-        // ── Shadow caster ──────────────────────────────────────────────
+        // ── Depth-only pass (needed for transparent sorting) ───────────
         Pass
         {
-            Name "ShadowCaster"
-            Tags { "LightMode" = "ShadowCaster" }
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
 
             ZWrite On
-            ZTest LEqual
-            ColorMask 0
+            ColorMask R
             Cull Back
 
             HLSLPROGRAM
-            #pragma vertex ShadowVert
-            #pragma fragment ShadowFrag
-            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #pragma vertex depthVert
+            #pragma fragment depthFrag
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+            struct DepthVaryings { float4 posCS : SV_POSITION; };
 
-            float3 _LightDirection;
-            float3 _LightPosition;
-
-            struct Attributes { float4 posOS : POSITION; float3 normalOS : NORMAL; };
-            struct Varyings  { float4 posCS : SV_POSITION; };
-
-            Varyings ShadowVert(Attributes v)
+            DepthVaryings depthVert(Attributes v)
             {
-                Varyings o;
-                float3 posWS    = TransformObjectToWorld(v.posOS.xyz);
-                float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
-
-            #if _CASTING_PUNCTUAL_LIGHT_SHADOW
-                float3 lightDir = normalize(_LightPosition - posWS);
-            #else
-                float3 lightDir = _LightDirection;
-            #endif
-                posWS   = ApplyShadowBias(posWS, normalWS, lightDir);
-                o.posCS = TransformWorldToHClip(posWS);
-
-            #if UNITY_REVERSED_Z
-                o.posCS.z = min(o.posCS.z, UNITY_NEAR_CLIP_VALUE);
-            #else
-                o.posCS.z = max(o.posCS.z, UNITY_NEAR_CLIP_VALUE);
-            #endif
+                DepthVaryings o;
+                o.posCS = TransformObjectToHClip(v.posOS.xyz);
                 return o;
             }
 
-            half4 ShadowFrag(Varyings i) : SV_Target { return 0; }
+            half4 depthFrag(DepthVaryings i) : SV_Target { return 0; }
             ENDHLSL
         }
     }
 
-    // Built-in RP fallback (used when URP is not the active pipeline).
+    // Built-in RP fallback (used only when URP is not the active pipeline).
     SubShader
     {
         Tags { "Queue" = "Transparent" }
