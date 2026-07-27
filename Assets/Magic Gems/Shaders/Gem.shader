@@ -9,7 +9,7 @@ Shader "FX/Gem"
         _Color ("Color", Color) = (1,1,1,1)
         _ReflectionStrength ("Reflection Strength", Range(0.0,2.0)) = 1.0
         _EnvironmentLight ("Environment Light", Range(0.0,2.0)) = 1.0
-        _Emission ("Emission", Range(0.0,2.0)) = 0.1
+        _Emission ("Emission", Range(0.0,2.0)) = 0.0
         [NoScaleOffset] _RefractTex ("Refraction Texture", Cube) = "" {}
     }
 
@@ -124,9 +124,7 @@ Shader "FX/Gem"
                 half3 refraction = cubeSample * _Color.rgb;
                 half3 reflection = cubeSample * _ReflectionStrength * i.fresnel;
                 half3 multiplier = cubeSample * _EnvironmentLight + _Emission;
-                // Add an HDR emission boost so bloom can pick up gem color.
-                half3 emissionBoost = _Color.rgb * _Emission;
-                return half4(reflection + refraction * multiplier + emissionBoost, 1.0);
+                return half4(reflection + refraction * multiplier, 1.0);
             }
             ENDHLSL
         }
