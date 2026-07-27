@@ -466,8 +466,8 @@ public class FallingObject : MonoBehaviour
         CheckObstacleCollisions();
 
         // Check if the object has fallen past the catcher line — this can only happen
-        // if the gem was NOT caught (a caught gem is deactivated by GemCatcher before it
-        // gets here), so we treat reaching the bottom as a miss and deduct points.
+        // if the gem was NOT caught (CatchZone deactivates caught gems via OnTriggerEnter),
+        // so we treat reaching the bottom as a miss and deduct a life.
         // We use the same world-bottom that the catcher uses so the gem disappears
         // right at the catcher level instead of slipping behind the gesture bar.
         if (transform.position.y < bottomBoundary - objectHalfHeight)

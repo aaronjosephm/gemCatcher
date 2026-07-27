@@ -537,6 +537,11 @@ public class CatcherManager : MonoBehaviour
             catcherInstance.tag = "Catcher";
             ApplyGlassAppearance(catcherInstance);
             AddSparkleEffect(catcherInstance);
+            // Ensure CatchZone is attached for trigger-based catch detection.
+            if (catcherInstance.GetComponent<CatchZone>() == null)
+            {
+                catcherInstance.AddComponent<CatchZone>();
+            }
             catcherBaseScale = catcherInstance.transform.localScale;
             feedbackScale = Vector3.one;
         }
