@@ -16,14 +16,14 @@ public class GemGlowVolume : MonoBehaviour
 {
     [Header("Bloom Settings")]
     [Tooltip("Minimum brightness before bloom kicks in. 1.0 means only HDR pixels glow.")]
-    public float threshold = 0.8f;
+    public float threshold = 0.2f;
 
     [Tooltip("Bloom intensity. Keep low for a subtle gem glow.")]
-    public float intensity = 1.5f;
+    public float intensity = 3.0f;
 
     [Tooltip("How far the glow spreads. Higher = softer, wider glow.")]
     [Range(1, 10)]
-    public float scatter = 5f;
+    public float scatter = 7f;
 
     private Volume volume;
     private VolumeProfile profile;
@@ -40,10 +40,12 @@ public class GemGlowVolume : MonoBehaviour
 
     void Awake()
     {
-        // Ensure the main camera has post-processing enabled (URP requirement).
+        // Ensure the main camera has post-processing and HDR enabled.
         Camera cam = Camera.main;
         if (cam != null)
         {
+            cam.allowHDR = true;
+
             var camData = cam.GetComponent<UniversalAdditionalCameraData>();
             if (camData == null)
                 camData = cam.gameObject.AddComponent<UniversalAdditionalCameraData>();
@@ -54,9 +56,12 @@ public class GemGlowVolume : MonoBehaviour
         profile = ScriptableObject.CreateInstance<VolumeProfile>();
 
         Bloom bloom = profile.Add<Bloom>(overrides: true);
-        bloom.threshold.value = threshold;
-        bloom.intensity.value = intensity;
-        bloom.scatter.value   = scatter;
+        bloom.threshold.value      = threshold;
+        bloom.intensity.value      = intensity;
+        bloom.scatter.value        = scatter;
+        bloom.threshold.overrideState = true;
+        bloom.intensity.overrideState = true;
+        bloom.scatter.overrideState   = true;
 
         volume = gameObject.AddComponent<Volume>();
         volume.isGlobal = true;
