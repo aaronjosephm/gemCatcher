@@ -1,55 +1,57 @@
 using UnityEngine;
 
 /// <summary>
-/// Trigger-based catch detection. Attach this to the catcher GameObject (the one
-/// tagged "Catcher" with a BoxCollider set to isTrigger=true). When a gem enters
-/// the trigger volume, this component handles scoring, variant routing, power-up
-/// activation, and deactivation of the caught gem.
+/// Physics-based catch detection. Attach this to the catcher GameObject (the one
+/// tagged "Catcher" with a BoxCollider). Each FixedUpdate, performs a single
+/// Physics.OverlapBox query to find gems inside the catch volume, then routes
+/// them through scoring/variant/power-up logic.
 ///
-/// <para>Replaces the old per-gem Update() AABB check with Unity's broadphase
-/// physics — O(1) per catch event instead of O(gems) per frame.</para>
+/// <para>Replaces the old per-gem Update() AABB check with a single query on the
+/// catcher — O(1) detection point instead of O(gems) doing checks per frame.</para>
 ///
-/// <para>Requirements:</para>
-/// <list type="bullet">
-///   <item>Catcher: BoxCollider with isTrigger=true</item>
-///   <item>Gems: Collider (any shape) + Rigidbody (isKinematic=true, useGravity=false)
-///         so OnTriggerEnter fires. Gems already move via script, so kinematic is correct.</item>
-/// </list>
+/// <para>Uses an active overlap query rather than passive OnTriggerEnter because
+/// gems move via Transform.Translate (not Rigidbody.MovePosition), which can
+/// skip trigger callbacks if the gem traverses the collider volume between
+/// physics ticks.</para>
 /// </summary>
 [RequireComponent(typeof(BoxCollider))]
 public class CatchZone : MonoBehaviour
 {
     private BoxCollider catcherCollider;
 
+    // Reusable buffer for overlap results — avoids allocation per frame.
+    private readonly Collider[] overlapBuffer = new Collider[8];
+
     void Awake()
     {
         catcherCollider = GetComponent<BoxCollider>();
-        // Ensure the collider is a trigger — catches should not apply physics forces.
-        catcherCollider.isTrigger = true;
     }
 
-    void OnTriggerEnter(Collider other)
+    void FixedUpdate()
     {
-        ProcessCatch(other);
-    }
+        // Sync transforms so the query sees gem positions from the most recent
+        // Update frame (gems move via Transform.Translate in Update).
+        Physics.SyncTransforms();
 
-    // Fallback for kinematic bodies moved via Transform.Translate — if a gem
-    // teleports into the trigger volume between physics ticks, OnTriggerEnter
-    // may not fire on the exact entry frame, but OnTriggerStay will catch it
-    // on the next FixedUpdate.
-    void OnTriggerStay(Collider other)
-    {
-        ProcessCatch(other);
+        Vector3 center = transform.TransformPoint(catcherCollider.center);
+        Vector3 halfExtents = Vector3.Scale(catcherCollider.size * 0.5f, transform.lossyScale);
+
+        int count = Physics.OverlapBoxNonAlloc(center, halfExtents, overlapBuffer, transform.rotation);
+
+        for (int i = 0; i < count; i++)
+        {
+            ProcessCatch(overlapBuffer[i]);
+        }
     }
 
     private void ProcessCatch(Collider other)
     {
-        // Only process active gems/power-ups tagged or layered appropriately.
+        // Only process falling gems/power-ups.
         FallingObject fo = other.GetComponent<FallingObject>();
         if (fo == null) return;
 
-        // Ignore gems that are already deactivated (pooled objects can fire
-        // stale trigger events on the frame they're disabled).
+        // Ignore gems that are already deactivated (pooled objects can linger
+        // in the overlap buffer on the frame they're disabled).
         if (!other.gameObject.activeInHierarchy) return;
 
         RoundManager rm = RoundManager.Instance;

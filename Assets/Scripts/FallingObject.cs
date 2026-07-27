@@ -433,18 +433,6 @@ public class FallingObject : MonoBehaviour
             objectHalfHeight = GetComponent<Renderer>().bounds.extents.y;
         }
 
-        // Ensure a kinematic Rigidbody exists so OnTriggerEnter fires on the
-        // catcher's CatchZone. Gems move via script (Transform.Translate), so
-        // kinematic + no gravity is correct — Unity's broadphase still detects
-        // the overlap and dispatches the trigger callback.
-        Rigidbody rb = GetComponent<Rigidbody>();
-        if (rb == null)
-        {
-            rb = gameObject.AddComponent<Rigidbody>();
-        }
-        rb.isKinematic = true;
-        rb.useGravity = false;
-
         // Cache camera and calculate boundaries
         mainCamera = Camera.main;
         CalculateBoundaries();
