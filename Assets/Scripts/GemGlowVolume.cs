@@ -16,14 +16,14 @@ public class GemGlowVolume : MonoBehaviour
 {
     [Header("Bloom Settings")]
     [Tooltip("Minimum brightness before bloom kicks in. 1.0 means only HDR pixels glow.")]
-    public float threshold = 1.0f;
+    public float threshold = 0.8f;
 
     [Tooltip("Bloom intensity. Keep low for a subtle gem glow.")]
-    public float intensity = 0.4f;
+    public float intensity = 1.5f;
 
     [Tooltip("How far the glow spreads. Higher = softer, wider glow.")]
     [Range(1, 10)]
-    public float scatter = 4f;
+    public float scatter = 5f;
 
     private Volume volume;
     private VolumeProfile profile;
@@ -40,6 +40,16 @@ public class GemGlowVolume : MonoBehaviour
 
     void Awake()
     {
+        // Ensure the main camera has post-processing enabled (URP requirement).
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            var camData = cam.GetComponent<UniversalAdditionalCameraData>();
+            if (camData == null)
+                camData = cam.gameObject.AddComponent<UniversalAdditionalCameraData>();
+            camData.renderPostProcessing = true;
+        }
+
         // Create a runtime Volume Profile so we don't need an asset on disk.
         profile = ScriptableObject.CreateInstance<VolumeProfile>();
 
