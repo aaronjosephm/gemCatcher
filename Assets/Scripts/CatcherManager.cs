@@ -685,6 +685,9 @@ public class CatcherManager : MonoBehaviour
             mat.SetFloat("_EnvironmentReflections", 0f);
             mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
             mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+            // Ensure catcher stays below bloom threshold (no emission).
+            mat.SetColor("_EmissionColor", Color.black);
+            mat.DisableKeyword("_EMISSION");
         }
         else
         {

@@ -16,14 +16,14 @@ public class GemGlowVolume : MonoBehaviour
 {
     [Header("Bloom Settings")]
     [Tooltip("Minimum brightness before bloom kicks in. 1.0 means only HDR pixels glow.")]
-    public float threshold = 0.2f;
+    public float threshold = 1.0f;
 
     [Tooltip("Bloom intensity. Keep low for a subtle gem glow.")]
-    public float intensity = 3.0f;
+    public float intensity = 0.4f;
 
     [Tooltip("How far the glow spreads. Higher = softer, wider glow.")]
     [Range(1, 10)]
-    public float scatter = 7f;
+    public float scatter = 4f;
 
     private Volume volume;
     private VolumeProfile profile;
