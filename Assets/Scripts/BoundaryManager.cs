@@ -77,8 +77,14 @@ public class BoundaryManager : MonoBehaviour
             // Set a semi-transparent material if visible
             if (visualizeBoundaries)
             {
-                Material material = new Material(Shader.Find("Standard"));
-                material.color = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+                Material material = new Material(
+                    Shader.Find("Universal Render Pipeline/Lit")
+                    ?? Shader.Find("Standard"));
+                Color c = new Color(0.5f, 0.5f, 0.5f, 0.3f);
+                if (material.HasProperty("_BaseColor"))
+                    material.SetColor("_BaseColor", c);
+                else
+                    material.color = c;
                 renderer.material = material;
             }
         }

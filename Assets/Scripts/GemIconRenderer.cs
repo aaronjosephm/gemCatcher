@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>
 /// Renders gem prefabs to sprite icons at runtime so they can be displayed in the UI
@@ -159,6 +160,11 @@ public static class GemIconRenderer
     previewCamera.farClipPlane = 50f;
     // Manually invoked via Render(); we don't want it ticking every frame.
     previewCamera.enabled = false;
+
+    // URP requires additional camera data to render correctly.
+    var camData = camGo.GetComponent<UniversalAdditionalCameraData>();
+    if (camData == null) camData = camGo.AddComponent<UniversalAdditionalCameraData>();
+    camData.renderPostProcessing = false;
 
     // Add a directional light on the same layer so lit materials don't render black.
     GameObject lightGo = new GameObject("PreviewLight");

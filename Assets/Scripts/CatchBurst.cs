@@ -70,7 +70,8 @@ public static class CatchBurst
     ParticleSystemRenderer renderer = go.GetComponent<ParticleSystemRenderer>();
     if (renderer != null)
     {
-      Shader spriteShader = Shader.Find("Sprites/Default");
+      Shader spriteShader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                        ?? Shader.Find("Sprites/Default");
       if (spriteShader != null) renderer.material = new Material(spriteShader);
     }
 

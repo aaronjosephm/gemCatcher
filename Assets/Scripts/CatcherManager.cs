@@ -653,7 +653,8 @@ public class CatcherManager : MonoBehaviour
         ParticleSystemRenderer renderer = sparkleHost.GetComponent<ParticleSystemRenderer>();
         if (renderer != null)
         {
-            Shader particleShader = Shader.Find("Sprites/Default");
+            Shader particleShader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+                                ?? Shader.Find("Sprites/Default");
             if (particleShader != null)
             {
                 renderer.material = new Material(particleShader);
@@ -665,30 +666,45 @@ public class CatcherManager : MonoBehaviour
 
     Material CreateGlassMaterial()
     {
-        // Built-in Render Pipeline (Standard shader). Opaque so the catcher
-        // never shows the cave / gems through its body.
-        Shader standard = Shader.Find("Standard");
-        Material mat = new Material(standard);
-
-        mat.SetFloat("_Mode", 0f); // Opaque
-        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-        mat.SetInt("_ZWrite", 1);
-        mat.DisableKeyword("_ALPHATEST_ON");
-        mat.DisableKeyword("_ALPHABLEND_ON");
-        mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+        // Try URP Lit first, fall back to Built-in Standard.
+        Shader shader = Shader.Find("Universal Render Pipeline/Lit")
+                     ?? Shader.Find("Standard");
+        Material mat = new Material(shader);
 
         Color opaque = glassColor;
         opaque.a = 1f;
-        mat.color = opaque;
-        mat.SetFloat("_Glossiness", glassSmoothness);
-        mat.SetFloat("_Metallic", glassMetallic);
-        // Kill specular highlights so bright / emissive gems cannot tint the catcher.
-        mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
-        mat.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
-        mat.SetFloat("_SpecularHighlights", 0f);
-        mat.SetFloat("_GlossyReflections", 0f);
+
+        if (mat.HasProperty("_BaseColor"))
+        {
+            // URP Lit path
+            mat.SetColor("_BaseColor", opaque);
+            mat.SetFloat("_Smoothness", glassSmoothness);
+            mat.SetFloat("_Metallic", glassMetallic);
+            // Disable specular highlights so gems don't tint the catcher.
+            mat.SetFloat("_SpecularHighlights", 0f);
+            mat.SetFloat("_EnvironmentReflections", 0f);
+            mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            mat.EnableKeyword("_ENVIRONMENTREFLECTIONS_OFF");
+        }
+        else
+        {
+            // Built-in Standard fallback
+            mat.SetFloat("_Mode", 0f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+            mat.SetInt("_ZWrite", 1);
+            mat.DisableKeyword("_ALPHATEST_ON");
+            mat.DisableKeyword("_ALPHABLEND_ON");
+            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+            mat.color = opaque;
+            mat.SetFloat("_Glossiness", glassSmoothness);
+            mat.SetFloat("_Metallic", glassMetallic);
+            mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+            mat.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
+            mat.SetFloat("_SpecularHighlights", 0f);
+            mat.SetFloat("_GlossyReflections", 0f);
+        }
 
         return mat;
     }
