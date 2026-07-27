@@ -41,8 +41,11 @@ public class CatcherManager : MonoBehaviour
     public float trajectoryTimeStep = 0.1f;
 
     [Header("Catcher Appearance")]
-    [Tooltip("Tint of the catcher. Fully opaque — alpha is forced to 1.")]
+    [Tooltip("Tint of the catcher.")]
     public Color glassColor = new Color(0.65f, 0.85f, 1.00f, 1.00f);
+    [Range(0f, 1f)]
+    [Tooltip("Catcher transparency. 0 = fully transparent, 1 = fully opaque.")]
+    public float glassOpacity = 1f;
     [Range(0f, 1f)]
     [Tooltip("Surface smoothness. Keep low so the catcher stays a solid color and does not mirror falling gems.")]
     public float glassSmoothness = 0.25f;
@@ -671,15 +674,32 @@ public class CatcherManager : MonoBehaviour
                      ?? Shader.Find("Standard");
         Material mat = new Material(shader);
 
-        Color opaque = glassColor;
-        opaque.a = 1f;
+        Color col = glassColor;
+        col.a = glassOpacity;
+
+        bool transparent = glassOpacity < 1f;
 
         if (mat.HasProperty("_BaseColor"))
         {
             // URP Lit path
-            mat.SetColor("_BaseColor", opaque);
+            mat.SetColor("_BaseColor", col);
             mat.SetFloat("_Smoothness", glassSmoothness);
             mat.SetFloat("_Metallic", glassMetallic);
+
+            if (transparent)
+            {
+                // Switch URP Lit to Transparent surface type.
+                mat.SetFloat("_Surface", 1f); // 0 = Opaque, 1 = Transparent
+                mat.SetFloat("_Blend", 0f);   // 0 = Alpha blend
+                mat.SetOverrideTag("RenderType", "Transparent");
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetInt("_ZWrite", 0);
+                mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            }
+
             // Disable specular highlights so gems don't tint the catcher.
             mat.SetFloat("_SpecularHighlights", 0f);
             mat.SetFloat("_EnvironmentReflections", 0f);
@@ -692,15 +712,29 @@ public class CatcherManager : MonoBehaviour
         else
         {
             // Built-in Standard fallback
-            mat.SetFloat("_Mode", 0f);
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
-            mat.SetInt("_ZWrite", 1);
-            mat.DisableKeyword("_ALPHATEST_ON");
-            mat.DisableKeyword("_ALPHABLEND_ON");
-            mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
-            mat.color = opaque;
+            if (transparent)
+            {
+                mat.SetFloat("_Mode", 3f); // Transparent
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetInt("_ZWrite", 0);
+                mat.DisableKeyword("_ALPHATEST_ON");
+                mat.EnableKeyword("_ALPHABLEND_ON");
+                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            }
+            else
+            {
+                mat.SetFloat("_Mode", 0f);
+                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One);
+                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.Zero);
+                mat.SetInt("_ZWrite", 1);
+                mat.DisableKeyword("_ALPHATEST_ON");
+                mat.DisableKeyword("_ALPHABLEND_ON");
+                mat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                mat.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Geometry;
+            }
+            mat.color = col;
             mat.SetFloat("_Glossiness", glassSmoothness);
             mat.SetFloat("_Metallic", glassMetallic);
             mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
