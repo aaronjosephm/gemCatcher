@@ -201,12 +201,13 @@ public class RoundManager : MonoBehaviour
         Instance = null;
     }
 
-    // Runs before AfterSceneLoad callbacks so other static bootstrappers
-    // (MilestoneTracker, etc.) can safely subscribe to our events.
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+    // Runs at AfterSceneLoad like other managers (PowerUpManager, SoundManager).
+    // Early subscribers are handled by the GemCatcher facade's lazy RM accessor.
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     public static void EnsureInstance()
     {
         if (Instance != null) return;
+        if (FindObjectOfType<RoundManager>() != null) return;
 
         GameObject go = new GameObject("RoundManager (auto)");
         go.AddComponent<RoundManager>();
