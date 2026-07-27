@@ -1,76 +1,85 @@
 using UnityEngine;
 
 /// <summary>
-/// Physics-based catch detection. Attach this to the catcher GameObject (the one
-/// tagged "Catcher" with a BoxCollider). Each FixedUpdate, performs a single
-/// Physics.OverlapBox query to find gems inside the catch volume, then routes
-/// them through scoring/variant/power-up logic.
+/// Centralized catch detection running on the catcher. Each frame, checks all
+/// active FallingObjects against the catcher's bounds. Replaces the old per-gem
+/// GemCatcher.Update() approach with a single check point on the catcher side.
 ///
-/// <para>Replaces the old per-gem Update() AABB check with a single query on the
-/// catcher — O(1) detection point instead of O(gems) doing checks per frame.</para>
-///
-/// <para>Uses an active overlap query rather than passive OnTriggerEnter because
-/// gems move via Transform.Translate (not Rigidbody.MovePosition), which can
-/// skip trigger callbacks if the gem traverses the collider volume between
-/// physics ticks.</para>
+/// <para>Uses direct transform-based bounds checking (identical math to the
+/// original) rather than Unity's physics system, since gem prefabs may not have
+/// physics colliders configured for overlap queries.</para>
 /// </summary>
 [RequireComponent(typeof(BoxCollider))]
 public class CatchZone : MonoBehaviour
 {
     private BoxCollider catcherCollider;
 
-    // Reusable buffer for overlap results — avoids allocation per frame.
-    private readonly Collider[] overlapBuffer = new Collider[8];
+    // Cached list of all FallingObject instances. Refreshed each frame to
+    // handle pooled gems being activated/deactivated.
+    private FallingObject[] activeFallingObjects;
 
     void Awake()
     {
         catcherCollider = GetComponent<BoxCollider>();
     }
 
-    void FixedUpdate()
+    void Update()
     {
-        // Sync transforms so the query sees gem positions from the most recent
-        // Update frame (gems move via Transform.Translate in Update).
-        Physics.SyncTransforms();
+        // Grab current active FallingObjects. With object pooling, typically
+        // only 1-2 gems are active at any time, so this is very lightweight.
+        activeFallingObjects = FindObjectsByType<FallingObject>(FindObjectsSortMode.None);
 
-        Vector3 center = transform.TransformPoint(catcherCollider.center);
-        Vector3 halfExtents = Vector3.Scale(catcherCollider.size * 0.5f, transform.lossyScale);
+        Vector3 catcherCenter = transform.TransformPoint(catcherCollider.center);
+        Vector3 catcherSize = Vector3.Scale(catcherCollider.size, transform.lossyScale);
 
-        int count = Physics.OverlapBoxNonAlloc(center, halfExtents, overlapBuffer, transform.rotation);
-
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < activeFallingObjects.Length; i++)
         {
-            ProcessCatch(overlapBuffer[i]);
+            FallingObject fo = activeFallingObjects[i];
+            if (fo == null || !fo.gameObject.activeInHierarchy) continue;
+
+            if (IsWithinBounds(fo, catcherCenter, catcherSize))
+            {
+                ProcessCatch(fo);
+            }
         }
     }
 
-    private void ProcessCatch(Collider other)
+    private bool IsWithinBounds(FallingObject fo, Vector3 catcherCenter, Vector3 catcherSize)
     {
-        // Only process falling gems/power-ups.
-        FallingObject fo = other.GetComponent<FallingObject>();
-        if (fo == null) return;
+        Vector3 gemPosition = fo.transform.position;
 
-        // Ignore gems that are already deactivated (pooled objects can linger
-        // in the overlap buffer on the frame they're disabled).
-        if (!other.gameObject.activeInHierarchy) return;
+        // Use SphereCollider radius if available, same fallback as original.
+        SphereCollider sc = fo.GetComponent<SphereCollider>();
+        float gemRadius = sc != null ? sc.radius * fo.transform.localScale.x : 0.1f;
+
+        bool withinX = Mathf.Abs(gemPosition.x - catcherCenter.x) <= (catcherSize.x / 2 + gemRadius);
+        bool withinY = Mathf.Abs(gemPosition.y - catcherCenter.y) <= (catcherSize.y / 2 + gemRadius);
+        bool withinZ = Mathf.Abs(gemPosition.z - catcherCenter.z) <= (catcherSize.z / 2 + gemRadius);
+
+        return withinX && withinY && withinZ;
+    }
+
+    private void ProcessCatch(FallingObject fo)
+    {
+        if (!fo.gameObject.activeInHierarchy) return;
 
         RoundManager rm = RoundManager.Instance;
         if (rm == null) return;
 
-        Vector3 catchPosition = other.transform.position;
+        Vector3 catchPosition = fo.transform.position;
 
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {
             HandlePowerUpCatch(fo.powerUpType, catchPosition);
-            other.gameObject.SetActive(false);
+            fo.gameObject.SetActive(false);
             return;
         }
 
         SpecialGemType variant = fo.specialType;
-        HandleVariantCatch(variant, catchPosition, other.gameObject);
+        HandleVariantCatch(variant, catchPosition, fo.gameObject);
 
-        other.gameObject.SetActive(false);
+        fo.gameObject.SetActive(false);
     }
 
     // ---- Power-up catch path -----------------------------------------------
