@@ -20,6 +20,29 @@ Shader "FX/Gem"
             "RenderType" = "Transparent"
         }
 
+        // Shared HLSL included by both passes via HLSLINCLUDE so the
+        // CBUFFER is identical (SRP batcher requirement).
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+        CBUFFER_START(UnityPerMaterial)
+            half4 _Color;
+            half  _ReflectionStrength;
+            half  _EnvironmentLight;
+            half  _Emission;
+        CBUFFER_END
+
+        TEXTURECUBE(_RefractTex);   SAMPLER(sampler_RefractTex);
+
+        // Sample the default reflection probe. URP populates unity_SpecCube0
+        // automatically for every rendered object.
+        half3 SampleReflectionProbe(float3 dir)
+        {
+            half4 raw = SAMPLE_TEXTURECUBE_LOD(unity_SpecCube0, samplerunity_SpecCube0, dir, 0);
+            return DecodeHDREnvironment(raw, unity_SpecCube0_HDR);
+        }
+        ENDHLSL
+
         // ── Pass 0: Back-faces (inside of gem) ─────────────────────────
         Pass
         {
@@ -34,20 +57,9 @@ Shader "FX/Gem"
             #pragma vertex vert
             #pragma fragment frag
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-
-            CBUFFER_START(UnityPerMaterial)
-                half4 _Color;
-                half  _EnvironmentLight;
-                half  _Emission;
-            CBUFFER_END
-
-            TEXTURECUBE(_RefractTex);
-            SAMPLER(sampler_RefractTex);
-
             struct Attributes
             {
-                float4 posOS : POSITION;
+                float4 posOS    : POSITION;
                 float3 normalOS : NORMAL;
             };
 
@@ -62,7 +74,6 @@ Shader "FX/Gem"
                 Varyings o;
                 o.posCS = TransformObjectToHClip(v.posOS.xyz);
 
-                float3 posWS  = TransformObjectToWorld(v.posOS.xyz);
                 float3 camWS  = GetCameraPositionWS();
                 float3 viewOS = normalize(TransformWorldToObject(camWS) - v.posOS.xyz);
                 float3 reflOS = -reflect(viewOS, v.normalOS);
@@ -73,15 +84,8 @@ Shader "FX/Gem"
             half4 frag(Varyings i) : SV_Target
             {
                 half3 refraction = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb * _Color.rgb;
-
-                half3 reflectionProbe = half3(0, 0, 0);
-#if defined(UNITY_SPECCUBE_BOX_PROJECTION) || !defined(UNITY_NO_CUBEMAP)
-                half4 encHDR = unity_SpecCube0_HDR;
-                half4 rawRefl = SAMPLE_TEXTURECUBE(unity_SpecCube0, samplerunity_SpecCube0, i.cubeUV);
-                reflectionProbe = DecodeHDREnvironment(rawRefl, encHDR);
-#endif
-
-                half3 multiplier = reflectionProbe * _EnvironmentLight + _Emission;
+                half3 probe      = SampleReflectionProbe(i.cubeUV);
+                half3 multiplier = probe * _EnvironmentLight + _Emission;
                 return half4(refraction * multiplier, 1.0);
             }
             ENDHLSL
@@ -101,29 +105,17 @@ Shader "FX/Gem"
             #pragma vertex vert
             #pragma fragment frag
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-
-            CBUFFER_START(UnityPerMaterial)
-                half4 _Color;
-                half  _ReflectionStrength;
-                half  _EnvironmentLight;
-                half  _Emission;
-            CBUFFER_END
-
-            TEXTURECUBE(_RefractTex);
-            SAMPLER(sampler_RefractTex);
-
             struct Attributes
             {
-                float4 posOS : POSITION;
+                float4 posOS    : POSITION;
                 float3 normalOS : NORMAL;
             };
 
             struct Varyings
             {
-                float4 posCS    : SV_POSITION;
-                float3 cubeUV   : TEXCOORD0;
-                half   fresnel  : TEXCOORD1;
+                float4 posCS   : SV_POSITION;
+                float3 cubeUV  : TEXCOORD0;
+                half   fresnel : TEXCOORD1;
             };
 
             Varyings vert(Attributes v)
@@ -134,30 +126,23 @@ Shader "FX/Gem"
                 float3 camWS  = GetCameraPositionWS();
                 float3 viewOS = normalize(TransformWorldToObject(camWS) - v.posOS.xyz);
                 float3 reflOS = -reflect(viewOS, v.normalOS);
-                o.cubeUV   = TransformObjectToWorldDir(reflOS);
-                o.fresnel  = 1.0 - saturate(dot(v.normalOS, viewOS));
+                o.cubeUV  = TransformObjectToWorldDir(reflOS);
+                o.fresnel = 1.0 - saturate(dot(v.normalOS, viewOS));
                 return o;
             }
 
             half4 frag(Varyings i) : SV_Target
             {
                 half3 refraction = SAMPLE_TEXTURECUBE(_RefractTex, sampler_RefractTex, i.cubeUV).rgb * _Color.rgb;
-
-                half3 reflectionProbe = half3(0, 0, 0);
-#if defined(UNITY_SPECCUBE_BOX_PROJECTION) || !defined(UNITY_NO_CUBEMAP)
-                half4 encHDR = unity_SpecCube0_HDR;
-                half4 rawRefl = SAMPLE_TEXTURECUBE(unity_SpecCube0, samplerunity_SpecCube0, i.cubeUV);
-                reflectionProbe = DecodeHDREnvironment(rawRefl, encHDR);
-#endif
-
-                half3 reflection2 = reflectionProbe * _ReflectionStrength * i.fresnel;
-                half3 multiplier  = reflectionProbe * _EnvironmentLight + _Emission;
-                return half4(reflection2 + refraction * multiplier, 1.0);
+                half3 probe      = SampleReflectionProbe(i.cubeUV);
+                half3 reflection = probe * _ReflectionStrength * i.fresnel;
+                half3 multiplier = probe * _EnvironmentLight + _Emission;
+                return half4(reflection + refraction * multiplier, 1.0);
             }
             ENDHLSL
         }
 
-        // Shadow caster for URP
+        // ── Shadow caster ──────────────────────────────────────────────
         Pass
         {
             Name "ShadowCaster"
@@ -171,11 +156,12 @@ Shader "FX/Gem"
             HLSLPROGRAM
             #pragma vertex ShadowVert
             #pragma fragment ShadowFrag
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             float3 _LightDirection;
+            float3 _LightPosition;
 
             struct Attributes { float4 posOS : POSITION; float3 normalOS : NORMAL; };
             struct Varyings  { float4 posCS : SV_POSITION; };
@@ -185,13 +171,20 @@ Shader "FX/Gem"
                 Varyings o;
                 float3 posWS    = TransformObjectToWorld(v.posOS.xyz);
                 float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
-                posWS = ApplyShadowBias(posWS, normalWS, _LightDirection);
+
+            #if _CASTING_PUNCTUAL_LIGHT_SHADOW
+                float3 lightDir = normalize(_LightPosition - posWS);
+            #else
+                float3 lightDir = _LightDirection;
+            #endif
+                posWS   = ApplyShadowBias(posWS, normalWS, lightDir);
                 o.posCS = TransformWorldToHClip(posWS);
-#if UNITY_REVERSED_Z
+
+            #if UNITY_REVERSED_Z
                 o.posCS.z = min(o.posCS.z, UNITY_NEAR_CLIP_VALUE);
-#else
+            #else
                 o.posCS.z = max(o.posCS.z, UNITY_NEAR_CLIP_VALUE);
-#endif
+            #endif
                 return o;
             }
 
@@ -200,13 +193,10 @@ Shader "FX/Gem"
         }
     }
 
-    // If URP is not available, fall back to the original Built-in RP sub-shader.
+    // Built-in RP fallback (used when URP is not the active pipeline).
     SubShader
     {
-        Tags
-        {
-            "Queue" = "Transparent"
-        }
+        Tags { "Queue" = "Transparent" }
 
         Pass
         {
