@@ -216,6 +216,7 @@ public class SoundManager : MonoBehaviour
 
     void SyncGameplayMusic()
     {
+        if (soundDictionary == null) return;
         if (!soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm)
             || bgm.source == null || bgm.clip == null)
         {
