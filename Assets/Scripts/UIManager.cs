@@ -861,10 +861,10 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
-    // Full-screen dim overlay. Stays full-screen (extends behind notch / home
-    // indicator) so the entire screen darkens, not just the safe area.
+    // Full-screen dim overlay. Parented to the canvas root (NOT UiRoot/safe area)
+    // so it extends behind notch / Dynamic Island — entire screen darkens.
     GameObject panel = new GameObject("GameOverPanel (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    panel.transform.SetParent(UiRoot, false);
+    panel.transform.SetParent(hudCanvas.transform, false);
     RectTransform panelRect = panel.GetComponent<RectTransform>();
     panelRect.anchorMin = Vector2.zero;
     panelRect.anchorMax = Vector2.one;
@@ -1419,9 +1419,14 @@ public class UIManager : MonoBehaviour
   // hardware cutouts on iPhone (and modern iPad in some split views).
   GameObject BuildFullScreenPanel(string name, Color bgColor, out Transform contentParent)
   {
+    // The panel background MUST cover the ENTIRE screen (including behind the
+    // notch / Dynamic Island / rounded corners) so no gameplay peeks through.
+    // Parent it to the canvas root — NOT UiRoot (which is the safe area).
+    Transform fullScreenParent = hudCanvas != null ? hudCanvas.transform : UiRoot;
+
     GameObject panel = new GameObject(name,
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    panel.transform.SetParent(UiRoot, false);
+    panel.transform.SetParent(fullScreenParent, false);
     RectTransform rect = panel.GetComponent<RectTransform>();
     rect.anchorMin = Vector2.zero;
     rect.anchorMax = Vector2.one;
