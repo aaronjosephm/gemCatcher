@@ -95,6 +95,41 @@ public class FallingObject : MonoBehaviour
     private Color originalTrailEnd;
     private bool originalTrailCaptured = false;
 
+    [Header("Visual")]
+    [Tooltip("Color used for the catch burst particles. Auto-detected from gem name if left at default.")]
+    public Color burstColor = Color.clear;
+
+    /// <summary>
+    /// Returns the burst color, auto-detecting from the gem name if not
+    /// explicitly set in the prefab.
+    /// </summary>
+    public Color GetBurstColor()
+    {
+        if (burstColor != Color.clear) return burstColor;
+
+        // Infer from gem name.
+        string n = gameObject.name.ToLowerInvariant();
+        if (n.Contains("green") || n.Contains("emerald"))
+            return new Color(0.2f, 0.9f, 0.3f);
+        if (n.Contains("red") || n.Contains("ruby"))
+            return new Color(0.95f, 0.2f, 0.2f);
+        if (n.Contains("star") || n.Contains("gold") || n.Contains("topaz") || n.Contains("yellow"))
+            return new Color(1f, 0.85f, 0.1f);
+        if (n.Contains("heart") || n.Contains("pink"))
+            return new Color(0.95f, 0.3f, 0.6f);
+        if (n.Contains("blue") || n.Contains("sapphire"))
+            return new Color(0.2f, 0.6f, 1f);
+        if (n.Contains("purple") || n.Contains("amethyst") || n.Contains("violet"))
+            return new Color(0.7f, 0.2f, 0.9f);
+        if (n.Contains("orange"))
+            return new Color(1f, 0.5f, 0.1f);
+        if (n.Contains("diamond") || n.Contains("white"))
+            return new Color(0.85f, 0.92f, 1f);
+
+        // Fallback: warm gold.
+        return new Color(1f, 0.95f, 0.7f);
+    }
+
     void Start()
     {
         // Initialize components and boundaries
