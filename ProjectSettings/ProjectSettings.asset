@@ -268,8 +268,8 @@ PlayerSettings:
   AndroidAllowedArchitectures: -1
   AndroidSplashScreenScale: 0
   androidSplashScreen: {fileID: 0}
-  AndroidKeystoreName: '{inproject}: quickslicklabs.keystore'
-  AndroidKeyaliasName: gemcatcher
+  AndroidKeystoreName: /Users/aaron/workplace/gem-catcher.keystore
+  AndroidKeyaliasName: gem_catcher
   AndroidEnableArmv9SecurityFeatures: 0
   AndroidEnableArm64MTE: 0
   AndroidBuildApkPerCpuArchitecture: 0
