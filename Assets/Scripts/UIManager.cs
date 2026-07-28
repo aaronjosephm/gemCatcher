@@ -1215,10 +1215,12 @@ public class UIManager : MonoBehaviour
     GameObject imgGo = new GameObject("TitleImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     imgGo.transform.SetParent(parent, false);
     RectTransform rt = imgGo.GetComponent<RectTransform>();
-    rt.anchorMin = new Vector2(0.5f, 0.5f);
-    rt.anchorMax = new Vector2(0.5f, 0.5f);
+    rt.anchorMin = Vector2.zero;
+    rt.anchorMax = Vector2.one;
+    rt.offsetMin = Vector2.zero;
+    rt.offsetMax = Vector2.zero;
     rt.pivot = new Vector2(0.5f, 0.5f);
-    rt.sizeDelta = new Vector2(titleTex.width, titleTex.height);
+    rt.localScale = new Vector3(1.6f, 1.4f, 1f);
 
     Image img = imgGo.GetComponent<Image>();
     img.sprite = Sprite.Create(titleTex,
@@ -1227,12 +1229,6 @@ public class UIManager : MonoBehaviour
     img.type = Image.Type.Simple;
     img.preserveAspect = true;
     img.raycastTarget = false;
-
-    // AspectRatioFitter — FitInParent scales the image as large as possible
-    // inside the container while keeping the exact native aspect ratio.
-    var fitter = imgGo.AddComponent<AspectRatioFitter>();
-    fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
-    fitter.aspectRatio = (float)titleTex.width / titleTex.height;
 
     return null;
   }
