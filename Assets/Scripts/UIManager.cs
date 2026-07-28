@@ -1100,30 +1100,7 @@ public class UIManager : MonoBehaviour
 
     // Title is static — no pulse animation.
 
-    // Best score — centered between title and buttons. Always built; hidden if 0.
-    {
-      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
-      bestGo.transform.SetParent(contentParent, false);
-      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.1f, 0.38f);
-      bestRect.anchorMax = new Vector2(0.9f, 0.44f);
-      bestRect.pivot = new Vector2(0.5f, 0.5f);
-      bestRect.sizeDelta = Vector2.zero;
-      bestRect.anchoredPosition = Vector2.zero;
-      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
-      best.text = "BEST  " + highScore;
-      best.fontStyle = FontStyles.Bold;
-      best.alignment = TextAlignmentOptions.Center;
-      best.color = new Color(1f, 0.85f, 0.35f);
-      best.characterSpacing = 8f;
-      best.fontSize = 36f;
-      best.enableWordWrapping = false;
-      bestScoreMenuTmp = best;
-      bestScoreMenuGo = bestGo;
-      bestGo.SetActive(highScore > 0);
-    }
-
-    // Centered button stack — pushed lower to make room for best score above Play.
+    // Centered button stack — pushed lower to make room for title.
     GameObject stackGo = new GameObject("ButtonStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
@@ -1152,6 +1129,29 @@ public class UIManager : MonoBehaviour
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
 
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
+
+    // Best score — below buttons, anchored to bottom.
+    {
+      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
+      bestGo.transform.SetParent(contentParent, false);
+      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
+      bestRect.anchorMin = new Vector2(0.5f, 0f);
+      bestRect.anchorMax = new Vector2(0.5f, 0f);
+      bestRect.pivot = new Vector2(0.5f, 0f);
+      bestRect.anchoredPosition = new Vector2(0f, 40f);
+      bestRect.sizeDelta = new Vector2(600f, 60f);
+      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
+      best.text = "BEST  " + highScore;
+      best.fontStyle = FontStyles.Bold;
+      best.alignment = TextAlignmentOptions.Center;
+      best.color = new Color(1f, 0.85f, 0.35f);
+      best.characterSpacing = 8f;
+      best.fontSize = 36f;
+      best.enableWordWrapping = false;
+      bestScoreMenuTmp = best;
+      bestScoreMenuGo = bestGo;
+      bestGo.SetActive(highScore > 0);
+    }
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
