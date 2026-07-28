@@ -1139,14 +1139,14 @@ public class UIManager : MonoBehaviour
       bestRect.anchorMax = new Vector2(0.5f, 0.08f);
       bestRect.pivot = new Vector2(0.5f, 0.5f);
       bestRect.anchoredPosition = Vector2.zero;
-      bestRect.sizeDelta = new Vector2(600f, 60f);
+      bestRect.sizeDelta = new Vector2(600f, 80f);
       TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
       best.text = "BEST  " + highScore;
       best.fontStyle = FontStyles.Bold;
       best.alignment = TextAlignmentOptions.Center;
       best.color = new Color(1f, 0.85f, 0.35f);
       best.characterSpacing = 8f;
-      best.fontSize = 36f;
+      best.fontSize = 52f;
       best.enableWordWrapping = false;
       bestScoreMenuTmp = best;
       bestScoreMenuGo = bestGo;
