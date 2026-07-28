@@ -1,10 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// Scales the cave backdrop to COVER the camera: full phone screen, no
+/// Scales the backdrop to COVER the camera: full phone screen, no
 /// empty margins. Crops only as much as the device aspect requires.
-/// Recomputing on Retry yields the same size for the same camera, so the
-/// backdrop does not appear to "jump" between runs.
+/// Also swaps the texture to match the currently selected level.
 /// </summary>
 [DisallowMultipleComponent]
 public class CaveBackgroundFit : MonoBehaviour
@@ -13,7 +12,6 @@ public class CaveBackgroundFit : MonoBehaviour
 
   public float wallZ = 2f;
 
-  // Cave art is 1024×1536 → width/height.
   [SerializeField] float textureAspect = 1024f / 1536f;
 
   private Camera cam;
@@ -34,18 +32,12 @@ public class CaveBackgroundFit : MonoBehaviour
   void Awake()
   {
     cam = Camera.main;
-    ReadAspectFromMaterial();
-    if (cam != null)
-    {
-      cam.backgroundColor = new Color(0.05f, 0.06f, 0.12f, 1f);
-    }
+    ApplyLevelBackground();
     FitCover();
   }
 
   void LateUpdate()
   {
-    // Only rewrite transform when the camera frustum actually changes
-    // (rotation / window resize). Same aspect → same scale on Retry.
     if (cam == null) cam = Camera.main;
     if (cam == null) return;
     if (Mathf.Approximately(cam.aspect, lastAspect)
@@ -54,6 +46,31 @@ public class CaveBackgroundFit : MonoBehaviour
       return;
     }
     FitCover();
+  }
+
+  /// <summary>
+  /// Loads the background texture for the currently selected level and
+  /// applies it to this plane's material.
+  /// </summary>
+  void ApplyLevelBackground()
+  {
+    var cfg = LevelManager.CurrentConfig;
+
+    MeshRenderer mr = GetComponent<MeshRenderer>();
+    if (mr == null) return;
+
+    Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
+    if (tex != null && mr.material != null)
+    {
+      mr.material.mainTexture = tex;
+    }
+
+    ReadAspectFromMaterial();
+
+    if (cam != null)
+    {
+      cam.backgroundColor = cfg.cameraColor;
+    }
   }
 
   void ReadAspectFromMaterial()
@@ -81,8 +98,6 @@ public class CaveBackgroundFit : MonoBehaviour
     float viewW = viewH * aspect;
     float texAspect = Mathf.Max(0.01f, textureAspect);
 
-    // COVER: smallest size that still fills the whole view.
-    // Match height first; if that leaves gaps on the sides, match width instead.
     float worldH = viewH;
     float worldW = worldH * texAspect;
     if (worldW < viewW)

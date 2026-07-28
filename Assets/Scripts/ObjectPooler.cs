@@ -200,9 +200,9 @@ public class ObjectPooler : MonoBehaviour
         obstaclePool = new List<GameObject>();
         activeObstacles = new List<GameObject>();
 
-        // Set initial difficulty values
-        currentFallSpeed = initialFallSpeed;
-        currentSpawnInterval = initialSpawnInterval;
+        // Set initial difficulty values — override from LevelManager if not in
+        // Daily mode (daily mode uses its own ramp parameters).
+        ApplyLevelDifficulty();
 
         // If no difficulty levels are defined, create a default progression
         if (difficultyLevels == null || difficultyLevels.Length == 0)
@@ -809,6 +809,24 @@ public class ObjectPooler : MonoBehaviour
             currentFallSpeed = level.fallSpeed;
             currentSpawnInterval = level.spawnInterval;
         }
+    }
+
+    /// <summary>
+    /// Applies the selected level's difficulty parameters. Called once at the
+    /// start of each round. In Daily mode the base speeds are still overridden
+    /// by the daily ramp, but bomb/golden chances apply.
+    /// </summary>
+    void ApplyLevelDifficulty()
+    {
+        var cfg = LevelManager.CurrentConfig;
+        initialFallSpeed = cfg.initialFallSpeed;
+        initialSpawnInterval = cfg.initialSpawnInterval;
+        bombGemChance = cfg.bombChance;
+        goldenGemChance = cfg.goldenChance;
+        dailyMaxFallSpeed = cfg.dailyMaxFallSpeed;
+        dailyMinSpawnInterval = cfg.dailyMinSpawnInterval;
+        currentFallSpeed = initialFallSpeed;
+        currentSpawnInterval = initialSpawnInterval;
     }
 
     public float GetPlacementTimeRemaining()

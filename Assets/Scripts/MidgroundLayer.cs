@@ -24,9 +24,18 @@ public class MidgroundLayer : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void EnsureInstance()
     {
-        if (FindAnyObjectByType<MidgroundLayer>() != null) return;
+        // Destroy any existing midground from a previous level selection.
+        var existing = FindAnyObjectByType<MidgroundLayer>();
+        if (existing != null)
+        {
+            Destroy(existing.gameObject);
+        }
 
-        Texture2D tex = Resources.Load<Texture2D>("Backgrounds/MidgroundCave");
+        var cfg = LevelManager.CurrentConfig;
+        string midRes = cfg.midgroundResource;
+        if (string.IsNullOrEmpty(midRes)) return;
+
+        Texture2D tex = Resources.Load<Texture2D>(midRes);
         if (tex == null) return;
 
         GameObject go = new GameObject("MidgroundPlane");

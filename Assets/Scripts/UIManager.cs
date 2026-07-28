@@ -84,6 +84,9 @@ public class UIManager : MonoBehaviour
   // the main menu. Hosts Music / SFX volume sliders and Haptics toggle.
   private GameObject settingsPanel;
 
+  // Level select panel — auto-created, opened from the Levels button.
+  private GameObject levelSelectPanel;
+
   // Auto-created on first request. Shown when the OS backgrounds the app
   // (incoming call, home button, app switcher) so the player can resume on
   // their own terms. Time.timeScale is forced to 0 while it's visible.
@@ -1127,7 +1130,7 @@ public class UIManager : MonoBehaviour
     dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
     dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
-
+    BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
     // Best score — below buttons, anchored to bottom.
@@ -1558,6 +1561,7 @@ public class UIManager : MonoBehaviour
     FadePanel(helpPanel, false);
     FadePanel(dailyCooldownPanel, false);
     FadePanel(settingsPanel, false);
+    FadePanel(levelSelectPanel, false);
     // Refresh the daily button label/color in case the streak / lockout state
     // changed since last menu visit (e.g. UTC midnight rolled over while the
     // app was foregrounded).
@@ -1569,6 +1573,14 @@ public class UIManager : MonoBehaviour
       bestScoreMenuGo.SetActive(highScore > 0);
     }
     FadePanel(mainMenuPanel, true, 0.25f);
+
+    // Check if a new level was just unlocked and announce it.
+    var newUnlock = LevelManager.CheckNewUnlock();
+    if (newUnlock.HasValue)
+    {
+      var cfg = LevelManager.GetConfig(newUnlock.Value);
+      SpawnBannerNotification($"NEW LEVEL UNLOCKED: {cfg.displayName.ToUpper()}!", new Color(0.2f, 0.8f, 1f));
+    }
   }
 
   void ShowGameplay()
@@ -1622,6 +1634,161 @@ public class UIManager : MonoBehaviour
   {
     FadePanel(helpPanel, false);
     ShowMainMenu();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Level Select
+  // ---------------------------------------------------------------------------
+
+  void OnLevelsClicked()
+  {
+    EnsureLevelSelectPanel();
+    FadePanel(mainMenuPanel, false);
+    FadePanel(levelSelectPanel, true);
+  }
+
+  void OnLevelSelectBackClicked()
+  {
+    FadePanel(levelSelectPanel, false);
+    ShowMainMenu();
+  }
+
+  void EnsureLevelSelectPanel()
+  {
+    if (levelSelectPanel != null)
+    {
+      // Destroy and rebuild to reflect current unlock/selection state.
+      Destroy(levelSelectPanel);
+      levelSelectPanel = null;
+    }
+
+    levelSelectPanel = BuildFullScreenPanel("LevelSelectPanel (auto)",
+        new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
+
+    // Title
+    AddPanelTitle(contentParent, "SELECT LEVEL", Color.white, 100f);
+
+    // Level cards container
+    GameObject cardsGo = new GameObject("LevelCards", typeof(RectTransform), typeof(VerticalLayoutGroup));
+    cardsGo.transform.SetParent(contentParent, false);
+    RectTransform cardsRect = cardsGo.GetComponent<RectTransform>();
+    cardsRect.anchorMin = new Vector2(0.5f, 0.5f);
+    cardsRect.anchorMax = new Vector2(0.5f, 0.5f);
+    cardsRect.pivot = new Vector2(0.5f, 0.5f);
+    cardsRect.anchoredPosition = new Vector2(0f, -50f);
+    cardsRect.sizeDelta = new Vector2(700f, 600f);
+    VerticalLayoutGroup vlg = cardsGo.GetComponent<VerticalLayoutGroup>();
+    vlg.childAlignment = TextAnchor.MiddleCenter;
+    vlg.spacing = 30f;
+    vlg.childControlWidth = false;
+    vlg.childControlHeight = false;
+    vlg.childForceExpandWidth = false;
+    vlg.childForceExpandHeight = false;
+
+    foreach (var level in LevelManager.AllLevels)
+    {
+      BuildLevelCard(cardsGo.transform, level);
+    }
+
+    // Back button at bottom
+    BuildStackedBackButton(contentParent, OnLevelSelectBackClicked);
+
+    levelSelectPanel.SetActive(false);
+  }
+
+  void BuildLevelCard(Transform parent, LevelManager.LevelConfig config)
+  {
+    bool unlocked = LevelManager.IsUnlocked(config.id);
+    bool selected = LevelManager.SelectedLevel == config.id;
+
+    Color bgColor = unlocked
+        ? (selected ? new Color(0.20f, 0.55f, 0.35f) : new Color(0.18f, 0.22f, 0.30f))
+        : new Color(0.12f, 0.12f, 0.15f);
+
+    GameObject cardGo = new GameObject(config.displayName + "Card", typeof(RectTransform));
+    cardGo.transform.SetParent(parent, false);
+    RectTransform cardRect = cardGo.GetComponent<RectTransform>();
+    cardRect.sizeDelta = new Vector2(650f, 140f);
+
+    Image cardBg = cardGo.AddComponent<Image>();
+    cardBg.color = bgColor;
+    // Rounded corners are not natively available without a sprite; use a solid rect.
+
+    // Level name
+    GameObject nameGo = new GameObject("Name", typeof(RectTransform));
+    nameGo.transform.SetParent(cardGo.transform, false);
+    RectTransform nameRect = nameGo.GetComponent<RectTransform>();
+    nameRect.anchorMin = new Vector2(0f, 0.5f);
+    nameRect.anchorMax = new Vector2(0.7f, 0.5f);
+    nameRect.pivot = new Vector2(0f, 0.5f);
+    nameRect.anchoredPosition = new Vector2(40f, 10f);
+    nameRect.sizeDelta = new Vector2(0f, 60f);
+    TextMeshProUGUI nameTmp = nameGo.AddComponent<TextMeshProUGUI>();
+    nameTmp.text = config.displayName;
+    nameTmp.fontSize = 42f;
+    nameTmp.fontStyle = FontStyles.Bold;
+    nameTmp.alignment = TextAlignmentOptions.MidlineLeft;
+    nameTmp.color = unlocked ? Color.white : new Color(0.5f, 0.5f, 0.5f);
+
+    // Status text
+    GameObject statusGo = new GameObject("Status", typeof(RectTransform));
+    statusGo.transform.SetParent(cardGo.transform, false);
+    RectTransform statusRect = statusGo.GetComponent<RectTransform>();
+    statusRect.anchorMin = new Vector2(0f, 0f);
+    statusRect.anchorMax = new Vector2(0.7f, 0.5f);
+    statusRect.pivot = new Vector2(0f, 0.5f);
+    statusRect.anchoredPosition = new Vector2(40f, -5f);
+    statusRect.sizeDelta = new Vector2(0f, 40f);
+    TextMeshProUGUI statusTmp = statusGo.AddComponent<TextMeshProUGUI>();
+    statusTmp.fontSize = 30f;
+    statusTmp.alignment = TextAlignmentOptions.MidlineLeft;
+
+    if (!unlocked)
+    {
+      statusTmp.text = $"Score {config.unlockScore} to unlock";
+      statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
+    }
+    else if (selected)
+    {
+      statusTmp.text = "SELECTED";
+      statusTmp.color = new Color(0.7f, 1f, 0.8f);
+    }
+    else
+    {
+      statusTmp.text = "Tap to select";
+      statusTmp.color = new Color(0.7f, 0.7f, 0.8f);
+    }
+
+    // Difficulty badge on right
+    GameObject diffGo = new GameObject("Difficulty", typeof(RectTransform));
+    diffGo.transform.SetParent(cardGo.transform, false);
+    RectTransform diffRect = diffGo.GetComponent<RectTransform>();
+    diffRect.anchorMin = new Vector2(0.7f, 0f);
+    diffRect.anchorMax = new Vector2(1f, 1f);
+    diffRect.pivot = new Vector2(0.5f, 0.5f);
+    diffRect.anchoredPosition = Vector2.zero;
+    diffRect.sizeDelta = Vector2.zero;
+    TextMeshProUGUI diffTmp = diffGo.AddComponent<TextMeshProUGUI>();
+    diffTmp.fontSize = 28f;
+    diffTmp.alignment = TextAlignmentOptions.Center;
+    diffTmp.color = new Color(1f, 0.85f, 0.35f);
+    diffTmp.text = config.id == LevelManager.LevelId.Cave ? "★" : "★★";
+
+    // Button interaction
+    if (unlocked && !selected)
+    {
+      Button btn = cardGo.AddComponent<Button>();
+      var levelId = config.id;
+      btn.onClick.AddListener(() => SelectLevel(levelId));
+    }
+  }
+
+  void SelectLevel(LevelManager.LevelId id)
+  {
+    LevelManager.SelectedLevel = id;
+    // Rebuild the panel to reflect new selection
+    EnsureLevelSelectPanel();
+    FadePanel(levelSelectPanel, true);
   }
 
   // ---------------------------------------------------------------------------
