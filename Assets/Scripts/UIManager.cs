@@ -1098,7 +1098,28 @@ public class UIManager : MonoBehaviour
 
     // Title is static — no pulse animation.
 
-    // Centered button stack — anchored to vertical center for stable layout across resolutions.
+    // Best score — centered between title (ends ~45%) and buttons, only if player has a score.
+    if (highScore > 0)
+    {
+      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
+      bestGo.transform.SetParent(contentParent, false);
+      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
+      bestRect.anchorMin = new Vector2(0.1f, 0.38f);
+      bestRect.anchorMax = new Vector2(0.9f, 0.44f);
+      bestRect.pivot = new Vector2(0.5f, 0.5f);
+      bestRect.sizeDelta = Vector2.zero;
+      bestRect.anchoredPosition = Vector2.zero;
+      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
+      best.text = "BEST  " + highScore;
+      best.fontStyle = FontStyles.Bold;
+      best.alignment = TextAlignmentOptions.Center;
+      best.color = new Color(1f, 0.85f, 0.35f);
+      best.characterSpacing = 8f;
+      best.fontSize = 36f;
+      best.enableWordWrapping = false;
+    }
+
+    // Centered button stack — pushed lower to make room for best score above Play.
     GameObject stackGo = new GameObject("ButtonStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
@@ -1106,10 +1127,7 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    // Sized for 4 menu buttons: 4 * 130px tall + 3 * 26px spacing ≈ 598px.
-    // Position buttons in the lower portion of the screen so they don't
-    // overlap the enlarged title (top 33%).
-    stackRect.anchoredPosition = new Vector2(0f, -220f);
+    stackRect.anchoredPosition = new Vector2(0f, -280f);
     stackRect.sizeDelta = new Vector2(620f, 620f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
@@ -1130,27 +1148,6 @@ public class UIManager : MonoBehaviour
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
 
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
-
-    // Best score — shown below buttons only when the player has a saved high score.
-    if (highScore > 0)
-    {
-      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
-      bestGo.transform.SetParent(contentParent, false);
-      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.5f, 0f);
-      bestRect.anchorMax = new Vector2(0.5f, 0f);
-      bestRect.pivot = new Vector2(0.5f, 0f);
-      bestRect.anchoredPosition = new Vector2(0f, 40f);
-      bestRect.sizeDelta = new Vector2(600f, 60f);
-      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
-      best.text = "BEST  " + highScore;
-      best.fontStyle = FontStyles.Bold;
-      best.alignment = TextAlignmentOptions.Center;
-      best.color = new Color(1f, 0.85f, 0.35f);
-      best.characterSpacing = 8f;
-      best.fontSize = 36f;
-      best.enableWordWrapping = false;
-    }
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
