@@ -980,13 +980,13 @@ public class UIManager : MonoBehaviour
     // primary (blue), Main Menu is secondary (gray).
     Button retryBtn = BuildPanelButton(
         contentParent, "RetryButton", "Try Again",
-        new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 175f), new Vector2(360f, 100f),
+        new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 195f), new Vector2(480f, 130f),
         RestartGame);
     restartButton = retryBtn;
 
     BuildPanelButton(
         contentParent, "MainMenuButton", "Main Menu",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 55f), new Vector2(360f, 100f),
+        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 45f), new Vector2(480f, 130f),
         ReturnToMainMenu);
 
     gameOverPanel = panel;
@@ -1066,8 +1066,8 @@ public class UIManager : MonoBehaviour
     anchorRect.anchorMin = new Vector2(0f, 1f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
     anchorRect.pivot = new Vector2(0.5f, 1f);
-    anchorRect.sizeDelta = new Vector2(-40f, 300f);
-    anchorRect.anchoredPosition = new Vector2(0f, -40f);
+    anchorRect.sizeDelta = new Vector2(0f, 500f);
+    anchorRect.anchoredPosition = new Vector2(0f, -20f);
 
     GameObject logo = new GameObject("TitleLogo", typeof(RectTransform));
     logo.transform.SetParent(anchor.transform, false);
@@ -1080,10 +1080,7 @@ public class UIManager : MonoBehaviour
 
     BuildLogoTitle(logo.transform);
 
-    // Pulse animation on the wrapper, not the TMP itself, so the inner text
-    // can keep its baseline positioning and auto-size logic without the
-    // animation fighting it.
-    logo.AddComponent<TitlePulse>();
+    // Title is static — no pulse animation.
 
     // ---- Tagline ----------------------------------------------------------
     // Refined tagline: italic, slightly tighter letter spacing, dropped a
@@ -1139,12 +1136,12 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    // Sized for 3 menu buttons: 3 * 100px tall + 2 * 22px spacing ≈ 344px.
-    stackRect.anchoredPosition = new Vector2(0f, -50f);
-    stackRect.sizeDelta = new Vector2(520f, 400f);
+    // Sized for 3 menu buttons: 3 * 130px tall + 2 * 26px spacing ≈ 442px.
+    stackRect.anchoredPosition = new Vector2(0f, -80f);
+    stackRect.sizeDelta = new Vector2(620f, 500f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 22f;
+    vlg.spacing = 26f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -1449,10 +1446,10 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
     btnGo.transform.SetParent(parent, false);
     RectTransform rect = btnGo.GetComponent<RectTransform>();
-    rect.sizeDelta = new Vector2(440f, 100f);
+    rect.sizeDelta = new Vector2(560f, 130f);
     LayoutElement le = btnGo.GetComponent<LayoutElement>();
-    le.preferredWidth = 440f;
-    le.preferredHeight = 100f;
+    le.preferredWidth = 560f;
+    le.preferredHeight = 130f;
 
     Image bg = btnGo.GetComponent<Image>();
     bg.color = bgColor;
@@ -1466,7 +1463,7 @@ public class UIManager : MonoBehaviour
     lblRect.offsetMax = Vector2.zero;
     TextMeshProUGUI tmp = lblGo.AddComponent<TextMeshProUGUI>();
     tmp.text = label;
-    tmp.fontSize = 46f;
+    tmp.fontSize = 54f;
     tmp.fontStyle = FontStyles.Bold;
     tmp.alignment = TextAlignmentOptions.Center;
     tmp.color = Color.white;
