@@ -113,8 +113,10 @@ public class FallingObject : MonoBehaviour
             return new Color(0.2f, 0.9f, 0.3f);
         if (n.Contains("red") || n.Contains("ruby"))
             return new Color(0.95f, 0.2f, 0.2f);
-        if (n.Contains("star") || n.Contains("gold") || n.Contains("topaz") || n.Contains("yellow"))
-            return new Color(1f, 0.85f, 0.1f);
+        if (n.Contains("star"))
+            return new Color(0.95f, 0.2f, 0.2f);
+        if (n.Contains("topaz"))
+            return new Color(1f, 0.5f, 0.1f);
         if (n.Contains("heart") || n.Contains("pink"))
             return new Color(0.95f, 0.3f, 0.6f);
         if (n.Contains("blue") || n.Contains("sapphire"))
