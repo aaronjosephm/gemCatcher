@@ -1798,9 +1798,9 @@ public class UIManager : MonoBehaviour
   void SelectLevel(LevelManager.LevelId id)
   {
     LevelManager.SelectedLevel = id;
-    // Rebuild the panel to reflect new selection
-    EnsureLevelSelectPanel();
-    FadePanel(levelSelectPanel, true);
+    // Reload the scene immediately so the new level's background, music,
+    // and environment take effect right away.
+    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
   }
 
   // ---------------------------------------------------------------------------
