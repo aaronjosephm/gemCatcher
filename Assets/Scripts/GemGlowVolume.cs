@@ -67,7 +67,13 @@ public class GemGlowVolume : MonoBehaviour
 
     void OnEnable()
     {
-        if (glowQuad != null) glowQuad.SetActive(true);
+        // Don't show the glow if the component was disabled (e.g. for bombs).
+        if (glowQuad != null && enabled)
+        {
+            var falling = GetComponent<FallingObject>();
+            bool isBomb = falling != null && falling.specialType == SpecialGemType.Bomb;
+            glowQuad.SetActive(!isBomb);
+        }
     }
 
     void OnDisable()
