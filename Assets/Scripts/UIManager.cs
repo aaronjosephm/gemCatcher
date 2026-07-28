@@ -546,6 +546,11 @@ public class UIManager : MonoBehaviour
     {
 #if UNITY_ANDROID
       fitter.extraTopPixels = 60f;
+#elif UNITY_IOS
+      // iPhone Dynamic Island / camera pill extends into the safe area on some
+      // models (e.g. iPhone 16 E, 17 E). Add a small extra inset so HUD text
+      // doesn't sit directly against the island boundary.
+      fitter.extraTopPixels = 30f;
 #endif
     }
   }
@@ -562,7 +567,7 @@ public class UIManager : MonoBehaviour
     rect.anchorMin = new Vector2(1f, 1f);
     rect.anchorMax = new Vector2(1f, 1f);
     rect.pivot = new Vector2(1f, 1f);
-    rect.anchoredPosition = new Vector2(-40f, -40f);
+    rect.anchoredPosition = new Vector2(-40f, -20f);
     rect.sizeDelta = new Vector2(500f, 100f);
 
     scoreDisplay = go.AddComponent<TextMeshProUGUI>();
@@ -585,7 +590,7 @@ public class UIManager : MonoBehaviour
     rect.anchorMin = new Vector2(0f, 1f);
     rect.anchorMax = new Vector2(0f, 1f);
     rect.pivot = new Vector2(0f, 1f);
-    rect.anchoredPosition = new Vector2(40f, -40f);
+    rect.anchoredPosition = new Vector2(40f, -20f);
     rect.sizeDelta = new Vector2(500f, 100f);
 
     livesDisplay = go.AddComponent<TextMeshProUGUI>();
@@ -624,7 +629,7 @@ public class UIManager : MonoBehaviour
     powerUpHudContainer.anchorMin = new Vector2(0f, 1f);
     powerUpHudContainer.anchorMax = new Vector2(0f, 1f);
     powerUpHudContainer.pivot = new Vector2(0f, 1f);
-    powerUpHudContainer.anchoredPosition = new Vector2(40f, -160f);
+    powerUpHudContainer.anchoredPosition = new Vector2(40f, -140f);
     powerUpHudContainer.sizeDelta = new Vector2(280f, 230f);
 
     PowerUpType[] order = new[]
@@ -1230,61 +1235,60 @@ public class UIManager : MonoBehaviour
 
     GameObject panel = BuildFullScreenPanel("HelpPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(contentParent, "INSTRUCTIONS", new Color(1f, 0.85f, 0.35f), 90f);
+    AddPanelTitle(contentParent, "HOW TO PLAY", new Color(1f, 0.85f, 0.35f), 90f);
 
     string helpText =
-        "<b><color=#FFD86A><size=48>THE GOAL</size></color></b>\n" +
-        "Catch falling gems with your crystal catcher.\n" +
-        "Don\u2019t let them slip past!\n\n" +
+        "<b><color=#FFD86A><size=54>THE GOAL</size></color></b>\n" +
+        "<size=44>Catch falling gems with your crystal catcher.\nDon\u2019t let them slip past!</size>\n\n\n" +
 
-        "<b><color=#6FD9FF><size=48>CONTROLS</size></color></b>\n" +
-        "<b>Tap</b> a slot to place your catcher.\n" +
+        "<b><color=#6FD9FF><size=54>CONTROLS</size></color></b>\n" +
+        "<size=44><b>Tap</b> a slot to place your catcher.\n" +
         "<b>Drag</b> left or right to slide it.\n" +
-        "Reposition freely during the countdown.\n\n" +
+        "Reposition freely during the countdown.</size>\n\n\n" +
 
-        "<b><color=#7FE787><size=48>SCORING</size></color></b>\n" +
-        "Catch a gem = <color=#7FE787>+20 pts</color>\n" +
+        "<b><color=#7FE787><size=54>SCORING</size></color></b>\n" +
+        "<size=44>Catch a gem = <color=#7FE787>+20 pts</color>\n" +
         "Miss a gem = <color=#FF7373>\u22121 life</color>\n" +
-        "Every <b>100 pts</b> = bonus life (max 10)\n\n" +
+        "Every <b>100 pts</b> = bonus life (max 10)</size>\n\n\n" +
 
-        "<b><color=#FFC065><size=48>COMBO STREAK</size></color></b>\n" +
-        "Catch gems in a row to build a multiplier!\n" +
+        "<b><color=#FFC065><size=54>COMBO STREAK</size></color></b>\n" +
+        "<size=44>Catch gems in a row to build a multiplier!\n\n" +
         "  <color=#FFE885>\u00d71.5</color> at 3 catches\n" +
         "  <color=#FFC065>\u00d72</color> at 5 catches\n" +
         "  <color=#FF8B40>\u00d73</color> at 7 catches\n" +
-        "  <color=#FF4F4F>\u00d75</color> at 10 catches\n" +
-        "A miss or bomb breaks the streak.\n\n" +
+        "  <color=#FF4F4F>\u00d75</color> at 10 catches\n\n" +
+        "A miss or bomb breaks the streak.</size>\n\n\n" +
 
-        "<b><color=#FF8FB8><size=48>SPECIAL GEMS</size></color></b>\n" +
-        "<color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n" +
+        "<b><color=#FF8FB8><size=54>SPECIAL GEMS</size></color></b>\n" +
+        "<size=44><color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n" +
         "<color=#FF6B5B>Bomb</color> \u2014 avoid! Costs a life + breaks streak\n" +
-        "<color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color>\n\n" +
+        "<color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color></size>\n\n\n" +
 
-        "<b><color=#6FD9FF><size=48>POWER-UPS</size></color></b>\n" +
-        "A glowing pickup arrives every 10 drops.\n" +
+        "<b><color=#6FD9FF><size=54>POWER-UPS</size></color></b>\n" +
+        "<size=44>A glowing pickup arrives every 10 drops.\n\n" +
         "<color=#6FD9FF>Wide Catcher</color> \u2014 wider catch zone\n" +
         "<color=#FFD86A>Shield</color> \u2014 absorbs your next miss\n" +
-        "<color=#7FE787>2\u00d7 Score</color> \u2014 double points per catch\n\n" +
+        "<color=#7FE787>2\u00d7 Score</color> \u2014 double points per catch</size>\n\n\n" +
 
-        "<b><color=#FF7373><size=48>DIFFICULTY</size></color></b>\n" +
-        "Gems speed up as your score rises.\n" +
+        "<b><color=#FF7373><size=54>DIFFICULTY</size></color></b>\n" +
+        "<size=44>Gems speed up as your score rises.\n" +
         "At <b>1000 pts</b> gems shrink to half size.\n" +
-        "At <b>2000 pts</b> the catcher shrinks too.\n\n" +
+        "At <b>2000 pts</b> the catcher shrinks too.</size>\n\n\n" +
 
-        "<b><color=#B89CFF><size=48>DAILY CHALLENGE</size></color></b>\n" +
-        "One run per day \u2014 same gems for everyone.\n" +
-        "3 lives, no bonuses, 30 gems total.\n\n" +
+        "<b><color=#B89CFF><size=54>DAILY CHALLENGE</size></color></b>\n" +
+        "<size=44>One run per day \u2014 same gems for everyone.\n" +
+        "3 lives, no bonuses, 30 gems total.</size>\n\n\n" +
 
-        "<color=#AAAAAA>You start with 3 lives (max 10).\nWhen they\u2019re gone, it\u2019s game over.</color>\n\n" +
+        "<size=40><color=#AAAAAA>You start with 3 lives (max 10).\nWhen they\u2019re gone, it\u2019s game over.</color></size>\n\n" +
 
-        "<color=#FFD86A><size=44>Good luck, gem catcher!</size></color>";
+        "<b><color=#FFD86A><size=48>Good luck, gem catcher!</size></color></b>";
 
     BuildScrollableTextBlock(
         contentParent, "HelpScroll", helpText,
         offsetMin: new Vector2(-560f, 210f),
         offsetMax: new Vector2(560f, -220f),
-        fontSize: 42f,
-        lineSpacing: 6f);
+        fontSize: 44f,
+        lineSpacing: 12f);
 
     // Back button — matches main menu style.
     BuildStackedBackButton(contentParent, OnHelpBackClicked);
@@ -2720,7 +2724,7 @@ public class UIManager : MonoBehaviour
     comboDisplayRoot.pivot = new Vector2(1f, 1f);
     // Sit just below the score. Score occupies y = -40 to ~-140; combo
     // anchors at -150 so the two never overlap on portrait phones.
-    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -150f);
+    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -130f);
     comboDisplayRoot.sizeDelta = new Vector2(500f, 70f);
 
     comboDisplayTmp = go.AddComponent<TextMeshProUGUI>();
