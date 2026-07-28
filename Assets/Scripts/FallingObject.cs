@@ -133,6 +133,12 @@ public class FallingObject : MonoBehaviour
         // Initialize components and boundaries
         InitializeComponents();
         CaptureOriginalScaleIfNeeded();
+
+        // Add localized glow halo around the gem.
+        if (GetComponent<GemGlowVolume>() == null)
+        {
+            gameObject.AddComponent<GemGlowVolume>();
+        }
     }
 
     // Method to reset the object when it's reused from the pool
@@ -140,13 +146,11 @@ public class FallingObject : MonoBehaviour
     {
         // Re-initialize components in case anything has changed
         InitializeComponents();
-        // Defensive cleanup of any leftover power-up state from a previous
-        // life. ApplyPowerUpType / ApplySpecialType already handle this when
-        // called, but calling ClearPowerUp here too ensures any future spawn
-        // path that calls ResetObject without immediately repainting the
-        // gem (e.g. an editor tool) can't leave a stale fire effect parented
-        // to a normal-looking gem.
         ClearPowerUp();
+
+        // Refresh glow halo color for the recycled gem.
+        var glow = GetComponent<GemGlowVolume>();
+        if (glow != null) glow.RefreshColor(GetBurstColor());
     }
 
     // Sets the score-driven base scale factor. Final localScale is
