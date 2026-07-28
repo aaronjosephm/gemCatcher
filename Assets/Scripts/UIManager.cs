@@ -1230,6 +1230,9 @@ public class UIManager : MonoBehaviour
     img.preserveAspect = true;
     img.raycastTarget = false;
 
+    // Sparkle effect around the title.
+    imgGo.AddComponent<TitleSparkle>();
+
     return null;
   }
 
