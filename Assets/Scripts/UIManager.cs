@@ -281,6 +281,12 @@ public class UIManager : MonoBehaviour
       gemSpeedupTimerText.text = "";
       gemSpeedupTimerText.gameObject.SetActive(false);
     }
+    else if (UiRoot != null && gemSpeedupTimerText.transform.parent != UiRoot)
+    {
+      // Scene-placed timer — reparent under safe area so it isn't blocked
+      // by the camera island / Dynamic Island on any phone.
+      gemSpeedupTimerText.transform.SetParent(UiRoot, false);
+    }
 
     // Hide the countdown until the placement phase actually starts.
     gemSpeedupTimerText.text = "";
