@@ -1,79 +1,169 @@
 using UnityEngine;
-using UnityEngine.Rendering;
-using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// Bootstraps a subtle URP Bloom effect at runtime. The bloom threshold is
-/// set high enough (default 1.0) that only HDR-bright surfaces glow -- in
-/// practice, only the gem shader's additive pass exceeds this, so the
-/// catcher and background stay unaffected.
+/// Adds a localized glow halo around a falling gem. Attach to each gem
+/// prefab or let FallingObject add it at runtime. The glow is a procedural
+/// soft radial gradient quad that sits behind the gem and tints to the
+/// gem's burst color.
 ///
-/// Attach to any GameObject or let the RuntimeInitializeOnLoadMethod
-/// auto-create it.
+/// This replaces the old global URP Bloom approach which caused a full-screen
+/// haze. Per-gem sprites give a tight, controlled glow with zero impact on
+/// the rest of the scene.
 /// </summary>
 [DisallowMultipleComponent]
 public class GemGlowVolume : MonoBehaviour
 {
-    [Header("Bloom Settings")]
-    [Tooltip("Minimum brightness before bloom kicks in. 1.0 means only HDR pixels glow.")]
-    public float threshold = 0.4f;
+    [Header("Glow Settings")]
+    [Tooltip("Radius of the glow halo in world units.")]
+    public float glowRadius = 0.9f;
 
-    [Tooltip("Bloom intensity. Keep low for a subtle gem glow.")]
-    public float intensity = 0.5f;
+    [Tooltip("Opacity of the glow at center.")]
+    [Range(0f, 1f)]
+    public float glowAlpha = 0.85f;
 
-    [Tooltip("How far the glow spreads. Higher = softer, wider glow.")]
-    [Range(1, 10)]
-    public float scatter = 3f;
+    [Tooltip("Color override. If left white, auto-detects from gem name.")]
+    public Color glowColor = Color.white;
 
-    private Volume volume;
-    private VolumeProfile profile;
+    private GameObject glowQuad;
+    private Material glowMat;
+    private static Texture2D s_glowTexture;
+    private static Mesh s_quadMesh;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    static void EnsureInstance()
+    void Start()
     {
-        if (FindAnyObjectByType<GemGlowVolume>() != null) return;
-
-        GameObject go = new GameObject("GemGlowVolume (auto)");
-        DontDestroyOnLoad(go);
-        go.AddComponent<GemGlowVolume>();
-    }
-
-    void Awake()
-    {
-        // Ensure the main camera has post-processing and HDR enabled.
-        Camera cam = Camera.main;
-        if (cam != null)
+        // Auto-detect color from gem name if not overridden.
+        if (glowColor == Color.white)
         {
-            cam.allowHDR = true;
-
-            var camData = cam.GetComponent<UniversalAdditionalCameraData>();
-            if (camData == null)
-                camData = cam.gameObject.AddComponent<UniversalAdditionalCameraData>();
-            camData.renderPostProcessing = true;
+            var falling = GetComponent<FallingObject>();
+            if (falling != null)
+            {
+                glowColor = falling.GetBurstColor();
+            }
         }
 
-        // Create a runtime Volume Profile so we don't need an asset on disk.
-        profile = ScriptableObject.CreateInstance<VolumeProfile>();
+        glowQuad = new GameObject("GlowHalo");
+        // Don't parent to the gem — we follow position only so the halo
+        // stays camera-facing and doesn't spin with the gem's rotation.
+        glowQuad.transform.position = transform.position + new Vector3(0f, 0f, 0.1f);
+        glowQuad.transform.localScale = Vector3.one * glowRadius * 2f;
 
-        Bloom bloom = profile.Add<Bloom>(overrides: true);
-        bloom.threshold.value      = threshold;
-        bloom.intensity.value      = intensity;
-        bloom.scatter.value        = scatter;
-        bloom.threshold.overrideState = true;
-        bloom.intensity.overrideState = true;
-        bloom.scatter.overrideState   = true;
+        MeshFilter mf = glowQuad.AddComponent<MeshFilter>();
+        mf.sharedMesh = GetQuadMesh();
 
-        volume = gameObject.AddComponent<Volume>();
-        volume.isGlobal = true;
-        volume.priority = 10;
-        volume.profile  = profile;
+        MeshRenderer mr = glowQuad.AddComponent<MeshRenderer>();
+        glowMat = CreateGlowMaterial();
+        mr.sharedMaterial = glowMat;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        mr.receiveShadows = false;
+    }
+
+    void LateUpdate()
+    {
+        if (glowQuad != null)
+        {
+            glowQuad.transform.position = transform.position + new Vector3(0f, 0f, 0.1f);
+        }
+    }
+
+    void OnEnable()
+    {
+        // Don't show the glow if the component was disabled (e.g. for bombs).
+        if (glowQuad != null && enabled)
+        {
+            var falling = GetComponent<FallingObject>();
+            bool isBomb = falling != null && falling.specialType == SpecialGemType.Bomb;
+            glowQuad.SetActive(!isBomb);
+        }
+    }
+
+    void OnDisable()
+    {
+        if (glowQuad != null) glowQuad.SetActive(false);
     }
 
     void OnDestroy()
     {
-        if (profile != null)
+        if (glowQuad != null) Destroy(glowQuad);
+    }
+
+    /// <summary>
+    /// Call after a gem is recycled/recolored to update the halo tint.
+    /// </summary>
+    public void RefreshColor(Color c)
+    {
+        glowColor = c;
+        if (glowMat != null)
         {
-            DestroyImmediate(profile);
+            c.a = glowAlpha;
+            glowMat.SetColor("_BaseColor", c);
         }
+    }
+
+    Material CreateGlowMaterial()
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null) shader = Shader.Find("Unlit/Transparent");
+        Material mat = new Material(shader);
+
+        mat.SetFloat("_Surface", 1f);
+        mat.SetFloat("_Blend", 0f);
+        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        mat.SetFloat("_ZWrite", 0f);
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.renderQueue = 3000;
+
+        Color c = glowColor;
+        c.a = glowAlpha;
+        mat.SetColor("_BaseColor", c);
+        mat.mainTexture = GetGlowTexture();
+
+        return mat;
+    }
+
+    static Texture2D GetGlowTexture()
+    {
+        if (s_glowTexture != null) return s_glowTexture;
+
+        int size = 128;
+        s_glowTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        s_glowTexture.filterMode = FilterMode.Bilinear;
+        s_glowTexture.wrapMode = TextureWrapMode.Clamp;
+        float center = size * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - center) / center;
+                float dy = (y - center) / center;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = Mathf.Pow(Mathf.Max(0f, 1f - dist), 2.5f);
+                s_glowTexture.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        }
+        s_glowTexture.Apply(false, true);
+        return s_glowTexture;
+    }
+
+    static Mesh GetQuadMesh()
+    {
+        if (s_quadMesh != null) return s_quadMesh;
+        s_quadMesh = new Mesh { name = "GlowQuad" };
+        s_quadMesh.vertices = new[]
+        {
+            new Vector3(-0.5f, -0.5f, 0f),
+            new Vector3( 0.5f, -0.5f, 0f),
+            new Vector3( 0.5f,  0.5f, 0f),
+            new Vector3(-0.5f,  0.5f, 0f),
+        };
+        s_quadMesh.uv = new[]
+        {
+            new Vector2(0, 0), new Vector2(1, 0),
+            new Vector2(1, 1), new Vector2(0, 1),
+        };
+        s_quadMesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+        s_quadMesh.RecalculateNormals();
+        return s_quadMesh;
     }
 }

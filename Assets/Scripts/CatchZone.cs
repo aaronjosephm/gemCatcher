@@ -77,7 +77,7 @@ public class CatchZone : MonoBehaviour
         }
 
         SpecialGemType variant = fo.specialType;
-        HandleVariantCatch(variant, catchPosition, fo.gameObject);
+        HandleVariantCatch(variant, catchPosition, fo);
 
         fo.gameObject.SetActive(false);
     }
@@ -99,7 +99,7 @@ public class CatchZone : MonoBehaviour
 
     // ---- Variant catch routing ---------------------------------------------
 
-    private void HandleVariantCatch(SpecialGemType variant, Vector3 catchPosition, GameObject gemObject)
+    private void HandleVariantCatch(SpecialGemType variant, Vector3 catchPosition, FallingObject fo)
     {
         RoundManager rm = RoundManager.Instance;
 
@@ -119,7 +119,6 @@ public class CatchZone : MonoBehaviour
         int basePoints;
         switch (variant)
         {
-            case SpecialGemType.GoldBar: basePoints = RoundManager.POINTS_PER_GOLD_BAR_CATCH; break;
             case SpecialGemType.Golden:  basePoints = RoundManager.POINTS_PER_GOLDEN_CATCH; break;
             default:                     basePoints = RoundManager.POINTS_PER_CATCH; break;
         }
@@ -135,17 +134,11 @@ public class CatchZone : MonoBehaviour
             rm.AddLives(1);
         }
 
-        // Gold Bar jackpot fan-out.
-        if (variant == SpecialGemType.GoldBar)
-        {
-            rm.NotifyGoldBarCaught(catchPosition);
-        }
-
         // Record for game-over breakdown.
-        string gemName = gemObject.name.Replace("(Clone)", "").Trim();
+        string gemName = fo.gameObject.name.Replace("(Clone)", "").Trim();
         rm.RecordCatch(gemName);
 
-        PlayCatchEffect(gemObject);
+        PlayCatchEffect(fo);
     }
 
     // ---- Bomb handling -----------------------------------------------------
@@ -170,19 +163,9 @@ public class CatchZone : MonoBehaviour
 
     // ---- Catch effect -------------------------------------------------------
 
-    private void PlayCatchEffect(GameObject gemObject)
+    private void PlayCatchEffect(FallingObject fo)
     {
-        Color burstColor = new Color(1f, 0.95f, 0.7f);
-        Renderer rend = gemObject.GetComponentInChildren<Renderer>();
-        if (rend != null && rend.material != null && rend.material.HasProperty("_Color"))
-        {
-            Color c = rend.material.color;
-            burstColor = new Color(
-                Mathf.Lerp(c.r, 1f, 0.25f),
-                Mathf.Lerp(c.g, 1f, 0.25f),
-                Mathf.Lerp(c.b, 1f, 0.25f),
-                1f);
-        }
-        CatchBurst.Spawn(gemObject.transform.position, burstColor);
+        Color burstColor = fo.GetBurstColor();
+        CatchBurst.Spawn(fo.transform.position, burstColor);
     }
 }

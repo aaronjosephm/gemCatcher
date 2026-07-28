@@ -8,7 +8,7 @@ using Random = UnityEngine.Random;
 // Named sounds the game expects:
 //   "GemCaught", "GemMissed", "Bounce", "ObstacleBounce", "WallBounce",
 //   "CatcherMove", "GameOver", "Win", "BonusLife", "PowerUp",
-//   "Bomb", "Milestone", "GoldBar",
+//   "Bomb", "Milestone",
 //   "BackgroundMusic" (looping — only while GameState.IsPlaying and not game-over)
 public class SoundManager : MonoBehaviour
 {
@@ -140,6 +140,7 @@ public class SoundManager : MonoBehaviour
         }
 
         EnsureBackgroundMusicFromResources();
+        EnsureMenuMusicFromResources();
 
         foreach (SoundEffect sound in soundDictionary.Values)
         {
@@ -157,7 +158,6 @@ public class SoundManager : MonoBehaviour
         GemCatcher.OnGemMissed += HandleGemMissed;
         GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
         GemCatcher.OnBombHit += HandleBombHit;
-        GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
         MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
         GemCatcher.OnGameOver += HandleGameOver;
     }
@@ -165,6 +165,7 @@ public class SoundManager : MonoBehaviour
     void Update()
     {
         SyncGameplayMusic();
+        SyncMenuMusic();
     }
 
     // ----- Public API -----
@@ -184,6 +185,19 @@ public class SoundManager : MonoBehaviour
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
             sound.source.Stop();
+        }
+    }
+
+    /// <summary>
+    /// Stops all audio sources immediately. Call before scene transitions to
+    /// prevent brief music blips caused by state resets.
+    /// </summary>
+    public static void StopAll()
+    {
+        if (Instance == null || Instance.soundDictionary == null) return;
+        foreach (var kvp in Instance.soundDictionary)
+        {
+            if (kvp.Value.source != null) kvp.Value.source.Stop();
         }
     }
 
@@ -244,7 +258,37 @@ public class SoundManager : MonoBehaviour
     }
 
     static bool IsMusic(string soundName) =>
-        string.Equals(soundName, "BackgroundMusic", StringComparison.Ordinal);
+        string.Equals(soundName, "BackgroundMusic", StringComparison.Ordinal)
+        || string.Equals(soundName, "MenuMusic", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Plays menu music when the player is on the main menu or settings
+    /// (i.e. not actively playing and not game over). Stops when gameplay starts.
+    /// </summary>
+    void SyncMenuMusic()
+    {
+        if (soundDictionary == null) return;
+        if (!soundDictionary.TryGetValue("MenuMusic", out SoundEffect menu)
+            || menu.source == null || menu.clip == null)
+        {
+            return;
+        }
+
+        bool wantMenu = !GameState.IsPlaying && !GemCatcher.IsGameOver;
+        menu.source.volume = menu.volume * MusicVolume;
+
+        if (wantMenu)
+        {
+            if (!menu.source.isPlaying)
+            {
+                menu.source.Play();
+            }
+        }
+        else if (menu.source.isPlaying)
+        {
+            menu.source.Stop();
+        }
+    }
 
     // ----- Event handlers -----
 
@@ -279,11 +323,6 @@ public class SoundManager : MonoBehaviour
         PlayWithRandomPitch("Bomb", 0.85f, 1.05f);
     }
 
-    void HandleGoldBarCaught(Vector3 worldPosition)
-    {
-        Play("GoldBar");
-    }
-
     void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
     {
         Play("Milestone");
@@ -304,7 +343,6 @@ public class SoundManager : MonoBehaviour
             GemCatcher.OnGemMissed -= HandleGemMissed;
             GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;
             GemCatcher.OnBombHit -= HandleBombHit;
-            GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
             MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
             GemCatcher.OnGameOver -= HandleGameOver;
             Instance = null;
@@ -339,6 +377,34 @@ public class SoundManager : MonoBehaviour
         soundDictionary["BackgroundMusic"] = bgm;
     }
 
+    private void EnsureMenuMusicFromResources()
+    {
+        if (soundDictionary.TryGetValue("MenuMusic", out SoundEffect existing)
+            && existing.clip != null)
+        {
+            existing.loop = true;
+            return;
+        }
+
+        AudioClip clip = Resources.Load<AudioClip>("Audio/MenuMusic");
+        if (clip == null)
+        {
+            Debug.LogWarning("[SoundManager] No Resources/Audio/MenuMusic found — menu music skipped.");
+            return;
+        }
+
+        SoundEffect menu = existing ?? new SoundEffect
+        {
+            name = "MenuMusic",
+            volume = 0.45f,
+            pitch = 1f,
+        };
+        menu.clip = clip;
+        menu.loop = true;
+        if (menu.volume <= 0f) menu.volume = 0.45f;
+        soundDictionary["MenuMusic"] = menu;
+    }
+
     // ----- Procedural fallback audio -----
 
     private void RegisterFallbacks()
@@ -355,7 +421,6 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
         RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
-        RegisterFallback("GoldBar",       () => CreateArpeggio(new[] { 1175f, 880f, 1318f, 1568f, 1976f, 2349f }, 0.85f, 0.36f));
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)

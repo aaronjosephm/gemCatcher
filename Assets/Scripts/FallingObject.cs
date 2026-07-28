@@ -13,8 +13,6 @@ public enum SpecialGemType
     Golden,
     /// <summary>DON'T catch — costs a life and breaks combo on contact. Falling through is the correct play.</summary>
     Bomb,
-    /// <summary>Ultra-rare jackpot drop — +500 points. Spawned as a procedural brick-shaped GameObject from <see cref="GoldBarFactory"/>; bypasses the gem-pool tint path entirely so the visual is an actual gold bar, not a retinted gem.</summary>
-    GoldBar,
 }
 
 public class FallingObject : MonoBehaviour
@@ -53,9 +51,7 @@ public class FallingObject : MonoBehaviour
     //   originalScale * (currentBaseScaleFactor * currentSpecialScaleFactor)
     // so the score-driven shrink (set via ApplyScaleFactor) and the uniform
     // special-gem size override (set via ApplySpecialType, e.g. 2x for Bombs)
-    // can vary independently without fighting each other. Gold Bars don't
-    // need a per-axis stretch field because they're spawned as a separate
-    // procedural GameObject (see GoldBarFactory) instead of a stretched gem.
+    // can vary independently without fighting each other.
     private float currentBaseScaleFactor = 1f;
     private float currentSpecialScaleFactor = 1f;
 
@@ -95,11 +91,54 @@ public class FallingObject : MonoBehaviour
     private Color originalTrailEnd;
     private bool originalTrailCaptured = false;
 
+    [Header("Visual")]
+    [Tooltip("Color used for the catch burst particles. Auto-detected from gem name if left at default.")]
+    public Color burstColor = Color.clear;
+
+    /// <summary>
+    /// Returns the burst color, auto-detecting from the gem name if not
+    /// explicitly set in the prefab.
+    /// </summary>
+    public Color GetBurstColor()
+    {
+        if (burstColor != Color.clear) return burstColor;
+
+        // Infer from gem name.
+        string n = gameObject.name.ToLowerInvariant();
+        if (n.Contains("green") || n.Contains("emerald"))
+            return new Color(0.2f, 0.9f, 0.3f);
+        if (n.Contains("red") || n.Contains("ruby"))
+            return new Color(0.95f, 0.2f, 0.2f);
+        if (n.Contains("star"))
+            return new Color(0.95f, 0.2f, 0.2f);
+        if (n.Contains("topaz"))
+            return new Color(1f, 0.5f, 0.1f);
+        if (n.Contains("heart") || n.Contains("pink"))
+            return Color.white;
+        if (n.Contains("blue") || n.Contains("sapphire"))
+            return new Color(0.2f, 0.6f, 1f);
+        if (n.Contains("purple") || n.Contains("amethyst") || n.Contains("violet"))
+            return new Color(0.7f, 0.2f, 0.9f);
+        if (n.Contains("orange"))
+            return new Color(1f, 0.5f, 0.1f);
+        if (n.Contains("diamond") || n.Contains("white"))
+            return new Color(0.85f, 0.92f, 1f);
+
+        // Fallback: warm gold.
+        return new Color(1f, 0.95f, 0.7f);
+    }
+
     void Start()
     {
         // Initialize components and boundaries
         InitializeComponents();
         CaptureOriginalScaleIfNeeded();
+
+        // Add localized glow halo around the gem.
+        if (GetComponent<GemGlowVolume>() == null)
+        {
+            gameObject.AddComponent<GemGlowVolume>();
+        }
     }
 
     // Method to reset the object when it's reused from the pool
@@ -107,13 +146,30 @@ public class FallingObject : MonoBehaviour
     {
         // Re-initialize components in case anything has changed
         InitializeComponents();
-        // Defensive cleanup of any leftover power-up state from a previous
-        // life. ApplyPowerUpType / ApplySpecialType already handle this when
-        // called, but calling ClearPowerUp here too ensures any future spawn
-        // path that calls ResetObject without immediately repainting the
-        // gem (e.g. an editor tool) can't leave a stale fire effect parented
-        // to a normal-looking gem.
         ClearPowerUp();
+
+        // Refresh glow halo — hide for bombs, tint for normal gems.
+        UpdateGlow();
+    }
+
+    /// <summary>
+    /// Shows or hides the glow halo based on the current special type.
+    /// Bombs get no glow; everything else gets a color-matched halo.
+    /// </summary>
+    void UpdateGlow()
+    {
+        var glow = GetComponent<GemGlowVolume>();
+        if (glow == null) return;
+
+        if (specialType == SpecialGemType.Bomb)
+        {
+            glow.enabled = false;
+        }
+        else
+        {
+            glow.enabled = true;
+            glow.RefreshColor(GetBurstColor());
+        }
     }
 
     // Sets the score-driven base scale factor. Final localScale is
@@ -224,19 +280,20 @@ public class FallingObject : MonoBehaviour
 
         // ClearPowerUp at the top of this method already tore down any
         // leftover power-up flame from a previous pool cycle. Variant gems
-        // (Normal / Golden / Bomb / GoldBar) never carry a flame of their
+        // (Normal / Golden / Bomb) never carry a flame of their
         // own — the magenta fiery aura is reserved exclusively for the
         // ExtraLife power-up, which routes through ApplyPowerUpType — so
         // there's nothing more to attach here.
+
+        // Update glow halo — bombs get no glow.
+        UpdateGlow();
     }
 
     /// <summary>
     /// Tags this falling object as a particular variant for catch-time
     /// scoring purposes WITHOUT touching the renderer / trail / scale.
-    /// Used by <see cref="ObjectPooler.SpawnGoldBar"/> for procedural Gold
-    /// Bars — the bar already has its own gold material and brick-shaped
-    /// mesh from <see cref="GoldBarFactory"/>, so retinting it via the
-    /// regular palette path would erase the polished metallic look.
+    /// Used when a caller needs to tag the catch-time scoring variant without
+    /// changing the renderer, trail, or scale that are already in place.
     /// </summary>
     public void SetSpecialTypeWithoutVisuals(SpecialGemType type)
     {
@@ -252,7 +309,7 @@ public class FallingObject : MonoBehaviour
     /// regular variant path.
     ///
     /// <para>The underlying <see cref="specialType"/> is forced to Normal —
-    /// a gem can never be both a power-up AND a Bomb / Golden / GoldBar at
+    /// a gem can never be both a power-up AND a Bomb / Golden at
     /// the same time, since the catch routing for those would fight the
     /// power-up activation routing.</para>
     /// </summary>
@@ -365,13 +422,6 @@ public class FallingObject : MonoBehaviour
                     trailStart = new Color(1.00f, 0.30f, 0.20f, 0.95f),
                     trailEnd = new Color(0.30f, 0.05f, 0.05f, 0.0f),
                 };
-            // GoldBar intentionally has no palette entry — Gold Bars are
-            // spawned as a separate procedural GameObject (see GoldBarFactory)
-            // with their material baked in, so they never traverse this
-            // visual-tint code path. If someone calls ApplySpecialType with
-            // GoldBar by mistake, they'll get the default white palette
-            // (visible but obviously wrong) which surfaces the bug fast
-            // instead of silently retinting a procedural bar.
             default:
                 return new VariantPalette
                 {

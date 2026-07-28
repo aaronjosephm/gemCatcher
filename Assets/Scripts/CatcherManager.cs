@@ -598,8 +598,9 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Adds a low-rate particle system to the catcher so it gives off a subtle sparkle.
-    // Tunable through the "Sparkle" header on this component.
+    // Adds a sparkle particle system to the catcher with a procedural 4-point
+    // star texture. Each sparkle flashes in, holds briefly, then fades out with
+    // a gentle rotation — looks like light glinting off glass/crystal.
     void AddSparkleEffect(GameObject catcherObject)
     {
         if (!enableSparkle || catcherObject == null) return;
@@ -611,21 +612,20 @@ public class CatcherManager : MonoBehaviour
         sparkleHost.transform.localScale = Vector3.one;
 
         ParticleSystem ps = sparkleHost.AddComponent<ParticleSystem>();
-        // Stop the system before reconfiguring; calling Play at the end ensures it picks up
-        // the latest module values cleanly.
         ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         var main = ps.main;
         main.duration = 5f;
         main.loop = true;
-        main.startLifetime = 0.7f;
-        main.startSize = sparkleSize;
-        main.startSpeed = 0.15f;
+        main.startLifetime = 0.5f;
+        main.startSize = new ParticleSystem.MinMaxCurve(sparkleSize * 0.6f, sparkleSize * 1.4f);
+        main.startSpeed = 0.05f;
         main.startColor = sparkleColor;
-        main.maxParticles = 80;
-        // World simulation so the sparkle "trails" stay put while the catcher moves between slots.
+        main.maxParticles = 40;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.playOnAwake = false;
+        // Random rotation so each star is oriented differently.
+        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
 
         var emission = ps.emission;
         emission.rateOverTime = sparkleRate;
@@ -634,7 +634,17 @@ public class CatcherManager : MonoBehaviour
         shape.shapeType = ParticleSystemShapeType.Box;
         shape.scale = Vector3.one * 0.9f;
 
-        // Fade-in / fade-out alpha so each particle pops in and out gently.
+        // Size over lifetime: scale up fast, hold, then shrink — a "flash" pop.
+        var sizeOverLifetime = ps.sizeOverLifetime;
+        sizeOverLifetime.enabled = true;
+        AnimationCurve sizeCurve = new AnimationCurve();
+        sizeCurve.AddKey(0f, 0f);
+        sizeCurve.AddKey(0.15f, 1f);
+        sizeCurve.AddKey(0.6f, 1f);
+        sizeCurve.AddKey(1f, 0f);
+        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+
+        // Fade-in / fade-out alpha.
         var colorOverLifetime = ps.colorOverLifetime;
         colorOverLifetime.enabled = true;
         Gradient g = new Gradient();
@@ -647,12 +657,18 @@ public class CatcherManager : MonoBehaviour
             new[]
             {
                 new GradientAlphaKey(0f, 0f),
-                new GradientAlphaKey(1f, 0.35f),
+                new GradientAlphaKey(1f, 0.15f),
+                new GradientAlphaKey(1f, 0.5f),
                 new GradientAlphaKey(0f, 1f)
             });
         colorOverLifetime.color = g;
 
-        // Default particle material — small bright sprites that work in the built-in pipeline.
+        // Gentle spin while alive.
+        var rotOverLifetime = ps.rotationOverLifetime;
+        rotOverLifetime.enabled = true;
+        rotOverLifetime.z = new ParticleSystem.MinMaxCurve(-1f, 1f);
+
+        // Use the procedural star texture for a proper sparkle look.
         ParticleSystemRenderer renderer = sparkleHost.GetComponent<ParticleSystemRenderer>();
         if (renderer != null)
         {
@@ -660,11 +676,55 @@ public class CatcherManager : MonoBehaviour
                                 ?? Shader.Find("Sprites/Default");
             if (particleShader != null)
             {
-                renderer.material = new Material(particleShader);
+                Material mat = new Material(particleShader);
+                mat.mainTexture = CreateSparkleStarTexture();
+                // Additive blend for bright sparkle on any surface.
+                mat.SetFloat("_Surface", 1f);
+                mat.SetFloat("_Blend", 1f);
+                mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.renderQueue = 3100;
+                renderer.material = mat;
             }
         }
 
         ps.Play();
+    }
+
+    // Procedural 4-point star texture for sparkle particles.
+    static Texture2D s_sparkleStarTex;
+    static Texture2D CreateSparkleStarTexture()
+    {
+        if (s_sparkleStarTex != null) return s_sparkleStarTex;
+
+        int size = 64;
+        s_sparkleStarTex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        s_sparkleStarTex.filterMode = FilterMode.Bilinear;
+        s_sparkleStarTex.wrapMode = TextureWrapMode.Clamp;
+        float center = size * 0.5f;
+
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dx = (x - center) / center;
+                float dy = (y - center) / center;
+                float dist = Mathf.Sqrt(dx * dx + dy * dy);
+
+                // Four-point star: bright cross rays + central glow.
+                float hRay = Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Abs(dy) * 4f), 2f)
+                           * Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Abs(dx)), 0.8f);
+                float vRay = Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Abs(dx) * 4f), 2f)
+                           * Mathf.Pow(Mathf.Max(0f, 1f - Mathf.Abs(dy)), 0.8f);
+                float glow = Mathf.Pow(Mathf.Max(0f, 1f - dist * 1.5f), 3f);
+
+                float a = Mathf.Clamp01(Mathf.Max(hRay, vRay) + glow);
+                s_sparkleStarTex.SetPixel(x, y, new Color(1f, 1f, 1f, a));
+            }
+        }
+        s_sparkleStarTex.Apply(false, true);
+        return s_sparkleStarTex;
     }
 
     Material CreateGlassMaterial()

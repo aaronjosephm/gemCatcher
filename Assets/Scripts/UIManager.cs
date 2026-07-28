@@ -111,6 +111,8 @@ public class UIManager : MonoBehaviour
   private Button dailyChallengeMenuButton;
   private TextMeshProUGUI dailyChallengeButtonLabel;
   private Image dailyChallengeButtonBg;
+  private TextMeshProUGUI bestScoreMenuTmp;
+  private GameObject bestScoreMenuGo;
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -205,10 +207,9 @@ public class UIManager : MonoBehaviour
     // Score milestones — full-screen banner + power-up gift.
     MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
 
-    // Bomb / gold-bar special-gem events — distinct floating text +
+    // Bomb special-gem events — distinct floating text +
     // extra fx beyond the standard catch / miss visuals.
     GemCatcher.OnBombHit += HandleBombHit;
-    GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
     // a game-over panel even if nothing was wired up in the Inspector.
@@ -281,6 +282,12 @@ public class UIManager : MonoBehaviour
       gemSpeedupTimerText.color = new Color(1f, 0.92f, 0.5f);
       gemSpeedupTimerText.text = "";
       gemSpeedupTimerText.gameObject.SetActive(false);
+    }
+    else if (UiRoot != null && gemSpeedupTimerText.transform.parent != UiRoot)
+    {
+      // Scene-placed timer — reparent under safe area so it isn't blocked
+      // by the camera island / Dynamic Island on any phone.
+      gemSpeedupTimerText.transform.SetParent(UiRoot, false);
     }
 
     // Hide the countdown until the placement phase actually starts.
@@ -541,6 +548,11 @@ public class UIManager : MonoBehaviour
     {
 #if UNITY_ANDROID
       fitter.extraTopPixels = 60f;
+#elif UNITY_IOS
+      // iPhone Dynamic Island / camera pill extends into the safe area on some
+      // models (e.g. iPhone 16 E, 17 E). Add a small extra inset so HUD text
+      // doesn't sit directly against the island boundary.
+      fitter.extraTopPixels = 30f;
 #endif
     }
   }
@@ -557,7 +569,7 @@ public class UIManager : MonoBehaviour
     rect.anchorMin = new Vector2(1f, 1f);
     rect.anchorMax = new Vector2(1f, 1f);
     rect.pivot = new Vector2(1f, 1f);
-    rect.anchoredPosition = new Vector2(-40f, -40f);
+    rect.anchoredPosition = new Vector2(-40f, -20f);
     rect.sizeDelta = new Vector2(500f, 100f);
 
     scoreDisplay = go.AddComponent<TextMeshProUGUI>();
@@ -580,7 +592,7 @@ public class UIManager : MonoBehaviour
     rect.anchorMin = new Vector2(0f, 1f);
     rect.anchorMax = new Vector2(0f, 1f);
     rect.pivot = new Vector2(0f, 1f);
-    rect.anchoredPosition = new Vector2(40f, -40f);
+    rect.anchoredPosition = new Vector2(40f, -20f);
     rect.sizeDelta = new Vector2(500f, 100f);
 
     livesDisplay = go.AddComponent<TextMeshProUGUI>();
@@ -619,7 +631,7 @@ public class UIManager : MonoBehaviour
     powerUpHudContainer.anchorMin = new Vector2(0f, 1f);
     powerUpHudContainer.anchorMax = new Vector2(0f, 1f);
     powerUpHudContainer.pivot = new Vector2(0f, 1f);
-    powerUpHudContainer.anchoredPosition = new Vector2(40f, -160f);
+    powerUpHudContainer.anchoredPosition = new Vector2(40f, -140f);
     powerUpHudContainer.sizeDelta = new Vector2(280f, 230f);
 
     PowerUpType[] order = new[]
@@ -856,10 +868,10 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
-    // Full-screen dim overlay. Stays full-screen (extends behind notch / home
-    // indicator) so the entire screen darkens, not just the safe area.
+    // Full-screen dim overlay. Parented to the canvas root (NOT UiRoot/safe area)
+    // so it extends behind notch / Dynamic Island — entire screen darkens.
     GameObject panel = new GameObject("GameOverPanel (auto)", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    panel.transform.SetParent(UiRoot, false);
+    panel.transform.SetParent(hudCanvas.transform, false);
     RectTransform panelRect = panel.GetComponent<RectTransform>();
     panelRect.anchorMin = Vector2.zero;
     panelRect.anchorMax = Vector2.one;
@@ -981,13 +993,13 @@ public class UIManager : MonoBehaviour
     // primary (blue), Main Menu is secondary (gray).
     Button retryBtn = BuildPanelButton(
         contentParent, "RetryButton", "Try Again",
-        new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 175f), new Vector2(360f, 100f),
+        new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 195f), new Vector2(480f, 130f),
         RestartGame);
     restartButton = retryBtn;
 
     BuildPanelButton(
         contentParent, "MainMenuButton", "Main Menu",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 55f), new Vector2(360f, 100f),
+        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 45f), new Vector2(480f, 130f),
         ReturnToMainMenu);
 
     gameOverPanel = panel;
@@ -1028,6 +1040,8 @@ public class UIManager : MonoBehaviour
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
     btn.onClick.AddListener(onClick);
+
+    CrystalButtonStyle.Apply(btnGo, bgColor);
     return btn;
   }
 
@@ -1062,12 +1076,17 @@ public class UIManager : MonoBehaviour
     GameObject anchor = new GameObject("TitleAnchor", typeof(RectTransform));
     anchor.transform.SetParent(contentParent, false);
     RectTransform anchorRect = anchor.GetComponent<RectTransform>();
-    anchorRect.anchorMin = new Vector2(0f, 1f);
+    // Title fills the top 55% of the screen. The image is portrait (1024×1536)
+    // and AspectRatioFitter keeps exact proportions within this zone.
+    anchorRect.anchorMin = new Vector2(0f, 0.45f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
     anchorRect.pivot = new Vector2(0.5f, 1f);
-    anchorRect.sizeDelta = new Vector2(-100f, 220f);
-    anchorRect.anchoredPosition = new Vector2(0f, -90f);
+    anchorRect.sizeDelta = Vector2.zero;
+    anchorRect.offsetMin = new Vector2(0f, anchorRect.offsetMin.y);
+    anchorRect.offsetMax = new Vector2(0f, -20f);
 
+    // TitleLogo stretches to fill the anchor; the Image component's
+    // preserveAspect keeps the original 2:3 ratio without distortion.
     GameObject logo = new GameObject("TitleLogo", typeof(RectTransform));
     logo.transform.SetParent(anchor.transform, false);
     RectTransform logoRect = logo.GetComponent<RectTransform>();
@@ -1079,58 +1098,9 @@ public class UIManager : MonoBehaviour
 
     BuildLogoTitle(logo.transform);
 
-    // Pulse animation on the wrapper, not the TMP itself, so the inner text
-    // can keep its baseline positioning and auto-size logic without the
-    // animation fighting it.
-    logo.AddComponent<TitlePulse>();
+    // Title is static — no pulse animation.
 
-    // ---- Tagline ----------------------------------------------------------
-    // Refined tagline: italic, slightly tighter letter spacing, dropped a
-    // bit further down so it doesn't crowd the bigger logo above.
-    GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
-    subGo.transform.SetParent(contentParent, false);
-    RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0f, 1f);
-    subRect.anchorMax = new Vector2(1f, 1f);
-    subRect.pivot = new Vector2(0.5f, 1f);
-    subRect.sizeDelta = new Vector2(-120f, 60f);
-    subRect.anchoredPosition = new Vector2(0f, -325f);
-    TextMeshProUGUI sub = subGo.AddComponent<TextMeshProUGUI>();
-    sub.text = "Catch the gems. Don't miss.";
-    sub.fontStyle = FontStyles.Italic;
-    sub.alignment = TextAlignmentOptions.Center;
-    sub.color = new Color(0.85f, 0.82f, 0.72f);
-    sub.characterSpacing = 6f;
-    sub.enableAutoSizing = true;
-    sub.fontSizeMin = 22f;
-    sub.fontSizeMax = 38f;
-    sub.enableWordWrapping = false;
-
-    // Best score chip — only visible if the player has a saved high score, so the
-    // first run isn't cluttered with "BEST: 0".
-    if (highScore > 0)
-    {
-      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
-      bestGo.transform.SetParent(contentParent, false);
-      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0f, 1f);
-      bestRect.anchorMax = new Vector2(1f, 1f);
-      bestRect.pivot = new Vector2(0.5f, 1f);
-      bestRect.sizeDelta = new Vector2(-120f, 50f);
-      bestRect.anchoredPosition = new Vector2(0f, -395f);
-      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
-      best.text = "BEST  " + highScore;
-      best.fontStyle = FontStyles.Bold;
-      best.alignment = TextAlignmentOptions.Center;
-      best.color = new Color(1f, 0.85f, 0.35f);
-      best.characterSpacing = 8f;
-      best.enableAutoSizing = true;
-      best.fontSizeMin = 22f;
-      best.fontSizeMax = 36f;
-      best.enableWordWrapping = false;
-    }
-
-    // Centered button stack — anchored to vertical center for stable layout across resolutions.
+    // Centered button stack — pushed lower to make room for title.
     GameObject stackGo = new GameObject("ButtonStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
@@ -1138,12 +1108,11 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    // Sized for 3 menu buttons: 3 * 100px tall + 2 * 22px spacing ≈ 344px.
-    stackRect.anchoredPosition = new Vector2(0f, -50f);
-    stackRect.sizeDelta = new Vector2(520f, 400f);
+    stackRect.anchoredPosition = new Vector2(0f, -280f);
+    stackRect.sizeDelta = new Vector2(620f, 620f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 22f;
+    vlg.spacing = 26f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -1157,13 +1126,32 @@ public class UIManager : MonoBehaviour
         new Color(0.85f, 0.55f, 0.15f), OnDailyChallengeClicked);
     dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
     dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
-    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Help",        new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
+    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
 
-    // Small gear button anchored to the top-right corner of the main menu
-    // for sound / haptics toggles. Doubles as the only entry point to the
-    // settings panel. Parented to the SAFE AREA so the gear stays inside the
-    // visible play area on iPhones with a Dynamic Island.
-    BuildSettingsCornerButton(contentParent);
+    BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
+
+    // Best score — below buttons, anchored to bottom.
+    {
+      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
+      bestGo.transform.SetParent(contentParent, false);
+      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
+      bestRect.anchorMin = new Vector2(0.5f, 0.08f);
+      bestRect.anchorMax = new Vector2(0.5f, 0.08f);
+      bestRect.pivot = new Vector2(0.5f, 0.5f);
+      bestRect.anchoredPosition = Vector2.zero;
+      bestRect.sizeDelta = new Vector2(600f, 60f);
+      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
+      best.text = "BEST  " + highScore;
+      best.fontStyle = FontStyles.Bold;
+      best.alignment = TextAlignmentOptions.Center;
+      best.color = new Color(1f, 0.85f, 0.35f);
+      best.characterSpacing = 8f;
+      best.fontSize = 36f;
+      best.enableWordWrapping = false;
+      bestScoreMenuTmp = best;
+      bestScoreMenuGo = bestGo;
+      bestGo.SetActive(highScore > 0);
+    }
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
@@ -1181,101 +1169,58 @@ public class UIManager : MonoBehaviour
   //   3. The shared parent rect stretches to fill its TitleAnchor strip and
   //      uses TMP auto-sizing so the logo scales gracefully on portrait
   //      phones the same way the old single-line title did.
-  // Returns the face TMP so callers can grab a reference if they want.
+  // Returns null — the image-based logo doesn't need a TMP reference.
   TextMeshProUGUI BuildLogoTitle(Transform parent)
   {
-    const string text = "GEM CATCH";
-    const float fontSizeMin = 64f;
-    const float fontSizeMax = 168f;
-    const float characterSpacing = 14f;
-
-    // ---- Drop shadow ------------------------------------------------------
-    GameObject shadowGo = new GameObject("TitleShadow", typeof(RectTransform));
-    shadowGo.transform.SetParent(parent, false);
-    RectTransform shadowRect = shadowGo.GetComponent<RectTransform>();
-    shadowRect.anchorMin = Vector2.zero;
-    shadowRect.anchorMax = Vector2.one;
-    shadowRect.offsetMin = Vector2.zero;
-    shadowRect.offsetMax = Vector2.zero;
-    // Offset the shadow down-right by a few pixels so the face sits slightly
-    // proud of it. Sized in anchored coords so the offset scales with the
-    // panel.
-    shadowRect.anchoredPosition = new Vector2(6f, -8f);
-
-    TextMeshProUGUI shadow = shadowGo.AddComponent<TextMeshProUGUI>();
-    shadow.text = text;
-    shadow.fontStyle = FontStyles.Bold;
-    shadow.alignment = TextAlignmentOptions.Center;
-    shadow.color = new Color(0f, 0f, 0f, 0.55f);
-    shadow.characterSpacing = characterSpacing;
-    shadow.enableAutoSizing = true;
-    shadow.fontSizeMin = fontSizeMin;
-    shadow.fontSizeMax = fontSizeMax;
-    shadow.enableWordWrapping = false;
-    shadow.raycastTarget = false;
-
-    // ---- Face -------------------------------------------------------------
-    GameObject faceGo = new GameObject("TitleFace", typeof(RectTransform));
-    faceGo.transform.SetParent(parent, false);
-    RectTransform faceRect = faceGo.GetComponent<RectTransform>();
-    faceRect.anchorMin = Vector2.zero;
-    faceRect.anchorMax = Vector2.one;
-    faceRect.offsetMin = Vector2.zero;
-    faceRect.offsetMax = Vector2.zero;
-
-    TextMeshProUGUI face = faceGo.AddComponent<TextMeshProUGUI>();
-    face.text = text;
-    face.fontStyle = FontStyles.Bold;
-    face.alignment = TextAlignmentOptions.Center;
-    face.color = Color.white; // base; vertex gradient multiplies in over this
-    face.characterSpacing = characterSpacing;
-    face.enableAutoSizing = true;
-    face.fontSizeMin = fontSizeMin;
-    face.fontSizeMax = fontSizeMax;
-    face.enableWordWrapping = false;
-    face.raycastTarget = false;
-
-    // Top-to-bottom metallic-jewel gradient — bright cream up top fading into
-    // a deep orange at the baseline. Both top corners and both bottom corners
-    // share a row color so the gradient is purely vertical.
-    face.enableVertexGradient = true;
-    face.colorGradient = new VertexGradient(
-        new Color(1.00f, 0.96f, 0.62f), // top-left
-        new Color(1.00f, 0.96f, 0.62f), // top-right
-        new Color(1.00f, 0.55f, 0.10f), // bottom-left
-        new Color(1.00f, 0.55f, 0.10f)  // bottom-right
-    );
-
-    // Outline + face dilate on a private material instance so we don't mutate
-    // the shared TMP default. Wrapped in try/catch because some font assets
-    // ship without these shader properties — the logo still looks good
-    // without the outline thanks to the gradient + drop shadow.
-    try
+    Texture2D titleTex = Resources.Load<Texture2D>("UI/GemCatchTitle");
+    if (titleTex == null)
     {
-      Material runtimeMat = new Material(face.fontMaterial);
-      face.fontMaterial = runtimeMat;
-
-      if (runtimeMat.HasProperty(ShaderUtilities.ID_OutlineWidth))
-      {
-        runtimeMat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.18f);
-      }
-      if (runtimeMat.HasProperty(ShaderUtilities.ID_OutlineColor))
-      {
-        runtimeMat.SetColor(ShaderUtilities.ID_OutlineColor,
-            new Color(0.20f, 0.10f, 0.02f, 1.0f));
-      }
-      if (runtimeMat.HasProperty(ShaderUtilities.ID_FaceDilate))
-      {
-        runtimeMat.SetFloat(ShaderUtilities.ID_FaceDilate, 0.10f);
-      }
-    }
-    catch
-    {
-      // Material customization is purely cosmetic — failures shouldn't break
-      // the menu.
+      // Fallback: simple text if image not found.
+      GameObject fallback = new GameObject("TitleFallback", typeof(RectTransform));
+      fallback.transform.SetParent(parent, false);
+      RectTransform fbRect = fallback.GetComponent<RectTransform>();
+      fbRect.anchorMin = Vector2.zero;
+      fbRect.anchorMax = Vector2.one;
+      fbRect.offsetMin = Vector2.zero;
+      fbRect.offsetMax = Vector2.zero;
+      TextMeshProUGUI tmp = fallback.AddComponent<TextMeshProUGUI>();
+      tmp.text = "GEM CATCH";
+      tmp.fontSize = 120f;
+      tmp.fontStyle = FontStyles.Bold;
+      tmp.alignment = TextAlignmentOptions.Center;
+      tmp.color = new Color(1f, 0.85f, 0.3f);
+      tmp.enableAutoSizing = true;
+      tmp.fontSizeMin = 64f;
+      tmp.fontSizeMax = 168f;
+      tmp.raycastTarget = false;
+      return tmp;
     }
 
-    return face;
+    // Image-based title logo. Uses AspectRatioFitter to guarantee the
+    // native 1024×1536 ratio is preserved — more reliable than
+    // Image.preserveAspect which can misbehave with stretched parents.
+    GameObject imgGo = new GameObject("TitleImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    imgGo.transform.SetParent(parent, false);
+    RectTransform rt = imgGo.GetComponent<RectTransform>();
+    rt.anchorMin = Vector2.zero;
+    rt.anchorMax = Vector2.one;
+    rt.offsetMin = Vector2.zero;
+    rt.offsetMax = Vector2.zero;
+    rt.pivot = new Vector2(0.5f, 0.5f);
+    rt.localScale = new Vector3(1.6f, 1.4f, 1f);
+
+    Image img = imgGo.GetComponent<Image>();
+    img.sprite = Sprite.Create(titleTex,
+        new Rect(0, 0, titleTex.width, titleTex.height),
+        new Vector2(0.5f, 0.5f), 100f);
+    img.type = Image.Type.Simple;
+    img.preserveAspect = true;
+    img.raycastTarget = false;
+
+    // Sparkle effect around the title.
+    imgGo.AddComponent<TitleSparkle>();
+
+    return null;
   }
 
   // Builds the help sub-panel: title + instructions text + Back button.
@@ -1291,67 +1236,63 @@ public class UIManager : MonoBehaviour
 
     GameObject panel = BuildFullScreenPanel("HelpPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(contentParent, "HOW TO PLAY", new Color(1f, 0.85f, 0.35f), 100f);
+    AddPanelTitle(contentParent, "HOW TO PLAY", new Color(1f, 0.85f, 0.35f), 90f);
 
     string helpText =
-        "Catch the falling gems with your glass cube catcher.\n\n" +
+        "<b><color=#FFD86A><size=54>THE GOAL</size></color></b>\n" +
+        "<size=44>Catch falling gems with your crystal catcher.\nDon\u2019t let them slip past!</size>\n\n\n" +
 
-        "<b>Controls</b>\n" +
-        "  • During the placement countdown, tap any slot at the bottom of the screen to position the catcher — or drag left/right to slide it.\n" +
-        "  • You can reposition the catcher as many times as you want before the countdown ends.\n\n" +
+        "<b><color=#6FD9FF><size=54>CONTROLS</size></color></b>\n" +
+        "<size=44><b>Tap</b> a slot to place your catcher.\n" +
+        "<b>Drag</b> left or right to slide it.\n" +
+        "Reposition freely during the countdown.</size>\n\n\n" +
 
-        "<b>Scoring</b>\n" +
-        "  • Catch a gem: <color=#7FE787>+20 points</color>.\n" +
-        "  • Miss a gem: <color=#FF7373>-1 life</color>.\n" +
-        "  • Every <b>100 points</b> earns you a bonus life (capped at <b>10</b>).\n\n" +
+        "<b><color=#7FE787><size=54>SCORING</size></color></b>\n" +
+        "<size=44>Catch a gem = <color=#7FE787>+20 pts</color>\n" +
+        "Miss a gem = <color=#FF7373>\u22121 life</color>\n" +
+        "Every <b>100 pts</b> = bonus life (max 10)</size>\n\n\n" +
 
-        "<b>Combo Streak</b>\n" +
-        "  Catch gems in a row to build a streak \u2014 bigger streaks multiply every catch.\n" +
-        "  • <color=#FFE885>\u00d71.5</color> at 3 catches\n" +
-        "  • <color=#FFC065>\u00d72</color> at 5 catches\n" +
-        "  • <color=#FF8B40>\u00d73</color> at 7 catches\n" +
-        "  • <color=#FF4F4F>\u00d75</color> at 10 catches\n" +
-        "  A miss or a caught bomb breaks the streak. <color=#FFD86A>Shield</color> saves it.\n\n" +
+        "<b><color=#FFC065><size=54>COMBO STREAK</size></color></b>\n" +
+        "<size=44>Catch gems in a row to build a multiplier!\n\n" +
+        "  <color=#FFE885>\u00d71.5</color> at 3 catches\n" +
+        "  <color=#FFC065>\u00d72</color> at 5 catches\n" +
+        "  <color=#FF8B40>\u00d73</color> at 7 catches\n" +
+        "  <color=#FF4F4F>\u00d75</color> at 10 catches\n\n" +
+        "A miss or bomb breaks the streak.</size>\n\n\n" +
 
-        "<b>Special Gems</b>\n" +
-        "  • <color=#FFD86A>Golden gem</color> (rare): <color=#7FE787>+100 points</color>.\n" +
-        "  • <color=#FFE066>Gold bar</color> (jackpot, very rare): <color=#7FE787>+500 points</color> \u2014 unmistakable wide gold shape.\n" +
-        "  • <color=#FF6B5B>Bomb gem</color>: <color=#FF7373>DON'T CATCH IT</color> \u2014 costs a life and breaks your streak. Let it fall past you.\n" +
-        "  • <color=#FF8FB8>Heart gem</color> (very rare): <color=#7FE787>+1 life</color> on catch.\n\n" +
+        "<b><color=#FF8FB8><size=54>SPECIAL GEMS</size></color></b>\n" +
+        "<size=44><color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n" +
+        "<color=#FF6B5B>Bomb</color> \u2014 avoid! Costs a life + breaks streak\n" +
+        "<color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color></size>\n\n\n" +
 
-        "<b>Power-Ups</b>\n" +
-        "  After your first <b>10 drops</b>, a glowing pickup arrives every <b>10 drops</b> like clockwork. Catch it to activate \u2014 each effect stays on until your next miss.\n" +
-        "  • <color=#6FD9FF>WIDE CATCHER</color> \u2014 your cube grows wider.\n" +
-        "  • <color=#FFD86A>SHIELD</color> \u2014 absorbs your next miss without penalty.\n" +
-        "  • <color=#7FE787>2\u00d7 SCORE</color> \u2014 every catch is worth double.\n\n" +
+        "<b><color=#6FD9FF><size=54>POWER-UPS</size></color></b>\n" +
+        "<size=44>A glowing pickup arrives every 10 drops.\n\n" +
+        "<color=#6FD9FF>Wide Catcher</color> \u2014 wider catch zone\n" +
+        "<color=#FFD86A>Shield</color> \u2014 absorbs your next miss\n" +
+        "<color=#7FE787>2\u00d7 Score</color> \u2014 double points per catch</size>\n\n\n" +
 
-        "<b>Milestones</b>\n" +
-        "  Hitting <b>500 / 1000 / 2500 / 5000 / 10000</b> points triggers a celebration banner plus a free reward \u2014 power-ups, bonus lives, or both. The big one at 10000 gives you everything.\n\n" +
+        "<b><color=#FF7373><size=54>DIFFICULTY</size></color></b>\n" +
+        "<size=44>Gems speed up as your score rises.\n" +
+        "At <b>1000 pts</b> gems shrink to half size.\n" +
+        "At <b>2000 pts</b> the catcher shrinks too.</size>\n\n\n" +
 
-        "<b>Difficulty</b>\n" +
-        "  • Gems fall faster as your score climbs.\n" +
-        "  • At <b>1000 points</b> gems shrink to half size \u2014 keep your eyes sharp.\n" +
-        "  • At <b>2000 points</b> your catcher also shrinks to half size \u2014 tighter aim required.\n\n" +
+        "<b><color=#B89CFF><size=54>DAILY CHALLENGE</size></color></b>\n" +
+        "<size=44>One run per day \u2014 same gems for everyone.\n" +
+        "3 lives, no bonuses, 30 gems total.</size>\n\n\n" +
 
-        "<b>Daily Challenge</b>\n" +
-        "  • One run per day with a fixed sequence \u2014 every player faces the same gems.\n" +
-        "  • Locked at <b>3 lives</b>, no bonus lives, ends after 30 gems. Build a streak to climb the daily score.\n\n" +
+        "<size=40><color=#AAAAAA>You start with 3 lives (max 10).\nWhen they\u2019re gone, it\u2019s game over.</color></size>\n\n" +
 
-        "<b>Game Over</b>\n" +
-        "  • You start with <b>3 lives</b> (max <b>10</b>). The game ends when you run out.\n\n" +
-
-        "Good luck!";
+        "<b><color=#FFD86A><size=48>Good luck, gem catcher!</size></color></b>";
 
     BuildScrollableTextBlock(
         contentParent, "HelpScroll", helpText,
-        // Reserve ~240 px at the top (title + a bit of breathing room) and ~210 px
-        // at the bottom for the Back button and its margin.
-        offsetMin: new Vector2(-560f, 210f),
-        offsetMax: new Vector2(560f, -240f));
+        offsetMin: new Vector2(-560f, 260f),
+        offsetMax: new Vector2(560f, -320f),
+        fontSize: 44f,
+        lineSpacing: 12f);
 
-    BuildPanelButton(contentParent, "BackButton", "Back",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
-        OnHelpBackClicked);
+    // Back button — matches main menu style.
+    BuildStackedBackButton(contentParent, OnHelpBackClicked);
 
     helpPanel = panel;
     helpPanel.SetActive(false);
@@ -1363,7 +1304,7 @@ public class UIManager : MonoBehaviour
   // the user can scroll (mouse wheel / touch drag) to see the rest. If it fits, the
   // ScrollRect just sits there inert.
   void BuildScrollableTextBlock(Transform parent, string name, string text,
-      Vector2 offsetMin, Vector2 offsetMax)
+      Vector2 offsetMin, Vector2 offsetMax, float fontSize = 32f, float lineSpacing = 0f)
   {
     // Outer ScrollRect — anchored stretch between top/bottom of the parent.
     GameObject scrollGo = new GameObject(name, typeof(RectTransform), typeof(ScrollRect));
@@ -1412,11 +1353,17 @@ public class UIManager : MonoBehaviour
     // The TMP component lives on the Content itself — TMP implements ILayoutElement
     // so the ContentSizeFitter can read its preferred height directly.
     TextMeshProUGUI body = contentGo.AddComponent<TextMeshProUGUI>();
-    body.alignment = TextAlignmentOptions.TopLeft;
-    body.fontSize = 32f;
-    body.color = Color.white;
+    body.alignment = TextAlignmentOptions.Center;
+    body.fontSize = fontSize;
+    body.lineSpacing = lineSpacing;
+    body.color = new Color(0.92f, 0.90f, 0.85f);
     body.enableWordWrapping = true;
+    body.richText = true;
     body.text = text;
+
+    // Use Nunito font if available (generated via Tools → Generate Nunito SDF Font).
+    TMP_FontAsset nunito = Resources.Load<TMP_FontAsset>("Fonts/Nunito SDF");
+    if (nunito != null) body.font = nunito;
 
     ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
     sr.viewport = viewportRect;
@@ -1426,6 +1373,67 @@ public class UIManager : MonoBehaviour
     sr.movementType = ScrollRect.MovementType.Elastic;
     sr.elasticity = 0.1f;
     sr.scrollSensitivity = 40f;
+
+    // Vertical scrollbar — thin, semi-transparent bar on the right edge so
+    // users know the content is scrollable.
+    GameObject scrollbarGo = new GameObject("Scrollbar",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Scrollbar));
+    scrollbarGo.transform.SetParent(scrollGo.transform, false);
+    RectTransform sbRect = scrollbarGo.GetComponent<RectTransform>();
+    sbRect.anchorMin = new Vector2(1f, 0f);
+    sbRect.anchorMax = new Vector2(1f, 1f);
+    sbRect.pivot = new Vector2(1f, 0.5f);
+    sbRect.offsetMin = new Vector2(-28f, 0f);
+    sbRect.offsetMax = Vector2.zero;
+    Image sbBg = scrollbarGo.GetComponent<Image>();
+    sbBg.color = new Color(0.3f, 0.3f, 0.3f, 0.6f);
+
+    // Sliding area
+    GameObject slideArea = new GameObject("Sliding Area", typeof(RectTransform));
+    slideArea.transform.SetParent(scrollbarGo.transform, false);
+    RectTransform slideRect = slideArea.GetComponent<RectTransform>();
+    slideRect.anchorMin = Vector2.zero;
+    slideRect.anchorMax = Vector2.one;
+    slideRect.offsetMin = Vector2.zero;
+    slideRect.offsetMax = Vector2.zero;
+
+    // Handle
+    GameObject handleGo = new GameObject("Handle",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    handleGo.transform.SetParent(slideArea.transform, false);
+    RectTransform handleRect = handleGo.GetComponent<RectTransform>();
+    handleRect.anchorMin = Vector2.zero;
+    handleRect.anchorMax = Vector2.one;
+    handleRect.offsetMin = Vector2.zero;
+    handleRect.offsetMax = Vector2.zero;
+    Image handleImg = handleGo.GetComponent<Image>();
+    handleImg.color = new Color(1f, 1f, 1f, 0.9f);
+
+    Scrollbar sb = scrollbarGo.GetComponent<Scrollbar>();
+    sb.handleRect = handleRect;
+    sb.direction = Scrollbar.Direction.BottomToTop;
+    sb.targetGraphic = handleImg;
+
+    sr.verticalScrollbar = sb;
+    sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+    sr.verticalScrollbarSpacing = -4f;
+  }
+
+  // Builds a crystal-styled "Back" button anchored to the bottom-center of a panel.
+  void BuildStackedBackButton(Transform parent, UnityEngine.Events.UnityAction onClick)
+  {
+    GameObject container = new GameObject("BackButtonContainer",
+        typeof(RectTransform));
+    container.transform.SetParent(parent, false);
+    RectTransform cRect = container.GetComponent<RectTransform>();
+    cRect.anchorMin = new Vector2(0.5f, 0f);
+    cRect.anchorMax = new Vector2(0.5f, 0f);
+    cRect.pivot = new Vector2(0.5f, 0f);
+    cRect.anchoredPosition = new Vector2(0f, 40f);
+    cRect.sizeDelta = new Vector2(560f, 130f);
+
+    BuildStackedMenuButton(container.transform, "BackButton", "Back",
+        new Color(0.35f, 0.35f, 0.40f), onClick);
   }
 
   // Builds a full-screen, near-opaque panel that hosts a single menu screen.
@@ -1438,9 +1446,14 @@ public class UIManager : MonoBehaviour
   // hardware cutouts on iPhone (and modern iPad in some split views).
   GameObject BuildFullScreenPanel(string name, Color bgColor, out Transform contentParent)
   {
+    // The panel background MUST cover the ENTIRE screen (including behind the
+    // notch / Dynamic Island / rounded corners) so no gameplay peeks through.
+    // Parent it to the canvas root — NOT UiRoot (which is the safe area).
+    Transform fullScreenParent = hudCanvas != null ? hudCanvas.transform : UiRoot;
+
     GameObject panel = new GameObject(name,
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    panel.transform.SetParent(UiRoot, false);
+    panel.transform.SetParent(fullScreenParent, false);
     RectTransform rect = panel.GetComponent<RectTransform>();
     rect.anchorMin = Vector2.zero;
     rect.anchorMax = Vector2.one;
@@ -1488,6 +1501,10 @@ public class UIManager : MonoBehaviour
     tmp.fontSizeMin = 48f;
     tmp.fontSizeMax = 96f;
     tmp.enableWordWrapping = false;
+
+    // Use Nunito if available.
+    TMP_FontAsset nunito = Resources.Load<TMP_FontAsset>("Fonts/Nunito SDF");
+    if (nunito != null) tmp.font = nunito;
   }
 
   // Stacked menu buttons share width/height so they line up nicely under VerticalLayoutGroup.
@@ -1499,10 +1516,10 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
     btnGo.transform.SetParent(parent, false);
     RectTransform rect = btnGo.GetComponent<RectTransform>();
-    rect.sizeDelta = new Vector2(440f, 100f);
+    rect.sizeDelta = new Vector2(560f, 130f);
     LayoutElement le = btnGo.GetComponent<LayoutElement>();
-    le.preferredWidth = 440f;
-    le.preferredHeight = 100f;
+    le.preferredWidth = 560f;
+    le.preferredHeight = 130f;
 
     Image bg = btnGo.GetComponent<Image>();
     bg.color = bgColor;
@@ -1516,7 +1533,7 @@ public class UIManager : MonoBehaviour
     lblRect.offsetMax = Vector2.zero;
     TextMeshProUGUI tmp = lblGo.AddComponent<TextMeshProUGUI>();
     tmp.text = label;
-    tmp.fontSize = 46f;
+    tmp.fontSize = 54f;
     tmp.fontStyle = FontStyles.Bold;
     tmp.alignment = TextAlignmentOptions.Center;
     tmp.color = Color.white;
@@ -1524,6 +1541,8 @@ public class UIManager : MonoBehaviour
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
     btn.onClick.AddListener(onClick);
+
+    CrystalButtonStyle.Apply(btnGo, bgColor);
     return btn;
   }
 
@@ -1543,6 +1562,12 @@ public class UIManager : MonoBehaviour
     // changed since last menu visit (e.g. UTC midnight rolled over while the
     // app was foregrounded).
     RefreshDailyChallengeButton();
+    // Refresh best score display in case it changed after a game.
+    if (bestScoreMenuTmp != null)
+    {
+      bestScoreMenuTmp.text = "BEST  " + highScore;
+      bestScoreMenuGo.SetActive(highScore > 0);
+    }
     FadePanel(mainMenuPanel, true, 0.25f);
   }
 
@@ -1815,6 +1840,10 @@ public class UIManager : MonoBehaviour
   // a daily run is one-and-done, and a normal run obviously stays normal.
   void ReturnToMainMenu()
   {
+    // Stop all audio BEFORE resetting state — ResetLives clears IsGameOver
+    // which would cause SyncGameplayMusic to briefly restart the BGM.
+    GameState.IsPlaying = false;
+    SoundManager.StopAll();
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;
@@ -2400,8 +2429,6 @@ public class UIManager : MonoBehaviour
     GameObject panel = BuildFullScreenPanel(
         "SettingsPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(contentParent, "Settings", new Color(1f, 0.85f, 0.35f), 100f);
-
     GameObject stackGo = new GameObject("ToggleStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
@@ -2409,11 +2436,11 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    stackRect.anchoredPosition = new Vector2(0f, 40f);
-    stackRect.sizeDelta = new Vector2(720f, 420f);
+    stackRect.anchoredPosition = new Vector2(0f, 80f);
+    stackRect.sizeDelta = new Vector2(800f, 500f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 22f;
+    vlg.spacing = 36f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -2426,9 +2453,8 @@ public class UIManager : MonoBehaviour
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
 
-    BuildPanelButton(contentParent, "SettingsBackButton", "Back",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
-        OnSettingsBackClicked);
+    // Back button — anchored to bottom of the panel (outside the stack).
+    BuildStackedBackButton(contentParent, OnSettingsBackClicked);
 
     settingsPanel = panel;
     settingsPanel.SetActive(false);
@@ -2441,10 +2467,10 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
     row.transform.SetParent(parent, false);
     RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(720f, 90f);
+    rowRect.sizeDelta = new Vector2(800f, 110f);
     LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 720f;
-    le.preferredHeight = 90f;
+    le.preferredWidth = 800f;
+    le.preferredHeight = 110f;
     HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
     hlg.childAlignment = TextAnchor.MiddleCenter;
     hlg.spacing = 16f;
@@ -2456,24 +2482,24 @@ public class UIManager : MonoBehaviour
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
-    labelLe.preferredWidth = 200f;
-    labelLe.preferredHeight = 90f;
+    labelLe.preferredWidth = 240f;
+    labelLe.preferredHeight = 110f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
     labelTmp.alignment = TextAlignmentOptions.MidlineRight;
     labelTmp.fontStyle = FontStyles.Bold;
     labelTmp.color = Color.white;
-    labelTmp.fontSize = 40f;
+    labelTmp.fontSize = 46f;
 
     // Slider root
     GameObject sliderGo = new GameObject(label + "Slider",
         typeof(RectTransform), typeof(Slider), typeof(LayoutElement));
     sliderGo.transform.SetParent(row.transform, false);
     LayoutElement sliderLe = sliderGo.GetComponent<LayoutElement>();
-    sliderLe.preferredWidth = 360f;
-    sliderLe.preferredHeight = 48f;
+    sliderLe.preferredWidth = 400f;
+    sliderLe.preferredHeight = 56f;
     RectTransform sliderRect = sliderGo.GetComponent<RectTransform>();
-    sliderRect.sizeDelta = new Vector2(360f, 48f);
+    sliderRect.sizeDelta = new Vector2(400f, 56f);
 
     Sprite whiteSprite = CreateUiWhiteSprite();
 
@@ -2487,7 +2513,7 @@ public class UIManager : MonoBehaviour
     bgRect.offsetMax = Vector2.zero;
     Image bgImg = bgGo.GetComponent<Image>();
     bgImg.sprite = whiteSprite;
-    bgImg.color = new Color(0.25f, 0.27f, 0.32f, 1f);
+    bgImg.color = new Color(0.15f, 0.17f, 0.22f, 0.9f);
     bgImg.type = Image.Type.Simple;
 
     // Fill area + fill
@@ -2508,7 +2534,7 @@ public class UIManager : MonoBehaviour
     fillRect.offsetMax = Vector2.zero;
     Image fillImg = fillGo.GetComponent<Image>();
     fillImg.sprite = whiteSprite;
-    fillImg.color = new Color(0.25f, 0.65f, 0.95f, 1f);
+    fillImg.color = new Color(0.30f, 0.70f, 0.95f, 1f);
 
     // Handle
     GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
@@ -2522,22 +2548,22 @@ public class UIManager : MonoBehaviour
     GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     handleGo.transform.SetParent(handleArea.transform, false);
     RectTransform handleRect = handleGo.GetComponent<RectTransform>();
-    handleRect.sizeDelta = new Vector2(36f, 36f);
+    handleRect.sizeDelta = new Vector2(44f, 44f);
     Image handleImg = handleGo.GetComponent<Image>();
     handleImg.sprite = whiteSprite;
-    handleImg.color = Color.white;
+    handleImg.color = new Color(0.95f, 0.88f, 0.55f);
 
     // Percent label
     GameObject pctGo = new GameObject("Percent", typeof(RectTransform), typeof(LayoutElement));
     pctGo.transform.SetParent(row.transform, false);
     LayoutElement pctLe = pctGo.GetComponent<LayoutElement>();
-    pctLe.preferredWidth = 100f;
-    pctLe.preferredHeight = 90f;
+    pctLe.preferredWidth = 120f;
+    pctLe.preferredHeight = 110f;
     TextMeshProUGUI pctTmp = pctGo.AddComponent<TextMeshProUGUI>();
     pctTmp.alignment = TextAlignmentOptions.MidlineLeft;
     pctTmp.fontStyle = FontStyles.Bold;
     pctTmp.color = new Color(0.85f, 0.85f, 0.9f);
-    pctTmp.fontSize = 36f;
+    pctTmp.fontSize = 42f;
 
     Slider slider = sliderGo.GetComponent<Slider>();
     slider.targetGraphic = handleImg;
@@ -2583,10 +2609,10 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
     row.transform.SetParent(parent, false);
     RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(640f, 90f);
+    rowRect.sizeDelta = new Vector2(720f, 110f);
     LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 640f;
-    le.preferredHeight = 90f;
+    le.preferredWidth = 720f;
+    le.preferredHeight = 110f;
     HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
     hlg.childAlignment = TextAnchor.MiddleCenter;
     hlg.spacing = 28f;
@@ -2598,8 +2624,8 @@ public class UIManager : MonoBehaviour
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
-    labelLe.preferredWidth = 280f;
-    labelLe.preferredHeight = 90f;
+    labelLe.preferredWidth = 300f;
+    labelLe.preferredHeight = 110f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
     labelTmp.alignment = TextAlignmentOptions.MidlineRight;
@@ -2611,8 +2637,8 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
     btnGo.transform.SetParent(row.transform, false);
     LayoutElement btnLe = btnGo.GetComponent<LayoutElement>();
-    btnLe.preferredWidth = 220f;
-    btnLe.preferredHeight = 90f;
+    btnLe.preferredWidth = 260f;
+    btnLe.preferredHeight = 110f;
     Image bg = btnGo.GetComponent<Image>();
 
     GameObject lblGo = new GameObject("Label", typeof(RectTransform));
@@ -2643,7 +2669,14 @@ public class UIManager : MonoBehaviour
       current = !current;
       onChange?.Invoke(current);
       apply();
+      // Re-apply crystal style with updated color.
+      Color c = current ? new Color(0.20f, 0.55f, 0.30f) : new Color(0.45f, 0.20f, 0.20f);
+      CrystalButtonStyle.Apply(btnGo, c);
     });
+
+    // Initial crystal styling.
+    Color initColor = initial ? new Color(0.20f, 0.55f, 0.30f) : new Color(0.45f, 0.20f, 0.20f);
+    CrystalButtonStyle.Apply(btnGo, initColor);
   }
 
   void OnSettingsButtonClicked()
@@ -2662,40 +2695,6 @@ public class UIManager : MonoBehaviour
   // Builds a small "Settings" pill anchored to the top-right of the main-menu
   // panel. Uses plain text for the label so it renders cleanly with any font
   // asset (the unicode gear glyph isn't guaranteed in the default TMP atlas).
-  void BuildSettingsCornerButton(Transform parent)
-  {
-    GameObject btnGo = new GameObject("SettingsButton",
-        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-    btnGo.transform.SetParent(parent, false);
-    RectTransform rect = btnGo.GetComponent<RectTransform>();
-    rect.anchorMin = new Vector2(1f, 1f);
-    rect.anchorMax = new Vector2(1f, 1f);
-    rect.pivot = new Vector2(1f, 1f);
-    rect.anchoredPosition = new Vector2(-30f, -30f);
-    rect.sizeDelta = new Vector2(220f, 80f);
-    Image bg = btnGo.GetComponent<Image>();
-    bg.color = new Color(0.20f, 0.22f, 0.28f, 0.85f);
-
-    GameObject lblGo = new GameObject("Label", typeof(RectTransform));
-    lblGo.transform.SetParent(btnGo.transform, false);
-    RectTransform lblRect = lblGo.GetComponent<RectTransform>();
-    lblRect.anchorMin = Vector2.zero;
-    lblRect.anchorMax = Vector2.one;
-    lblRect.offsetMin = Vector2.zero;
-    lblRect.offsetMax = Vector2.zero;
-    TextMeshProUGUI tmp = lblGo.AddComponent<TextMeshProUGUI>();
-    tmp.text = "Settings";
-    tmp.fontSize = 32f;
-    tmp.fontStyle = FontStyles.Bold;
-    tmp.alignment = TextAlignmentOptions.Center;
-    tmp.color = Color.white;
-    tmp.characterSpacing = 4f;
-
-    Button btn = btnGo.GetComponent<Button>();
-    btn.targetGraphic = bg;
-    btn.onClick.AddListener(OnSettingsButtonClicked);
-  }
-
   // -- Final-score count-up tween -------------------------------------------
 
   /// <summary>
@@ -2750,7 +2749,6 @@ public class UIManager : MonoBehaviour
     ComboManager.OnComboBroken -= HandleComboBroken;
     MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
-    GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
 
     if (objectPooler != null)
     {
@@ -2785,7 +2783,7 @@ public class UIManager : MonoBehaviour
     comboDisplayRoot.pivot = new Vector2(1f, 1f);
     // Sit just below the score. Score occupies y = -40 to ~-140; combo
     // anchors at -150 so the two never overlap on portrait phones.
-    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -150f);
+    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -130f);
     comboDisplayRoot.sizeDelta = new Vector2(500f, 70f);
 
     comboDisplayTmp = go.AddComponent<TextMeshProUGUI>();
@@ -2919,14 +2917,4 @@ public class UIManager : MonoBehaviour
     CatchBurst.Spawn(worldPosition, new Color(1.00f, 0.25f, 0.20f));
   }
 
-  // Gold Bar jackpot catch — celebratory banner, screen-edge gold flash, and
-  // an extra particle burst on top of the standard "+N" floating text the
-  // regular OnGemCaught path already produced.
-  void HandleGoldBarCaught(Vector3 worldPosition)
-  {
-    Color goldBarColor = new Color(1.00f, 0.85f, 0.30f);
-    SpawnBannerNotification("GOLD BAR! +" + GemCatcher.POINTS_PER_GOLD_BAR_CATCH, goldBarColor);
-    FlashVignette(goldBarColor, duration: 0.65f, peakAlpha: 0.32f);
-    CatchBurst.Spawn(worldPosition, goldBarColor);
-  }
 }
