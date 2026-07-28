@@ -1090,8 +1090,8 @@ public class UIManager : MonoBehaviour
     GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
     subGo.transform.SetParent(contentParent, false);
     RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0.1f, 0.60f);
-    subRect.anchorMax = new Vector2(0.9f, 0.65f);
+    subRect.anchorMin = new Vector2(0.1f, 0.56f);
+    subRect.anchorMax = new Vector2(0.9f, 0.62f);
     subRect.pivot = new Vector2(0.5f, 0.5f);
     subRect.sizeDelta = Vector2.zero;
     subRect.anchoredPosition = Vector2.zero;
@@ -1113,11 +1113,11 @@ public class UIManager : MonoBehaviour
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0f, 1f);
-      bestRect.anchorMax = new Vector2(1f, 1f);
-      bestRect.pivot = new Vector2(0.5f, 1f);
-      bestRect.sizeDelta = new Vector2(-120f, 50f);
-      bestRect.anchoredPosition = new Vector2(0f, -395f);
+      bestRect.anchorMin = new Vector2(0.1f, 0.50f);
+      bestRect.anchorMax = new Vector2(0.9f, 0.55f);
+      bestRect.pivot = new Vector2(0.5f, 0.5f);
+      bestRect.sizeDelta = Vector2.zero;
+      bestRect.anchoredPosition = Vector2.zero;
       TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
       best.text = "BEST  " + highScore;
       best.fontStyle = FontStyles.Bold;
@@ -1138,11 +1138,11 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    // Sized for 3 menu buttons: 3 * 130px tall + 2 * 26px spacing ≈ 442px.
+    // Sized for 4 menu buttons: 4 * 130px tall + 3 * 26px spacing ≈ 598px.
     // Position buttons in the lower portion of the screen so they don't
     // overlap the enlarged title (top 33%).
     stackRect.anchoredPosition = new Vector2(0f, -160f);
-    stackRect.sizeDelta = new Vector2(620f, 500f);
+    stackRect.sizeDelta = new Vector2(620f, 620f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 26f;
@@ -1161,11 +1161,7 @@ public class UIManager : MonoBehaviour
     dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Help",        new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
 
-    // Small gear button anchored to the top-right corner of the main menu
-    // for sound / haptics toggles. Doubles as the only entry point to the
-    // settings panel. Parented to the SAFE AREA so the gear stays inside the
-    // visible play area on iPhones with a Dynamic Island.
-    BuildSettingsCornerButton(contentParent);
+    BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
@@ -2615,40 +2611,6 @@ public class UIManager : MonoBehaviour
   // Builds a small "Settings" pill anchored to the top-right of the main-menu
   // panel. Uses plain text for the label so it renders cleanly with any font
   // asset (the unicode gear glyph isn't guaranteed in the default TMP atlas).
-  void BuildSettingsCornerButton(Transform parent)
-  {
-    GameObject btnGo = new GameObject("SettingsButton",
-        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-    btnGo.transform.SetParent(parent, false);
-    RectTransform rect = btnGo.GetComponent<RectTransform>();
-    rect.anchorMin = new Vector2(1f, 1f);
-    rect.anchorMax = new Vector2(1f, 1f);
-    rect.pivot = new Vector2(1f, 1f);
-    rect.anchoredPosition = new Vector2(-30f, -30f);
-    rect.sizeDelta = new Vector2(220f, 80f);
-    Image bg = btnGo.GetComponent<Image>();
-    bg.color = new Color(0.20f, 0.22f, 0.28f, 0.85f);
-
-    GameObject lblGo = new GameObject("Label", typeof(RectTransform));
-    lblGo.transform.SetParent(btnGo.transform, false);
-    RectTransform lblRect = lblGo.GetComponent<RectTransform>();
-    lblRect.anchorMin = Vector2.zero;
-    lblRect.anchorMax = Vector2.one;
-    lblRect.offsetMin = Vector2.zero;
-    lblRect.offsetMax = Vector2.zero;
-    TextMeshProUGUI tmp = lblGo.AddComponent<TextMeshProUGUI>();
-    tmp.text = "Settings";
-    tmp.fontSize = 32f;
-    tmp.fontStyle = FontStyles.Bold;
-    tmp.alignment = TextAlignmentOptions.Center;
-    tmp.color = Color.white;
-    tmp.characterSpacing = 4f;
-
-    Button btn = btnGo.GetComponent<Button>();
-    btn.targetGraphic = bg;
-    btn.onClick.AddListener(OnSettingsButtonClicked);
-  }
-
   // -- Final-score count-up tween -------------------------------------------
 
   /// <summary>
