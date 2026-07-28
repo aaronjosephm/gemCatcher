@@ -174,9 +174,9 @@ public class CatchZone : MonoBehaviour
     {
         Color burstColor = new Color(1f, 0.95f, 0.7f);
         Renderer rend = gemObject.GetComponentInChildren<Renderer>();
-        if (rend != null && rend.sharedMaterial != null && rend.sharedMaterial.HasProperty("_Color"))
+        if (rend != null && rend.material != null && rend.material.HasProperty("_Color"))
         {
-            Color c = rend.sharedMaterial.color;
+            Color c = rend.material.color;
             burstColor = new Color(
                 Mathf.Lerp(c.r, 1f, 0.25f),
                 Mathf.Lerp(c.g, 1f, 0.25f),
