@@ -358,10 +358,12 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        AudioClip clip = Resources.Load<AudioClip>("Audio/BackgroundMusic");
+        AudioClip clip = Resources.Load<AudioClip>(LevelManager.CurrentConfig.musicResource ?? "Audio/BackgroundMusic");
+        if (clip == null)
+            clip = Resources.Load<AudioClip>("Audio/BackgroundMusic");
         if (clip == null)
         {
-            Debug.LogWarning("[SoundManager] No Resources/Audio/BackgroundMusic found — BGM skipped.");
+            Debug.LogWarning("[SoundManager] No background music found — BGM skipped.");
             return;
         }
 

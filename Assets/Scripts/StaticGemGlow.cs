@@ -35,6 +35,13 @@ public class StaticGemGlow : MonoBehaviour
     [Tooltip("Random time offset so gems don't pulse in sync.")]
     public bool randomizePhase = true;
 
+    [Header("Rainbow Mode")]
+    [Tooltip("When enabled, the glow cycles through rainbow colors.")]
+    public bool rainbowCycle = false;
+
+    [Tooltip("Rainbow cycle speed (hue rotations per second).")]
+    public float rainbowSpeed = 0.3f;
+
     private GameObject glowQuad;
     private Material glowMat;
     private float pulsePhase;
@@ -77,6 +84,15 @@ public class StaticGemGlow : MonoBehaviour
 
         glowQuad.transform.position = transform.position + new Vector3(0f, 0f, zOffset);
         glowQuad.transform.localScale = Vector3.one * currentRadius * 2f;
+
+        // Rainbow color cycling
+        if (rainbowCycle && glowMat != null)
+        {
+            float hue = Mathf.Repeat(Time.time * rainbowSpeed, 1f);
+            Color c = Color.HSVToRGB(hue, 0.7f, 1f);
+            c.a = glowAlpha;
+            glowMat.SetColor("_BaseColor", c);
+        }
     }
 
 #if UNITY_EDITOR

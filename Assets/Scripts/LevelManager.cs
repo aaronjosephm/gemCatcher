@@ -18,6 +18,8 @@ public static class LevelManager
         public string displayName;
         public string backgroundResource;   // Resources/ path to background texture
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
+        public string musicResource;         // Resources/ path to background music
+        public string[] extraGemPrefabs;     // Additional gem prefab names (from Resources/Gems/) for this level
         public int unlockScore;              // Best score required to unlock (0 = always unlocked)
         public Color cameraColor;            // Camera.backgroundColor for this level
 
@@ -38,6 +40,8 @@ public static class LevelManager
             displayName = "Crystal Cave",
             backgroundResource = "Backgrounds/CaveBackground",
             midgroundResource = "Backgrounds/MidgroundCave",
+            musicResource = "Audio/BackgroundMusic",
+            extraGemPrefabs = null,
             unlockScore = 0,
             cameraColor = new Color(0.05f, 0.06f, 0.12f, 1f),
             initialFallSpeed = 3.0f,
@@ -53,7 +57,9 @@ public static class LevelManager
             displayName = "Jungle Falls",
             backgroundResource = "Backgrounds/WaterfallBackground",
             midgroundResource = null,
-            unlockScore = 1000,
+            musicResource = "Audio/JungleMusic",
+            extraGemPrefabs = new[] { "Gems/BlueGem" },
+            unlockScore = 0,
             cameraColor = new Color(0.08f, 0.15f, 0.10f, 1f),
             initialFallSpeed = 4.0f,
             initialSpawnInterval = 2.4f,

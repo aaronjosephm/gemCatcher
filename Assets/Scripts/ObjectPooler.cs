@@ -237,6 +237,26 @@ public class ObjectPooler : MonoBehaviour
             }
         }
 
+        // Load level-specific extra gem prefabs from Resources.
+        var cfg = LevelManager.CurrentConfig;
+        if (cfg.extraGemPrefabs != null)
+        {
+            foreach (string path in cfg.extraGemPrefabs)
+            {
+                GameObject extraPrefab = Resources.Load<GameObject>(path);
+                if (extraPrefab == null) continue;
+                for (int i = 0; i < poolSizePerPrefab; i++)
+                {
+                    GameObject obj = Instantiate(extraPrefab);
+                    obj.SetActive(false);
+                    FallingObject fallingObj = obj.GetComponent<FallingObject>();
+                    if (fallingObj != null)
+                        fallingObj.fallSpeed = currentFallSpeed;
+                    objectPool.Add(obj);
+                }
+            }
+        }
+
         // Initialize obstacle pool if there are obstacle prefabs
         if (obstaclePrefabs != null && obstaclePrefabs.Length > 0)
         {
