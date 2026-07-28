@@ -15,11 +15,11 @@ public class GemGlowVolume : MonoBehaviour
 {
     [Header("Glow Settings")]
     [Tooltip("Radius of the glow halo in world units.")]
-    public float glowRadius = 0.45f;
+    public float glowRadius = 0.9f;
 
     [Tooltip("Opacity of the glow at center.")]
     [Range(0f, 1f)]
-    public float glowAlpha = 0.7f;
+    public float glowAlpha = 0.85f;
 
     [Tooltip("Color override. If left white, auto-detects from gem name.")]
     public Color glowColor = Color.white;
