@@ -1063,14 +1063,18 @@ public class UIManager : MonoBehaviour
     GameObject anchor = new GameObject("TitleAnchor", typeof(RectTransform));
     anchor.transform.SetParent(contentParent, false);
     RectTransform anchorRect = anchor.GetComponent<RectTransform>();
-    // Title fills the top third of the screen (proportional anchors).
-    anchorRect.anchorMin = new Vector2(0f, 0.67f);
+    // Title fills the top 45% of the screen. The image is portrait (1024×1536)
+    // so preserveAspect will letterbox horizontally — giving more height
+    // ensures it renders large.
+    anchorRect.anchorMin = new Vector2(0f, 0.55f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
     anchorRect.pivot = new Vector2(0.5f, 1f);
     anchorRect.sizeDelta = Vector2.zero;
     anchorRect.offsetMin = new Vector2(0f, anchorRect.offsetMin.y);
     anchorRect.offsetMax = new Vector2(0f, -20f);
 
+    // TitleLogo stretches to fill the anchor; the Image component's
+    // preserveAspect keeps the original 2:3 ratio without distortion.
     GameObject logo = new GameObject("TitleLogo", typeof(RectTransform));
     logo.transform.SetParent(anchor.transform, false);
     RectTransform logoRect = logo.GetComponent<RectTransform>();
@@ -1090,8 +1094,8 @@ public class UIManager : MonoBehaviour
     GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
     subGo.transform.SetParent(contentParent, false);
     RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0.1f, 0.56f);
-    subRect.anchorMax = new Vector2(0.9f, 0.62f);
+    subRect.anchorMin = new Vector2(0.1f, 0.47f);
+    subRect.anchorMax = new Vector2(0.9f, 0.53f);
     subRect.pivot = new Vector2(0.5f, 0.5f);
     subRect.sizeDelta = Vector2.zero;
     subRect.anchoredPosition = Vector2.zero;
@@ -1113,8 +1117,8 @@ public class UIManager : MonoBehaviour
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.1f, 0.50f);
-      bestRect.anchorMax = new Vector2(0.9f, 0.55f);
+      bestRect.anchorMin = new Vector2(0.1f, 0.41f);
+      bestRect.anchorMax = new Vector2(0.9f, 0.46f);
       bestRect.pivot = new Vector2(0.5f, 0.5f);
       bestRect.sizeDelta = Vector2.zero;
       bestRect.anchoredPosition = Vector2.zero;
@@ -1141,7 +1145,7 @@ public class UIManager : MonoBehaviour
     // Sized for 4 menu buttons: 4 * 130px tall + 3 * 26px spacing ≈ 598px.
     // Position buttons in the lower portion of the screen so they don't
     // overlap the enlarged title (top 33%).
-    stackRect.anchoredPosition = new Vector2(0f, -160f);
+    stackRect.anchoredPosition = new Vector2(0f, -220f);
     stackRect.sizeDelta = new Vector2(620f, 620f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
