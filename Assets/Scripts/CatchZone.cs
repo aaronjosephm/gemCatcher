@@ -119,7 +119,6 @@ public class CatchZone : MonoBehaviour
         int basePoints;
         switch (variant)
         {
-            case SpecialGemType.GoldBar: basePoints = RoundManager.POINTS_PER_GOLD_BAR_CATCH; break;
             case SpecialGemType.Golden:  basePoints = RoundManager.POINTS_PER_GOLDEN_CATCH; break;
             default:                     basePoints = RoundManager.POINTS_PER_CATCH; break;
         }
@@ -133,12 +132,6 @@ public class CatchZone : MonoBehaviour
         if (comboAfterCatch > 0 && comboAfterCatch % 3 == 0)
         {
             rm.AddLives(1);
-        }
-
-        // Gold Bar jackpot fan-out.
-        if (variant == SpecialGemType.GoldBar)
-        {
-            rm.NotifyGoldBarCaught(catchPosition);
         }
 
         // Record for game-over breakdown.

@@ -16,7 +16,6 @@ public class GemCatcher : MonoBehaviour
     public const int POINTS_PER_CATCH = RoundManager.POINTS_PER_CATCH;
     public const int POINTS_PER_MISS = RoundManager.POINTS_PER_MISS;
     public const int POINTS_PER_GOLDEN_CATCH = RoundManager.POINTS_PER_GOLDEN_CATCH;
-    public const int POINTS_PER_GOLD_BAR_CATCH = RoundManager.POINTS_PER_GOLD_BAR_CATCH;
     public const int STARTING_LIVES = RoundManager.STARTING_LIVES;
     public const int MAX_LIVES = RoundManager.MAX_LIVES;
 
@@ -81,12 +80,6 @@ public class GemCatcher : MonoBehaviour
     {
         add { if (RM != null) RM.OnBombHit += value; }
         remove { if (RM != null) RM.OnBombHit -= value; }
-    }
-
-    public static event System.Action<Vector3> OnGoldBarCaught
-    {
-        add { if (RM != null) RM.OnGoldBarCaught += value; }
-        remove { if (RM != null) RM.OnGoldBarCaught -= value; }
     }
 
     // ---- Static method delegates -------------------------------------------

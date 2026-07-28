@@ -205,10 +205,9 @@ public class UIManager : MonoBehaviour
     // Score milestones — full-screen banner + power-up gift.
     MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
 
-    // Bomb / gold-bar special-gem events — distinct floating text +
+    // Bomb special-gem events — distinct floating text +
     // extra fx beyond the standard catch / miss visuals.
     GemCatcher.OnBombHit += HandleBombHit;
-    GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
     // a game-over panel even if nothing was wired up in the Inspector.
@@ -2754,7 +2753,6 @@ public class UIManager : MonoBehaviour
     ComboManager.OnComboBroken -= HandleComboBroken;
     MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
-    GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
 
     if (objectPooler != null)
     {
@@ -2923,14 +2921,4 @@ public class UIManager : MonoBehaviour
     CatchBurst.Spawn(worldPosition, new Color(1.00f, 0.25f, 0.20f));
   }
 
-  // Gold Bar jackpot catch — celebratory banner, screen-edge gold flash, and
-  // an extra particle burst on top of the standard "+N" floating text the
-  // regular OnGemCaught path already produced.
-  void HandleGoldBarCaught(Vector3 worldPosition)
-  {
-    Color goldBarColor = new Color(1.00f, 0.85f, 0.30f);
-    SpawnBannerNotification("GOLD BAR! +" + GemCatcher.POINTS_PER_GOLD_BAR_CATCH, goldBarColor);
-    FlashVignette(goldBarColor, duration: 0.65f, peakAlpha: 0.32f);
-    CatchBurst.Spawn(worldPosition, goldBarColor);
-  }
 }

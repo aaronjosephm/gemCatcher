@@ -20,7 +20,6 @@ public class RoundManager : MonoBehaviour
     public const int POINTS_PER_CATCH = 20;
     public const int POINTS_PER_MISS = -10;
     public const int POINTS_PER_GOLDEN_CATCH = 100;
-    public const int POINTS_PER_GOLD_BAR_CATCH = 500;
 
     // ---- Lives rules -------------------------------------------------------
 
@@ -67,9 +66,6 @@ public class RoundManager : MonoBehaviour
 
     /// <summary>Fired when the player catches a Bomb gem (shield didn't absorb it).</summary>
     public event System.Action<Vector3> OnBombHit;
-
-    /// <summary>Fired when the player catches a Gold Bar (+500 jackpot).</summary>
-    public event System.Action<Vector3> OnGoldBarCaught;
 
     // ---- Public API --------------------------------------------------------
 
@@ -145,12 +141,6 @@ public class RoundManager : MonoBehaviour
     public void NotifyBombHit(Vector3 worldPosition)
     {
         OnBombHit?.Invoke(worldPosition);
-    }
-
-    /// <summary>Invoke the OnGoldBarCaught event (called by CatchZone).</summary>
-    public void NotifyGoldBarCaught(Vector3 worldPosition)
-    {
-        OnGoldBarCaught?.Invoke(worldPosition);
     }
 
     /// <summary>

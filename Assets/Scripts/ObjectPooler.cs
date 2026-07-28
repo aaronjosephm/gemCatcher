@@ -49,9 +49,6 @@ public class ObjectPooler : MonoBehaviour
     [Range(0f, 1f)]
     [Tooltip("Chance per gem spawn that the gem is a Bomb (don't catch — costs a life and breaks combo on contact).")]
     public float bombGemChance = 0.07f;
-    [Range(0f, 1f)]
-    [Tooltip("Chance per gem spawn that the gem is a Gold Bar (+500 points jackpot — procedurally-built brick GameObject from GoldBarFactory). Currently disabled (0) — bump to ~0.02 (2%) to re-enable without touching code.")]
-    public float goldBarChance = 0f;
 
     // Difficulty progression
     public DifficultyLevel[] difficultyLevels;
@@ -71,16 +68,6 @@ public class ObjectPooler : MonoBehaviour
     private List<GameObject> activeObstacles; // Currently active obstacles
     private GameObject currentActiveGem; // Currently active gem
     private List<GameObject> activePickups = new List<GameObject>(); // Active power-up pickups
-
-    // Procedurally-built Gold Bar instances. Kept separate from the regular
-    // gem pool because Gold Bars are a different mesh (a stacked-cube brick,
-    // not a gem) — sharing the pool would mean tinting / stretching a sphere
-    // into something that doesn't read as a bar. Built by GoldBarFactory at
-    // Start and reused round-to-round just like gems are. Pool stays
-    // populated even when goldBarChance is 0 so re-enabling Gold Bars from
-    // the Inspector works without a script reload.
-    private List<GameObject> goldBarPool;
-    private const int GoldBarPoolSize = 3;
 
     /// <summary>
     /// True while at least one power-up pickup is mid-air (spawned but neither
@@ -248,19 +235,6 @@ public class ObjectPooler : MonoBehaviour
 
                 objectPool.Add(obj);
             }
-        }
-
-        // Initialize gold-bar pool. Procedurally built (no prefab needed) so
-        // the bar shape, material, and trail are guaranteed to be correct
-        // every play — no risk of an artist accidentally swapping the prefab
-        // for a gem and turning the jackpot back into a stretched sphere.
-        goldBarPool = new List<GameObject>(GoldBarPoolSize);
-        for (int i = 0; i < GoldBarPoolSize; i++)
-        {
-            GameObject bar = GoldBarFactory.Create();
-            FallingObject fallingObj = bar.GetComponent<FallingObject>();
-            if (fallingObj != null) fallingObj.fallSpeed = currentFallSpeed;
-            goldBarPool.Add(bar);
         }
 
         // Initialize obstacle pool if there are obstacle prefabs
@@ -477,18 +451,9 @@ public class ObjectPooler : MonoBehaviour
 
     void SpawnGem()
     {
-        // Roll the variant FIRST so we can fork the spawn path: a Gold Bar roll
-        // pulls from the dedicated procedural-bar pool (different mesh, can't
-        // share with the gem pool); everything else uses the gem pool. Rolling
-        // here also keeps the daily-mode RNG stream deterministic — same number
-        // of advances per spawn cycle either way.
+        // Roll the variant before selecting the pooled gem so the same
+        // deterministic RNG stream drives variant selection in daily mode.
         SpecialGemType variant = RollSpecialType();
-
-        if (variant == SpecialGemType.GoldBar)
-        {
-            SpawnGoldBar();
-            return;
-        }
 
         // Prefab selection: any inactive pooled instance is fair game,
         // including HeartGem. The heart-shaped mesh is no longer reserved
@@ -548,8 +513,7 @@ public class ObjectPooler : MonoBehaviour
                 fallingObj.InitializeMovement(placementPhaseFallSpeed);
 
                 // Apply the variant we rolled at the top of SpawnGem (Normal /
-                // Golden / Bomb — Gold Bar forked off into SpawnGoldBar
-                // before this branch). Done after movement setup so the
+                // Golden / Bomb). Done after movement setup so the
                 // variant doesn't change physics behavior — just visuals and
                 // catch-time scoring rules.
                 fallingObj.ApplySpecialType(variant);
@@ -558,47 +522,6 @@ public class ObjectPooler : MonoBehaviour
             obj.SetActive(true);
             currentActiveGem = obj;
         }
-    }
-
-    // Spawns the next Gold Bar from the dedicated procedural pool. Mirrors the
-    // gem-spawn setup (random horizontal start, score-driven scale, slow
-    // placement-phase fall speed, randomized horizontal drift) so the bar
-    // behaves like a regular falling object — only its shape, material, and
-    // variant tag set it apart.
-    void SpawnGoldBar()
-    {
-        GameObject bar = GetRandomPooledObject(goldBarPool);
-        if (bar == null) return;
-
-        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
-        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
-        float randomX = RngRange(minX, maxX);
-        bar.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
-
-        FallingObject fallingObj = bar.GetComponent<FallingObject>();
-        if (fallingObj != null)
-        {
-            // Apply the score-driven gem-shrink to the bar too. Gold Bars are
-            // already a fairly chunky shape so the small-gem rescale (0.5x at
-            // 2000+ points) helps keep them from dominating the screen at
-            // higher scores.
-            fallingObj.ApplyScaleFactor(GetCurrentGemScaleFactor());
-            fallingObj.ResetObject();
-            fallingObj.fallSpeed = placementPhaseFallSpeed;
-
-            float horizontalBias = RngRange(-0.8f, 0.8f);
-            fallingObj.horizontalSpeed = Mathf.Sign(horizontalBias) * RngRange(0.5f, 1.0f);
-
-            fallingObj.InitializeMovement(placementPhaseFallSpeed);
-
-            // Tag the variant without touching visuals — the bar already
-            // looks like a bar; we just need GemCatcher to award +500 points
-            // when it's caught.
-            fallingObj.SetSpecialTypeWithoutVisuals(SpecialGemType.GoldBar);
-        }
-
-        bar.SetActive(true);
-        currentActiveGem = bar;
     }
 
     void SpawnObstacle()
@@ -816,11 +739,9 @@ public class ObjectPooler : MonoBehaviour
 
     // Picks a special-gem variant (or Normal) for the next spawn. Uses the
     // seeded RNG so daily mode produces the same special-gem sequence for
-    // every player. Order: GoldBar → Golden → Bomb → Normal, so each chance
-    // value reads "chance OUT OF the remaining mass after earlier rolls".
-    // GoldBar comes BEFORE Golden so a low-percentage jackpot roll always
-    // wins out over a higher-percentage golden roll on the same RNG slice.
-    // The total of all three chances should stay below 1 — if they sum past
+    // every player. Order: Golden → Bomb → Normal, so each chance value reads
+    // "chance OUT OF the remaining mass after earlier rolls". The total of
+    // all chances should stay below 1 — if they sum past
     // 1, Normal simply never spawns.
     //
     // Note: random-roll Heart variant gems were removed — the only ways to
@@ -829,8 +750,6 @@ public class ObjectPooler : MonoBehaviour
     private SpecialGemType RollSpecialType()
     {
         float r = RngFloat();
-        if (r < goldBarChance) return SpecialGemType.GoldBar;
-        r -= goldBarChance;
         if (r < goldenGemChance) return SpecialGemType.Golden;
         r -= goldenGemChance;
         if (r < bombGemChance) return SpecialGemType.Bomb;

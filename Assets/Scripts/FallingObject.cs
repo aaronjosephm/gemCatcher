@@ -13,8 +13,6 @@ public enum SpecialGemType
     Golden,
     /// <summary>DON'T catch — costs a life and breaks combo on contact. Falling through is the correct play.</summary>
     Bomb,
-    /// <summary>Ultra-rare jackpot drop — +500 points. Spawned as a procedural brick-shaped GameObject from <see cref="GoldBarFactory"/>; bypasses the gem-pool tint path entirely so the visual is an actual gold bar, not a retinted gem.</summary>
-    GoldBar,
 }
 
 public class FallingObject : MonoBehaviour
@@ -53,9 +51,7 @@ public class FallingObject : MonoBehaviour
     //   originalScale * (currentBaseScaleFactor * currentSpecialScaleFactor)
     // so the score-driven shrink (set via ApplyScaleFactor) and the uniform
     // special-gem size override (set via ApplySpecialType, e.g. 2x for Bombs)
-    // can vary independently without fighting each other. Gold Bars don't
-    // need a per-axis stretch field because they're spawned as a separate
-    // procedural GameObject (see GoldBarFactory) instead of a stretched gem.
+    // can vary independently without fighting each other.
     private float currentBaseScaleFactor = 1f;
     private float currentSpecialScaleFactor = 1f;
 
@@ -261,7 +257,7 @@ public class FallingObject : MonoBehaviour
 
         // ClearPowerUp at the top of this method already tore down any
         // leftover power-up flame from a previous pool cycle. Variant gems
-        // (Normal / Golden / Bomb / GoldBar) never carry a flame of their
+        // (Normal / Golden / Bomb) never carry a flame of their
         // own — the magenta fiery aura is reserved exclusively for the
         // ExtraLife power-up, which routes through ApplyPowerUpType — so
         // there's nothing more to attach here.
@@ -270,10 +266,8 @@ public class FallingObject : MonoBehaviour
     /// <summary>
     /// Tags this falling object as a particular variant for catch-time
     /// scoring purposes WITHOUT touching the renderer / trail / scale.
-    /// Used by <see cref="ObjectPooler.SpawnGoldBar"/> for procedural Gold
-    /// Bars — the bar already has its own gold material and brick-shaped
-    /// mesh from <see cref="GoldBarFactory"/>, so retinting it via the
-    /// regular palette path would erase the polished metallic look.
+    /// Used when a caller needs to tag the catch-time scoring variant without
+    /// changing the renderer, trail, or scale that are already in place.
     /// </summary>
     public void SetSpecialTypeWithoutVisuals(SpecialGemType type)
     {
@@ -289,7 +283,7 @@ public class FallingObject : MonoBehaviour
     /// regular variant path.
     ///
     /// <para>The underlying <see cref="specialType"/> is forced to Normal —
-    /// a gem can never be both a power-up AND a Bomb / Golden / GoldBar at
+    /// a gem can never be both a power-up AND a Bomb / Golden at
     /// the same time, since the catch routing for those would fight the
     /// power-up activation routing.</para>
     /// </summary>
@@ -402,13 +396,6 @@ public class FallingObject : MonoBehaviour
                     trailStart = new Color(1.00f, 0.30f, 0.20f, 0.95f),
                     trailEnd = new Color(0.30f, 0.05f, 0.05f, 0.0f),
                 };
-            // GoldBar intentionally has no palette entry — Gold Bars are
-            // spawned as a separate procedural GameObject (see GoldBarFactory)
-            // with their material baked in, so they never traverse this
-            // visual-tint code path. If someone calls ApplySpecialType with
-            // GoldBar by mistake, they'll get the default white palette
-            // (visible but obviously wrong) which surfaces the bug fast
-            // instead of silently retinting a procedural bar.
             default:
                 return new VariantPalette
                 {

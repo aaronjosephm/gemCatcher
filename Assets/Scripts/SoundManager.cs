@@ -8,7 +8,7 @@ using Random = UnityEngine.Random;
 // Named sounds the game expects:
 //   "GemCaught", "GemMissed", "Bounce", "ObstacleBounce", "WallBounce",
 //   "CatcherMove", "GameOver", "Win", "BonusLife", "PowerUp",
-//   "Bomb", "Milestone", "GoldBar",
+//   "Bomb", "Milestone",
 //   "BackgroundMusic" (looping — only while GameState.IsPlaying and not game-over)
 public class SoundManager : MonoBehaviour
 {
@@ -157,7 +157,6 @@ public class SoundManager : MonoBehaviour
         GemCatcher.OnGemMissed += HandleGemMissed;
         GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
         GemCatcher.OnBombHit += HandleBombHit;
-        GemCatcher.OnGoldBarCaught += HandleGoldBarCaught;
         MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
         GemCatcher.OnGameOver += HandleGameOver;
     }
@@ -279,11 +278,6 @@ public class SoundManager : MonoBehaviour
         PlayWithRandomPitch("Bomb", 0.85f, 1.05f);
     }
 
-    void HandleGoldBarCaught(Vector3 worldPosition)
-    {
-        Play("GoldBar");
-    }
-
     void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
     {
         Play("Milestone");
@@ -304,7 +298,6 @@ public class SoundManager : MonoBehaviour
             GemCatcher.OnGemMissed -= HandleGemMissed;
             GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;
             GemCatcher.OnBombHit -= HandleBombHit;
-            GemCatcher.OnGoldBarCaught -= HandleGoldBarCaught;
             MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
             GemCatcher.OnGameOver -= HandleGameOver;
             Instance = null;
@@ -355,7 +348,6 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
         RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
-        RegisterFallback("GoldBar",       () => CreateArpeggio(new[] { 1175f, 880f, 1318f, 1568f, 1976f, 2349f }, 0.85f, 0.36f));
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)
