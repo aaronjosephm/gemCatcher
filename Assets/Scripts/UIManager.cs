@@ -1378,10 +1378,10 @@ public class UIManager : MonoBehaviour
     sbRect.anchorMin = new Vector2(1f, 0f);
     sbRect.anchorMax = new Vector2(1f, 1f);
     sbRect.pivot = new Vector2(1f, 0.5f);
-    sbRect.offsetMin = new Vector2(-12f, 0f);
+    sbRect.offsetMin = new Vector2(-28f, 0f);
     sbRect.offsetMax = Vector2.zero;
     Image sbBg = scrollbarGo.GetComponent<Image>();
-    sbBg.color = new Color(1f, 1f, 1f, 0.08f);
+    sbBg.color = new Color(0.3f, 0.3f, 0.3f, 0.6f);
 
     // Sliding area
     GameObject slideArea = new GameObject("Sliding Area", typeof(RectTransform));
@@ -1402,7 +1402,7 @@ public class UIManager : MonoBehaviour
     handleRect.offsetMin = Vector2.zero;
     handleRect.offsetMax = Vector2.zero;
     Image handleImg = handleGo.GetComponent<Image>();
-    handleImg.color = new Color(1f, 1f, 1f, 0.35f);
+    handleImg.color = new Color(1f, 1f, 1f, 0.9f);
 
     Scrollbar sb = scrollbarGo.GetComponent<Scrollbar>();
     sb.handleRect = handleRect;
