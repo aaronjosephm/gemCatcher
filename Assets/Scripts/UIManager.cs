@@ -1368,6 +1368,50 @@ public class UIManager : MonoBehaviour
     sr.movementType = ScrollRect.MovementType.Elastic;
     sr.elasticity = 0.1f;
     sr.scrollSensitivity = 40f;
+
+    // Vertical scrollbar — thin, semi-transparent bar on the right edge so
+    // users know the content is scrollable.
+    GameObject scrollbarGo = new GameObject("Scrollbar",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Scrollbar));
+    scrollbarGo.transform.SetParent(scrollGo.transform, false);
+    RectTransform sbRect = scrollbarGo.GetComponent<RectTransform>();
+    sbRect.anchorMin = new Vector2(1f, 0f);
+    sbRect.anchorMax = new Vector2(1f, 1f);
+    sbRect.pivot = new Vector2(1f, 0.5f);
+    sbRect.offsetMin = new Vector2(-12f, 0f);
+    sbRect.offsetMax = Vector2.zero;
+    Image sbBg = scrollbarGo.GetComponent<Image>();
+    sbBg.color = new Color(1f, 1f, 1f, 0.08f);
+
+    // Sliding area
+    GameObject slideArea = new GameObject("Sliding Area", typeof(RectTransform));
+    slideArea.transform.SetParent(scrollbarGo.transform, false);
+    RectTransform slideRect = slideArea.GetComponent<RectTransform>();
+    slideRect.anchorMin = Vector2.zero;
+    slideRect.anchorMax = Vector2.one;
+    slideRect.offsetMin = Vector2.zero;
+    slideRect.offsetMax = Vector2.zero;
+
+    // Handle
+    GameObject handleGo = new GameObject("Handle",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    handleGo.transform.SetParent(slideArea.transform, false);
+    RectTransform handleRect = handleGo.GetComponent<RectTransform>();
+    handleRect.anchorMin = Vector2.zero;
+    handleRect.anchorMax = Vector2.one;
+    handleRect.offsetMin = Vector2.zero;
+    handleRect.offsetMax = Vector2.zero;
+    Image handleImg = handleGo.GetComponent<Image>();
+    handleImg.color = new Color(1f, 1f, 1f, 0.35f);
+
+    Scrollbar sb = scrollbarGo.GetComponent<Scrollbar>();
+    sb.handleRect = handleRect;
+    sb.direction = Scrollbar.Direction.BottomToTop;
+    sb.targetGraphic = handleImg;
+
+    sr.verticalScrollbar = sb;
+    sr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
+    sr.verticalScrollbarSpacing = -4f;
   }
 
   // Builds a crystal-styled "Back" button anchored to the bottom-center of a panel.
