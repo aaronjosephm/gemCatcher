@@ -55,6 +55,14 @@ public class GemGlowVolume : MonoBehaviour
         mr.sharedMaterial = glowMat;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         mr.receiveShadows = false;
+
+        // Hide immediately if this is a bomb — Start() runs after SetActive(true)
+        // so OnEnable's check would have seen glowQuad as null and done nothing.
+        var fo = GetComponent<FallingObject>();
+        if (fo != null && fo.specialType == SpecialGemType.Bomb)
+        {
+            glowQuad.SetActive(false);
+        }
     }
 
     void LateUpdate()

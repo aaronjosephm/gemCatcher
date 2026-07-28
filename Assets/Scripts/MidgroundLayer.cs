@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Spawns a transparent midground image in front of the cave background
@@ -24,9 +25,30 @@ public class MidgroundLayer : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void EnsureInstance()
     {
-        if (FindAnyObjectByType<MidgroundLayer>() != null) return;
+        ApplyMidground();
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
 
-        Texture2D tex = Resources.Load<Texture2D>("Backgrounds/MidgroundCave");
+    static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        ApplyMidground();
+    }
+
+    static void ApplyMidground()
+    {
+        // Destroy any existing midground from a previous level selection.
+        var existing = FindAnyObjectByType<MidgroundLayer>();
+        if (existing != null)
+        {
+            Destroy(existing.gameObject);
+        }
+
+        var cfg = LevelManager.CurrentConfig;
+        string midRes = cfg.midgroundResource;
+        if (string.IsNullOrEmpty(midRes)) return;
+
+        Texture2D tex = Resources.Load<Texture2D>(midRes);
         if (tex == null) return;
 
         GameObject go = new GameObject("MidgroundPlane");

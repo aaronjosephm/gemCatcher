@@ -1,0 +1,130 @@
+using UnityEngine;
+
+/// <summary>
+/// Central level/theme management. Tracks which level is selected, which
+/// levels are unlocked, and provides difficulty parameters to ObjectPooler.
+///
+/// Levels unlock based on best score thresholds. The selected level persists
+/// in PlayerPrefs so the player returns to their last choice.
+/// </summary>
+public static class LevelManager
+{
+    public enum LevelId { Cave, Jungle }
+
+    [System.Serializable]
+    public struct LevelConfig
+    {
+        public LevelId id;
+        public string displayName;
+        public string backgroundResource;   // Resources/ path to background texture
+        public string midgroundResource;     // Resources/ path to midground texture (null = none)
+        public string musicResource;         // Resources/ path to background music
+        public string[] extraGemPrefabs;     // Additional gem prefab names (from Resources/Gems/) for this level
+        public int unlockScore;              // Best score required to unlock (0 = always unlocked)
+        public Color cameraColor;            // Camera.backgroundColor for this level
+
+        // Difficulty overrides
+        public float initialFallSpeed;
+        public float initialSpawnInterval;
+        public float bombChance;
+        public float goldenChance;
+        public float dailyMaxFallSpeed;
+        public float dailyMinSpawnInterval;
+    }
+
+    private static readonly LevelConfig[] levels = new[]
+    {
+        new LevelConfig
+        {
+            id = LevelId.Cave,
+            displayName = "Crystal Cave",
+            backgroundResource = "Backgrounds/CaveBackground",
+            midgroundResource = "Backgrounds/MidgroundCave",
+            musicResource = "Audio/BackgroundMusic",
+            extraGemPrefabs = null,
+            unlockScore = 0,
+            cameraColor = new Color(0.05f, 0.06f, 0.12f, 1f),
+            initialFallSpeed = 3.0f,
+            initialSpawnInterval = 3.0f,
+            bombChance = 0.07f,
+            goldenChance = 0.05f,
+            dailyMaxFallSpeed = 5.5f,
+            dailyMinSpawnInterval = 2.0f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Jungle,
+            displayName = "Jungle Falls",
+            backgroundResource = "Backgrounds/WaterfallBackground",
+            midgroundResource = null,
+            musicResource = "Audio/JungleMusic",
+            extraGemPrefabs = new[] { "Gems/BlueGem" },
+            unlockScore = 0,
+            cameraColor = new Color(0.08f, 0.15f, 0.10f, 1f),
+            initialFallSpeed = 4.0f,
+            initialSpawnInterval = 2.4f,
+            bombChance = 0.12f,
+            goldenChance = 0.06f,
+            dailyMaxFallSpeed = 7.0f,
+            dailyMinSpawnInterval = 1.5f,
+        },
+    };
+
+    private const string SelectedKey = "SelectedLevel";
+    private const string UnlockNotifiedKey = "LevelUnlockNotified_";
+
+    public static LevelConfig[] AllLevels => levels;
+
+    public static LevelId SelectedLevel
+    {
+        get
+        {
+            string saved = PlayerPrefs.GetString(SelectedKey, LevelId.Cave.ToString());
+            if (System.Enum.TryParse<LevelId>(saved, out var id)) return id;
+            return LevelId.Cave;
+        }
+        set
+        {
+            PlayerPrefs.SetString(SelectedKey, value.ToString());
+            PlayerPrefs.Save();
+        }
+    }
+
+    public static LevelConfig GetConfig(LevelId id)
+    {
+        foreach (var l in levels)
+            if (l.id == id) return l;
+        return levels[0];
+    }
+
+    public static LevelConfig CurrentConfig => GetConfig(SelectedLevel);
+
+    public static bool IsUnlocked(LevelId id)
+    {
+        var config = GetConfig(id);
+        if (config.unlockScore <= 0) return true;
+        int best = PlayerPrefs.GetInt("HighScore", 0);
+        return best >= config.unlockScore;
+    }
+
+    /// <summary>
+    /// Returns the LevelId of a newly unlocked level that hasn't been notified
+    /// yet, or null if nothing new to announce.
+    /// </summary>
+    public static LevelId? CheckNewUnlock()
+    {
+        foreach (var l in levels)
+        {
+            if (l.unlockScore <= 0) continue;
+            if (!IsUnlocked(l.id)) continue;
+            string key = UnlockNotifiedKey + l.id;
+            if (PlayerPrefs.GetInt(key, 0) == 0)
+            {
+                PlayerPrefs.SetInt(key, 1);
+                PlayerPrefs.Save();
+                return l.id;
+            }
+        }
+        return null;
+    }
+}

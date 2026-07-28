@@ -103,6 +103,10 @@ public class FallingObject : MonoBehaviour
     {
         if (burstColor != Color.clear) return burstColor;
 
+        // Golden gems always get a rich gold glow regardless of prefab.
+        if (specialType == SpecialGemType.Golden)
+            return new Color(1f, 0.85f, 0.35f);
+
         // Infer from gem name.
         string n = gameObject.name.ToLowerInvariant();
         if (n.Contains("green") || n.Contains("emerald"))

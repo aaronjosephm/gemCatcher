@@ -200,9 +200,9 @@ public class ObjectPooler : MonoBehaviour
         obstaclePool = new List<GameObject>();
         activeObstacles = new List<GameObject>();
 
-        // Set initial difficulty values
-        currentFallSpeed = initialFallSpeed;
-        currentSpawnInterval = initialSpawnInterval;
+        // Set initial difficulty values — override from LevelManager if not in
+        // Daily mode (daily mode uses its own ramp parameters).
+        ApplyLevelDifficulty();
 
         // If no difficulty levels are defined, create a default progression
         if (difficultyLevels == null || difficultyLevels.Length == 0)
@@ -234,6 +234,26 @@ public class ObjectPooler : MonoBehaviour
                 }
 
                 objectPool.Add(obj);
+            }
+        }
+
+        // Load level-specific extra gem prefabs from Resources.
+        var cfg = LevelManager.CurrentConfig;
+        if (cfg.extraGemPrefabs != null)
+        {
+            foreach (string path in cfg.extraGemPrefabs)
+            {
+                GameObject extraPrefab = Resources.Load<GameObject>(path);
+                if (extraPrefab == null) continue;
+                for (int i = 0; i < poolSizePerPrefab; i++)
+                {
+                    GameObject obj = Instantiate(extraPrefab);
+                    obj.SetActive(false);
+                    FallingObject fallingObj = obj.GetComponent<FallingObject>();
+                    if (fallingObj != null)
+                        fallingObj.fallSpeed = currentFallSpeed;
+                    objectPool.Add(obj);
+                }
             }
         }
 
@@ -456,15 +476,24 @@ public class ObjectPooler : MonoBehaviour
         SpecialGemType variant = RollSpecialType();
 
         // Prefab selection: any inactive pooled instance is fair game,
-        // including HeartGem. The heart-shaped mesh is no longer reserved
-        // for the ExtraLife power-up — a plain HeartGem catch awards the
-        // standard +20 points like any other gem; it's the magenta tint +
-        // fiery aura that signals "this is the ExtraLife power-up, +3
-        // lives". In daily mode we still route the prefab choice through
-        // the seeded RNG (one Next() advance per spawn) so every player
-        // sees the same gem sequence on the same date.
+        // including HeartGem. In daily mode we still route the prefab choice
+        // through the seeded RNG (one Next() advance per spawn) so every
+        // player sees the same gem sequence on the same date.
+        //
+        // Golden gems MUST always use the HeartGem prefab (heart shape with
+        // gold tint). Power-ups that ride on specific prefabs are handled
+        // separately in TrySpawnPowerUp.
         GameObject obj;
-        if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
+        if (variant == SpecialGemType.Golden)
+        {
+            // Golden always uses HeartGem mesh.
+            obj = GetInactivePooledObjectByPrefabName(objectPool, "HeartGem");
+            if (obj == null) obj = GetRandomPooledObject(objectPool);
+            // Advance the RNG so daily-mode sequences stay deterministic.
+            if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
+                rng.Next(0, objectPrefabs.Length);
+        }
+        else if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
         {
             int prefabIdx = rng.Next(0, objectPrefabs.Length);
             string targetName = objectPrefabs[prefabIdx] != null ? objectPrefabs[prefabIdx].name : null;
@@ -800,6 +829,24 @@ public class ObjectPooler : MonoBehaviour
             currentFallSpeed = level.fallSpeed;
             currentSpawnInterval = level.spawnInterval;
         }
+    }
+
+    /// <summary>
+    /// Applies the selected level's difficulty parameters. Called once at the
+    /// start of each round. In Daily mode the base speeds are still overridden
+    /// by the daily ramp, but bomb/golden chances apply.
+    /// </summary>
+    void ApplyLevelDifficulty()
+    {
+        var cfg = LevelManager.CurrentConfig;
+        initialFallSpeed = cfg.initialFallSpeed;
+        initialSpawnInterval = cfg.initialSpawnInterval;
+        bombGemChance = cfg.bombChance;
+        goldenGemChance = cfg.goldenChance;
+        dailyMaxFallSpeed = cfg.dailyMaxFallSpeed;
+        dailyMinSpawnInterval = cfg.dailyMinSpawnInterval;
+        currentFallSpeed = initialFallSpeed;
+        currentSpawnInterval = initialSpawnInterval;
     }
 
     public float GetPlacementTimeRemaining()
