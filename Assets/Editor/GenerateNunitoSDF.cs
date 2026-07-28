@@ -1,13 +1,10 @@
 using UnityEngine;
 using UnityEditor;
 using TMPro;
-using UnityEngine.TextCore.LowLevel;
 
 /// <summary>
-/// One-shot editor script that generates a TMP SDF font asset from the Nunito TTF
-/// on first load. Run via menu: Tools → Generate Nunito SDF Font.
-/// After generating, the asset is saved to Assets/Resources/Fonts/Nunito SDF.asset
-/// so it can be loaded at runtime with Resources.Load.
+/// One-shot editor script that generates a TMP SDF font asset from the Nunito TTF.
+/// Run via menu: Tools → Generate Nunito SDF Font.
 /// </summary>
 public static class GenerateNunitoSDF
 {
@@ -31,15 +28,8 @@ public static class GenerateNunitoSDF
             return;
         }
 
-        // Generate the font asset using TMP's API
-        TMP_FontAsset fontAsset = TMP_FontAsset.CreateFontAsset(
-            sourceFont,
-            64,     // sampling point size
-            5,      // padding
-            GlyphRenderMode.SDFAA,
-            2048,   // atlas width
-            2048    // atlas height
-        );
+        // Use the simple overload that just takes the source font.
+        TMP_FontAsset fontAsset = TMP_FontAsset.CreateFontAsset(sourceFont);
 
         if (fontAsset == null)
         {
@@ -55,7 +45,7 @@ public static class GenerateNunitoSDF
 
         AssetDatabase.CreateAsset(fontAsset, outputPath);
 
-        // Also save the atlas texture as a sub-asset
+        // Save the atlas texture as a sub-asset
         if (fontAsset.atlasTexture != null)
         {
             fontAsset.atlasTexture.name = "Nunito SDF Atlas";
