@@ -15,6 +15,13 @@ public class TitleSparkle : MonoBehaviour
   [SerializeField] float maxSize = 40f;
   [SerializeField] float spread = 1.15f; // multiplier beyond rect bounds
 
+  // The logo content sits in the upper portion of the image.
+  // These define the elliptical region (in normalized rect coords,
+  // 0,0 = center) where sparkles spawn — on the perimeter only.
+  [SerializeField] Vector2 logoCenter = new Vector2(0f, 0.12f); // slightly above center
+  [SerializeField] Vector2 logoRadii = new Vector2(0.45f, 0.32f); // wide, short ellipse
+  [SerializeField] float edgeThickness = 0.12f; // spawn within this band around the edge
+
   RectTransform parentRect;
   SparkleData[] sparkles;
 
@@ -101,10 +108,19 @@ public class TitleSparkle : MonoBehaviour
 
   void RespawnSparkle(ref SparkleData s)
   {
-    Vector2 half = parentRect.rect.size * 0.5f * spread;
+    Vector2 half = parentRect.rect.size * 0.5f;
+
+    // Pick a random angle around the ellipse perimeter.
+    float angle = Random.Range(0f, Mathf.PI * 2f);
+    // Offset slightly inside/outside the edge for natural scatter.
+    float radiusJitter = 1f + Random.Range(-edgeThickness, edgeThickness);
+
+    float ex = logoRadii.x * radiusJitter * Mathf.Cos(angle);
+    float ey = logoRadii.y * radiusJitter * Mathf.Sin(angle);
+
     s.position = new Vector2(
-        Random.Range(-half.x, half.x),
-        Random.Range(-half.y, half.y));
+        (logoCenter.x + ex) * half.x * 2f,
+        (logoCenter.y + ey) * half.y * 2f);
     s.lifetime = Random.Range(minLifetime, maxLifetime);
     s.targetSize = Random.Range(minSize, maxSize);
     s.age = 0f;
