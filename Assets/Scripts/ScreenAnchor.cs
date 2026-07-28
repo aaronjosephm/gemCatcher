@@ -44,6 +44,17 @@ public class ScreenAnchor : MonoBehaviour
         Reposition();
     }
 
+    void Start()
+    {
+        // Hide decorative rocks on levels that don't use them (e.g., Jungle).
+        if (LevelManager.SelectedLevel != LevelManager.LevelId.Cave)
+        {
+            foreach (var r in GetComponentsInChildren<Renderer>())
+                r.enabled = false;
+            enabled = false;
+        }
+    }
+
     void LateUpdate()
     {
         if (cam == null) cam = Camera.main;
