@@ -148,9 +148,28 @@ public class FallingObject : MonoBehaviour
         InitializeComponents();
         ClearPowerUp();
 
-        // Refresh glow halo color for the recycled gem.
+        // Refresh glow halo — hide for bombs, tint for normal gems.
+        UpdateGlow();
+    }
+
+    /// <summary>
+    /// Shows or hides the glow halo based on the current special type.
+    /// Bombs get no glow; everything else gets a color-matched halo.
+    /// </summary>
+    void UpdateGlow()
+    {
         var glow = GetComponent<GemGlowVolume>();
-        if (glow != null) glow.RefreshColor(GetBurstColor());
+        if (glow == null) return;
+
+        if (specialType == SpecialGemType.Bomb)
+        {
+            glow.enabled = false;
+        }
+        else
+        {
+            glow.enabled = true;
+            glow.RefreshColor(GetBurstColor());
+        }
     }
 
     // Sets the score-driven base scale factor. Final localScale is
@@ -265,6 +284,9 @@ public class FallingObject : MonoBehaviour
         // own — the magenta fiery aura is reserved exclusively for the
         // ExtraLife power-up, which routes through ApplyPowerUpType — so
         // there's nothing more to attach here.
+
+        // Update glow halo — bombs get no glow.
+        UpdateGlow();
     }
 
     /// <summary>
