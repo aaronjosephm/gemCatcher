@@ -1285,8 +1285,8 @@ public class UIManager : MonoBehaviour
 
     BuildScrollableTextBlock(
         contentParent, "HelpScroll", helpText,
-        offsetMin: new Vector2(-560f, 210f),
-        offsetMax: new Vector2(560f, -220f),
+        offsetMin: new Vector2(-560f, 260f),
+        offsetMax: new Vector2(560f, -260f),
         fontSize: 44f,
         lineSpacing: 12f);
 
