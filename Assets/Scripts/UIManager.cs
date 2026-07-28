@@ -1135,10 +1135,10 @@ public class UIManager : MonoBehaviour
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.5f, 0f);
-      bestRect.anchorMax = new Vector2(0.5f, 0f);
-      bestRect.pivot = new Vector2(0.5f, 0f);
-      bestRect.anchoredPosition = new Vector2(0f, 40f);
+      bestRect.anchorMin = new Vector2(0.5f, 0.08f);
+      bestRect.anchorMax = new Vector2(0.5f, 0.08f);
+      bestRect.pivot = new Vector2(0.5f, 0.5f);
+      bestRect.anchoredPosition = Vector2.zero;
       bestRect.sizeDelta = new Vector2(600f, 60f);
       TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
       best.text = "BEST  " + highScore;
