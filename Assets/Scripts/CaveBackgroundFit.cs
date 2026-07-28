@@ -43,8 +43,15 @@ public class CaveBackgroundFit : MonoBehaviour
     }
     else
     {
-      // Component exists but needs to re-apply the level background.
       plane.GetComponent<CaveBackgroundFit>().ApplyLevelBackground();
+    }
+
+    // Show/hide decorative rocks based on level.
+    bool isCave = LevelManager.SelectedLevel == LevelManager.LevelId.Cave;
+    foreach (string rockName in new[] { "Rock2", "Rock5A" })
+    {
+      GameObject rock = GameObject.Find(rockName);
+      if (rock != null) rock.SetActive(isCave);
     }
   }
 
