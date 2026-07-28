@@ -114,7 +114,7 @@ public class FallingObject : MonoBehaviour
         if (n.Contains("topaz"))
             return new Color(1f, 0.5f, 0.1f);
         if (n.Contains("heart") || n.Contains("pink"))
-            return new Color(0.95f, 0.3f, 0.6f);
+            return Color.white;
         if (n.Contains("blue") || n.Contains("sapphire"))
             return new Color(0.2f, 0.6f, 1f);
         if (n.Contains("purple") || n.Contains("amethyst") || n.Contains("violet"))
