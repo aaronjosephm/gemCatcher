@@ -1352,7 +1352,7 @@ public class UIManager : MonoBehaviour
     // The TMP component lives on the Content itself — TMP implements ILayoutElement
     // so the ContentSizeFitter can read its preferred height directly.
     TextMeshProUGUI body = contentGo.AddComponent<TextMeshProUGUI>();
-    body.alignment = TextAlignmentOptions.TopLeft;
+    body.alignment = TextAlignmentOptions.Center;
     body.fontSize = fontSize;
     body.lineSpacing = lineSpacing;
     body.color = new Color(0.92f, 0.90f, 0.85f);
