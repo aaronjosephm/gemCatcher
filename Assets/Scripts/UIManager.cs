@@ -1028,6 +1028,8 @@ public class UIManager : MonoBehaviour
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
     btn.onClick.AddListener(onClick);
+
+    CrystalButtonStyle.Apply(btnGo, bgColor);
     return btn;
   }
 
@@ -1524,6 +1526,8 @@ public class UIManager : MonoBehaviour
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
     btn.onClick.AddListener(onClick);
+
+    CrystalButtonStyle.Apply(btnGo, bgColor);
     return btn;
   }
 
