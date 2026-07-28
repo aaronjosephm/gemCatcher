@@ -1360,6 +1360,10 @@ public class UIManager : MonoBehaviour
     body.richText = true;
     body.text = text;
 
+    // Use Nunito font if available (generated via Tools → Generate Nunito SDF Font).
+    TMP_FontAsset nunito = Resources.Load<TMP_FontAsset>("Fonts/Nunito SDF");
+    if (nunito != null) body.font = nunito;
+
     ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
     sr.viewport = viewportRect;
     sr.content = contentRect;
