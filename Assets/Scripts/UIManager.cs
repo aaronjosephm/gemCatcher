@@ -1781,6 +1781,10 @@ public class UIManager : MonoBehaviour
   // a daily run is one-and-done, and a normal run obviously stays normal.
   void ReturnToMainMenu()
   {
+    // Stop all audio BEFORE resetting state — ResetLives clears IsGameOver
+    // which would cause SyncGameplayMusic to briefly restart the BGM.
+    GameState.IsPlaying = false;
+    SoundManager.StopAll();
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;

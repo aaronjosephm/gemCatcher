@@ -186,6 +186,19 @@ public class SoundManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Stops all audio sources immediately. Call before scene transitions to
+    /// prevent brief music blips caused by state resets.
+    /// </summary>
+    public static void StopAll()
+    {
+        if (Instance == null || Instance.soundDictionary == null) return;
+        foreach (var kvp in Instance.soundDictionary)
+        {
+            if (kvp.Value.source != null) kvp.Value.source.Stop();
+        }
+    }
+
     public void PlayWithRandomPitch(string soundName, float minPitch = 0.9f, float maxPitch = 1.1f)
     {
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
