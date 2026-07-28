@@ -140,6 +140,7 @@ public class SoundManager : MonoBehaviour
         }
 
         EnsureBackgroundMusicFromResources();
+        EnsureMenuMusicFromResources();
 
         foreach (SoundEffect sound in soundDictionary.Values)
         {
@@ -164,6 +165,7 @@ public class SoundManager : MonoBehaviour
     void Update()
     {
         SyncGameplayMusic();
+        SyncMenuMusic();
     }
 
     // ----- Public API -----
@@ -256,7 +258,37 @@ public class SoundManager : MonoBehaviour
     }
 
     static bool IsMusic(string soundName) =>
-        string.Equals(soundName, "BackgroundMusic", StringComparison.Ordinal);
+        string.Equals(soundName, "BackgroundMusic", StringComparison.Ordinal)
+        || string.Equals(soundName, "MenuMusic", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Plays menu music when the player is on the main menu or settings
+    /// (i.e. not actively playing and not game over). Stops when gameplay starts.
+    /// </summary>
+    void SyncMenuMusic()
+    {
+        if (soundDictionary == null) return;
+        if (!soundDictionary.TryGetValue("MenuMusic", out SoundEffect menu)
+            || menu.source == null || menu.clip == null)
+        {
+            return;
+        }
+
+        bool wantMenu = !GameState.IsPlaying && !GemCatcher.IsGameOver;
+        menu.source.volume = menu.volume * MusicVolume;
+
+        if (wantMenu)
+        {
+            if (!menu.source.isPlaying)
+            {
+                menu.source.Play();
+            }
+        }
+        else if (menu.source.isPlaying)
+        {
+            menu.source.Stop();
+        }
+    }
 
     // ----- Event handlers -----
 
@@ -343,6 +375,34 @@ public class SoundManager : MonoBehaviour
         bgm.loop = true;
         if (bgm.volume <= 0f) bgm.volume = 0.55f;
         soundDictionary["BackgroundMusic"] = bgm;
+    }
+
+    private void EnsureMenuMusicFromResources()
+    {
+        if (soundDictionary.TryGetValue("MenuMusic", out SoundEffect existing)
+            && existing.clip != null)
+        {
+            existing.loop = true;
+            return;
+        }
+
+        AudioClip clip = Resources.Load<AudioClip>("Audio/MenuMusic");
+        if (clip == null)
+        {
+            Debug.LogWarning("[SoundManager] No Resources/Audio/MenuMusic found — menu music skipped.");
+            return;
+        }
+
+        SoundEffect menu = existing ?? new SoundEffect
+        {
+            name = "MenuMusic",
+            volume = 0.45f,
+            pitch = 1f,
+        };
+        menu.clip = clip;
+        menu.loop = true;
+        if (menu.volume <= 0f) menu.volume = 0.45f;
+        soundDictionary["MenuMusic"] = menu;
     }
 
     // ----- Procedural fallback audio -----
