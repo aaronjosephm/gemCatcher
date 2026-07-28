@@ -2370,10 +2370,10 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
     stackRect.anchoredPosition = new Vector2(0f, 40f);
-    stackRect.sizeDelta = new Vector2(720f, 420f);
+    stackRect.sizeDelta = new Vector2(720f, 520f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 22f;
+    vlg.spacing = 26f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -2386,9 +2386,9 @@ public class UIManager : MonoBehaviour
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
 
-    BuildPanelButton(contentParent, "SettingsBackButton", "Back",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
-        OnSettingsBackClicked);
+    // Back button — same style as main menu buttons.
+    BuildStackedMenuButton(stackGo.transform, "SettingsBackButton", "Back",
+        new Color(0.35f, 0.35f, 0.40f), OnSettingsBackClicked);
 
     settingsPanel = panel;
     settingsPanel.SetActive(false);
@@ -2447,7 +2447,7 @@ public class UIManager : MonoBehaviour
     bgRect.offsetMax = Vector2.zero;
     Image bgImg = bgGo.GetComponent<Image>();
     bgImg.sprite = whiteSprite;
-    bgImg.color = new Color(0.25f, 0.27f, 0.32f, 1f);
+    bgImg.color = new Color(0.15f, 0.17f, 0.22f, 0.9f);
     bgImg.type = Image.Type.Simple;
 
     // Fill area + fill
@@ -2468,7 +2468,7 @@ public class UIManager : MonoBehaviour
     fillRect.offsetMax = Vector2.zero;
     Image fillImg = fillGo.GetComponent<Image>();
     fillImg.sprite = whiteSprite;
-    fillImg.color = new Color(0.25f, 0.65f, 0.95f, 1f);
+    fillImg.color = new Color(0.30f, 0.70f, 0.95f, 1f);
 
     // Handle
     GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
@@ -2485,7 +2485,7 @@ public class UIManager : MonoBehaviour
     handleRect.sizeDelta = new Vector2(36f, 36f);
     Image handleImg = handleGo.GetComponent<Image>();
     handleImg.sprite = whiteSprite;
-    handleImg.color = Color.white;
+    handleImg.color = new Color(0.95f, 0.88f, 0.55f);
 
     // Percent label
     GameObject pctGo = new GameObject("Percent", typeof(RectTransform), typeof(LayoutElement));
@@ -2603,7 +2603,14 @@ public class UIManager : MonoBehaviour
       current = !current;
       onChange?.Invoke(current);
       apply();
+      // Re-apply crystal style with updated color.
+      Color c = current ? new Color(0.20f, 0.55f, 0.30f) : new Color(0.45f, 0.20f, 0.20f);
+      CrystalButtonStyle.Apply(btnGo, c);
     });
+
+    // Initial crystal styling.
+    Color initColor = initial ? new Color(0.20f, 0.55f, 0.30f) : new Color(0.45f, 0.20f, 0.20f);
+    CrystalButtonStyle.Apply(btnGo, initColor);
   }
 
   void OnSettingsButtonClicked()
