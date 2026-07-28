@@ -1093,52 +1093,6 @@ public class UIManager : MonoBehaviour
 
     // Title is static — no pulse animation.
 
-    // ---- Tagline ----------------------------------------------------------
-    // Refined tagline: italic, slightly tighter letter spacing, dropped a
-    // bit further down so it doesn't crowd the bigger logo above.
-    GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
-    subGo.transform.SetParent(contentParent, false);
-    RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0.1f, 0.37f);
-    subRect.anchorMax = new Vector2(0.9f, 0.43f);
-    subRect.pivot = new Vector2(0.5f, 0.5f);
-    subRect.sizeDelta = Vector2.zero;
-    subRect.anchoredPosition = Vector2.zero;
-    TextMeshProUGUI sub = subGo.AddComponent<TextMeshProUGUI>();
-    sub.text = "Catch the gems. Don't miss.";
-    sub.fontStyle = FontStyles.Italic;
-    sub.alignment = TextAlignmentOptions.Center;
-    sub.color = new Color(0.85f, 0.82f, 0.72f);
-    sub.characterSpacing = 6f;
-    sub.enableAutoSizing = true;
-    sub.fontSizeMin = 22f;
-    sub.fontSizeMax = 38f;
-    sub.enableWordWrapping = false;
-
-    // Best score chip — only visible if the player has a saved high score, so the
-    // first run isn't cluttered with "BEST: 0".
-    if (highScore > 0)
-    {
-      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
-      bestGo.transform.SetParent(contentParent, false);
-      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.1f, 0.31f);
-      bestRect.anchorMax = new Vector2(0.9f, 0.36f);
-      bestRect.pivot = new Vector2(0.5f, 0.5f);
-      bestRect.sizeDelta = Vector2.zero;
-      bestRect.anchoredPosition = Vector2.zero;
-      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
-      best.text = "BEST  " + highScore;
-      best.fontStyle = FontStyles.Bold;
-      best.alignment = TextAlignmentOptions.Center;
-      best.color = new Color(1f, 0.85f, 0.35f);
-      best.characterSpacing = 8f;
-      best.enableAutoSizing = true;
-      best.fontSizeMin = 22f;
-      best.fontSizeMax = 36f;
-      best.enableWordWrapping = false;
-    }
-
     // Centered button stack — anchored to vertical center for stable layout across resolutions.
     GameObject stackGo = new GameObject("ButtonStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
@@ -1171,6 +1125,27 @@ public class UIManager : MonoBehaviour
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
 
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
+
+    // Best score — shown below buttons only when the player has a saved high score.
+    if (highScore > 0)
+    {
+      GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
+      bestGo.transform.SetParent(contentParent, false);
+      RectTransform bestRect = bestGo.GetComponent<RectTransform>();
+      bestRect.anchorMin = new Vector2(0.5f, 0f);
+      bestRect.anchorMax = new Vector2(0.5f, 0f);
+      bestRect.pivot = new Vector2(0.5f, 0f);
+      bestRect.anchoredPosition = new Vector2(0f, 40f);
+      bestRect.sizeDelta = new Vector2(600f, 60f);
+      TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
+      best.text = "BEST  " + highScore;
+      best.fontStyle = FontStyles.Bold;
+      best.alignment = TextAlignmentOptions.Center;
+      best.color = new Color(1f, 0.85f, 0.35f);
+      best.characterSpacing = 8f;
+      best.fontSize = 36f;
+      best.enableWordWrapping = false;
+    }
 
     mainMenuPanel = panel;
     mainMenuPanel.SetActive(false);
@@ -1258,59 +1233,58 @@ public class UIManager : MonoBehaviour
     AddPanelTitle(contentParent, "INSTRUCTIONS", new Color(1f, 0.85f, 0.35f), 90f);
 
     string helpText =
-        "<color=#FFD86A><size=42>\u2666  THE GOAL</size></color>\n" +
+        "<b><color=#FFD86A><size=48>THE GOAL</size></color></b>\n" +
         "Catch falling gems with your crystal catcher.\n" +
         "Don\u2019t let them slip past!\n\n" +
 
-        "<color=#6FD9FF><size=42>\u270B  CONTROLS</size></color>\n" +
-        "  \u2022  <b>Tap</b> a slot to place your catcher\n" +
-        "  \u2022  <b>Drag</b> left or right to slide it\n" +
-        "  \u2022  Reposition freely during the countdown\n\n" +
+        "<b><color=#6FD9FF><size=48>CONTROLS</size></color></b>\n" +
+        "<b>Tap</b> a slot to place your catcher.\n" +
+        "<b>Drag</b> left or right to slide it.\n" +
+        "Reposition freely during the countdown.\n\n" +
 
-        "<color=#7FE787><size=42>\u2605  SCORING</size></color>\n" +
-        "  \u2022  Catch a gem \u2192 <color=#7FE787>+20 pts</color>\n" +
-        "  \u2022  Miss a gem \u2192 <color=#FF7373>\u22121 life</color>\n" +
-        "  \u2022  Every <b>100 pts</b> \u2192 bonus life (max 10)\n\n" +
+        "<b><color=#7FE787><size=48>SCORING</size></color></b>\n" +
+        "Catch a gem = <color=#7FE787>+20 pts</color>\n" +
+        "Miss a gem = <color=#FF7373>\u22121 life</color>\n" +
+        "Every <b>100 pts</b> = bonus life (max 10)\n\n" +
 
-        "<color=#FFC065><size=42>\ud83d\udd25  COMBO STREAK</size></color>\n" +
+        "<b><color=#FFC065><size=48>COMBO STREAK</size></color></b>\n" +
         "Catch gems in a row to build a multiplier!\n" +
-        "  <color=#FFE885>\u00d71.5</color>  at 3 catches     " +
-        "<color=#FFC065>\u00d72</color>  at 5 catches\n" +
-        "  <color=#FF8B40>\u00d73</color>  at 7 catches     " +
-        "<color=#FF4F4F>\u00d75</color>  at 10 catches\n" +
-        "  A miss or bomb breaks the streak.\n\n" +
+        "  <color=#FFE885>\u00d71.5</color> at 3 catches\n" +
+        "  <color=#FFC065>\u00d72</color> at 5 catches\n" +
+        "  <color=#FF8B40>\u00d73</color> at 7 catches\n" +
+        "  <color=#FF4F4F>\u00d75</color> at 10 catches\n" +
+        "A miss or bomb breaks the streak.\n\n" +
 
-        "<color=#FF8FB8><size=42>\u2B50  SPECIAL GEMS</size></color>\n" +
-        "  \u2022  <color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n" +
-        "  \u2022  <color=#FF6B5B>Bomb</color> \u2014 <b>avoid!</b> Costs a life + breaks streak\n" +
-        "  \u2022  <color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color>\n\n" +
+        "<b><color=#FF8FB8><size=48>SPECIAL GEMS</size></color></b>\n" +
+        "<color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n" +
+        "<color=#FF6B5B>Bomb</color> \u2014 avoid! Costs a life + breaks streak\n" +
+        "<color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color>\n\n" +
 
-        "<color=#6FD9FF><size=42>\u26A1  POWER-UPS</size></color>\n" +
+        "<b><color=#6FD9FF><size=48>POWER-UPS</size></color></b>\n" +
         "A glowing pickup arrives every 10 drops.\n" +
-        "  \u2022  <color=#6FD9FF>Wide Catcher</color> \u2014 wider catch zone\n" +
-        "  \u2022  <color=#FFD86A>Shield</color> \u2014 absorbs your next miss\n" +
-        "  \u2022  <color=#7FE787>2\u00d7 Score</color> \u2014 double points per catch\n\n" +
+        "<color=#6FD9FF>Wide Catcher</color> \u2014 wider catch zone\n" +
+        "<color=#FFD86A>Shield</color> \u2014 absorbs your next miss\n" +
+        "<color=#7FE787>2\u00d7 Score</color> \u2014 double points per catch\n\n" +
 
-        "<color=#FF7373><size=42>\u23F6  DIFFICULTY</size></color>\n" +
-        "  \u2022  Gems speed up as your score rises\n" +
-        "  \u2022  At <b>1000 pts</b> gems shrink to half size\n" +
-        "  \u2022  At <b>2000 pts</b> the catcher shrinks too\n\n" +
+        "<b><color=#FF7373><size=48>DIFFICULTY</size></color></b>\n" +
+        "Gems speed up as your score rises.\n" +
+        "At <b>1000 pts</b> gems shrink to half size.\n" +
+        "At <b>2000 pts</b> the catcher shrinks too.\n\n" +
 
-        "<color=#B89CFF><size=42>\ud83d\udcc5  DAILY CHALLENGE</size></color>\n" +
-        "  \u2022  One run per day \u2014 same gems for everyone\n" +
-        "  \u2022  3 lives, no bonuses, 30 gems total\n\n" +
+        "<b><color=#B89CFF><size=48>DAILY CHALLENGE</size></color></b>\n" +
+        "One run per day \u2014 same gems for everyone.\n" +
+        "3 lives, no bonuses, 30 gems total.\n\n" +
 
-        "<color=#AAAAAA><size=36>You start with 3 lives (max 10).\nWhen they\u2019re gone, it\u2019s game over.</size></color>\n\n" +
+        "<color=#AAAAAA>You start with 3 lives (max 10).\nWhen they\u2019re gone, it\u2019s game over.</color>\n\n" +
 
-        "<color=#FFD86A><size=38>\u2728  Good luck, gem catcher!  \u2728</size></color>";
+        "<color=#FFD86A><size=44>Good luck, gem catcher!</size></color>";
 
-    // Scrollable text with styled sections.
     BuildScrollableTextBlock(
         contentParent, "HelpScroll", helpText,
         offsetMin: new Vector2(-560f, 210f),
         offsetMax: new Vector2(560f, -220f),
-        fontSize: 34f,
-        lineSpacing: 8f);
+        fontSize: 42f,
+        lineSpacing: 6f);
 
     // Back button — matches main menu style.
     BuildStackedBackButton(contentParent, OnHelpBackClicked);
@@ -2399,11 +2373,11 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    stackRect.anchoredPosition = new Vector2(0f, 40f);
-    stackRect.sizeDelta = new Vector2(720f, 520f);
+    stackRect.anchoredPosition = new Vector2(0f, 80f);
+    stackRect.sizeDelta = new Vector2(800f, 500f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 26f;
+    vlg.spacing = 36f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -2416,9 +2390,8 @@ public class UIManager : MonoBehaviour
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
 
-    // Back button — same style as main menu buttons.
-    BuildStackedMenuButton(stackGo.transform, "SettingsBackButton", "Back",
-        new Color(0.35f, 0.35f, 0.40f), OnSettingsBackClicked);
+    // Back button — anchored to bottom of the panel (outside the stack).
+    BuildStackedBackButton(contentParent, OnSettingsBackClicked);
 
     settingsPanel = panel;
     settingsPanel.SetActive(false);
@@ -2431,10 +2404,10 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
     row.transform.SetParent(parent, false);
     RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(720f, 90f);
+    rowRect.sizeDelta = new Vector2(800f, 110f);
     LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 720f;
-    le.preferredHeight = 90f;
+    le.preferredWidth = 800f;
+    le.preferredHeight = 110f;
     HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
     hlg.childAlignment = TextAnchor.MiddleCenter;
     hlg.spacing = 16f;
@@ -2446,24 +2419,24 @@ public class UIManager : MonoBehaviour
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
-    labelLe.preferredWidth = 200f;
-    labelLe.preferredHeight = 90f;
+    labelLe.preferredWidth = 240f;
+    labelLe.preferredHeight = 110f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
     labelTmp.alignment = TextAlignmentOptions.MidlineRight;
     labelTmp.fontStyle = FontStyles.Bold;
     labelTmp.color = Color.white;
-    labelTmp.fontSize = 40f;
+    labelTmp.fontSize = 46f;
 
     // Slider root
     GameObject sliderGo = new GameObject(label + "Slider",
         typeof(RectTransform), typeof(Slider), typeof(LayoutElement));
     sliderGo.transform.SetParent(row.transform, false);
     LayoutElement sliderLe = sliderGo.GetComponent<LayoutElement>();
-    sliderLe.preferredWidth = 360f;
-    sliderLe.preferredHeight = 48f;
+    sliderLe.preferredWidth = 400f;
+    sliderLe.preferredHeight = 56f;
     RectTransform sliderRect = sliderGo.GetComponent<RectTransform>();
-    sliderRect.sizeDelta = new Vector2(360f, 48f);
+    sliderRect.sizeDelta = new Vector2(400f, 56f);
 
     Sprite whiteSprite = CreateUiWhiteSprite();
 
@@ -2512,7 +2485,7 @@ public class UIManager : MonoBehaviour
     GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     handleGo.transform.SetParent(handleArea.transform, false);
     RectTransform handleRect = handleGo.GetComponent<RectTransform>();
-    handleRect.sizeDelta = new Vector2(36f, 36f);
+    handleRect.sizeDelta = new Vector2(44f, 44f);
     Image handleImg = handleGo.GetComponent<Image>();
     handleImg.sprite = whiteSprite;
     handleImg.color = new Color(0.95f, 0.88f, 0.55f);
@@ -2521,13 +2494,13 @@ public class UIManager : MonoBehaviour
     GameObject pctGo = new GameObject("Percent", typeof(RectTransform), typeof(LayoutElement));
     pctGo.transform.SetParent(row.transform, false);
     LayoutElement pctLe = pctGo.GetComponent<LayoutElement>();
-    pctLe.preferredWidth = 100f;
-    pctLe.preferredHeight = 90f;
+    pctLe.preferredWidth = 120f;
+    pctLe.preferredHeight = 110f;
     TextMeshProUGUI pctTmp = pctGo.AddComponent<TextMeshProUGUI>();
     pctTmp.alignment = TextAlignmentOptions.MidlineLeft;
     pctTmp.fontStyle = FontStyles.Bold;
     pctTmp.color = new Color(0.85f, 0.85f, 0.9f);
-    pctTmp.fontSize = 36f;
+    pctTmp.fontSize = 42f;
 
     Slider slider = sliderGo.GetComponent<Slider>();
     slider.targetGraphic = handleImg;
@@ -2573,10 +2546,10 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
     row.transform.SetParent(parent, false);
     RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(640f, 90f);
+    rowRect.sizeDelta = new Vector2(720f, 110f);
     LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 640f;
-    le.preferredHeight = 90f;
+    le.preferredWidth = 720f;
+    le.preferredHeight = 110f;
     HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
     hlg.childAlignment = TextAnchor.MiddleCenter;
     hlg.spacing = 28f;
@@ -2588,8 +2561,8 @@ public class UIManager : MonoBehaviour
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
-    labelLe.preferredWidth = 280f;
-    labelLe.preferredHeight = 90f;
+    labelLe.preferredWidth = 300f;
+    labelLe.preferredHeight = 110f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
     labelTmp.alignment = TextAlignmentOptions.MidlineRight;
@@ -2601,8 +2574,8 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
     btnGo.transform.SetParent(row.transform, false);
     LayoutElement btnLe = btnGo.GetComponent<LayoutElement>();
-    btnLe.preferredWidth = 220f;
-    btnLe.preferredHeight = 90f;
+    btnLe.preferredWidth = 260f;
+    btnLe.preferredHeight = 110f;
     Image bg = btnGo.GetComponent<Image>();
 
     GameObject lblGo = new GameObject("Label", typeof(RectTransform));
