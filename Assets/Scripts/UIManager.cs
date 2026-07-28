@@ -1063,10 +1063,9 @@ public class UIManager : MonoBehaviour
     GameObject anchor = new GameObject("TitleAnchor", typeof(RectTransform));
     anchor.transform.SetParent(contentParent, false);
     RectTransform anchorRect = anchor.GetComponent<RectTransform>();
-    // Title fills the top 45% of the screen. The image is portrait (1024×1536)
-    // so preserveAspect will letterbox horizontally — giving more height
-    // ensures it renders large.
-    anchorRect.anchorMin = new Vector2(0f, 0.55f);
+    // Title fills the top 55% of the screen. The image is portrait (1024×1536)
+    // and AspectRatioFitter keeps exact proportions within this zone.
+    anchorRect.anchorMin = new Vector2(0f, 0.45f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
     anchorRect.pivot = new Vector2(0.5f, 1f);
     anchorRect.sizeDelta = Vector2.zero;
@@ -1094,8 +1093,8 @@ public class UIManager : MonoBehaviour
     GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
     subGo.transform.SetParent(contentParent, false);
     RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0.1f, 0.47f);
-    subRect.anchorMax = new Vector2(0.9f, 0.53f);
+    subRect.anchorMin = new Vector2(0.1f, 0.37f);
+    subRect.anchorMax = new Vector2(0.9f, 0.43f);
     subRect.pivot = new Vector2(0.5f, 0.5f);
     subRect.sizeDelta = Vector2.zero;
     subRect.anchoredPosition = Vector2.zero;
@@ -1117,8 +1116,8 @@ public class UIManager : MonoBehaviour
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.1f, 0.41f);
-      bestRect.anchorMax = new Vector2(0.9f, 0.46f);
+      bestRect.anchorMin = new Vector2(0.1f, 0.31f);
+      bestRect.anchorMax = new Vector2(0.9f, 0.36f);
       bestRect.pivot = new Vector2(0.5f, 0.5f);
       bestRect.sizeDelta = Vector2.zero;
       bestRect.anchoredPosition = Vector2.zero;
@@ -1210,21 +1209,30 @@ public class UIManager : MonoBehaviour
       return tmp;
     }
 
-    // Image-based title logo.
+    // Image-based title logo. Uses AspectRatioFitter to guarantee the
+    // native 1024×1536 ratio is preserved — more reliable than
+    // Image.preserveAspect which can misbehave with stretched parents.
     GameObject imgGo = new GameObject("TitleImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     imgGo.transform.SetParent(parent, false);
     RectTransform rt = imgGo.GetComponent<RectTransform>();
-    rt.anchorMin = Vector2.zero;
-    rt.anchorMax = Vector2.one;
-    rt.offsetMin = Vector2.zero;
-    rt.offsetMax = Vector2.zero;
+    rt.anchorMin = new Vector2(0.5f, 0.5f);
+    rt.anchorMax = new Vector2(0.5f, 0.5f);
+    rt.pivot = new Vector2(0.5f, 0.5f);
+    rt.sizeDelta = new Vector2(titleTex.width, titleTex.height);
 
     Image img = imgGo.GetComponent<Image>();
     img.sprite = Sprite.Create(titleTex,
         new Rect(0, 0, titleTex.width, titleTex.height),
         new Vector2(0.5f, 0.5f), 100f);
+    img.type = Image.Type.Simple;
     img.preserveAspect = true;
     img.raycastTarget = false;
+
+    // AspectRatioFitter — FitInParent scales the image as large as possible
+    // inside the container while keeping the exact native aspect ratio.
+    var fitter = imgGo.AddComponent<AspectRatioFitter>();
+    fitter.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+    fitter.aspectRatio = (float)titleTex.width / titleTex.height;
 
     return null;
   }
