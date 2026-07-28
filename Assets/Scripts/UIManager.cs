@@ -1063,11 +1063,13 @@ public class UIManager : MonoBehaviour
     GameObject anchor = new GameObject("TitleAnchor", typeof(RectTransform));
     anchor.transform.SetParent(contentParent, false);
     RectTransform anchorRect = anchor.GetComponent<RectTransform>();
-    anchorRect.anchorMin = new Vector2(0f, 1f);
+    // Title fills the top third of the screen (proportional anchors).
+    anchorRect.anchorMin = new Vector2(0f, 0.67f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
     anchorRect.pivot = new Vector2(0.5f, 1f);
-    anchorRect.sizeDelta = new Vector2(0f, 500f);
-    anchorRect.anchoredPosition = new Vector2(0f, -20f);
+    anchorRect.sizeDelta = Vector2.zero;
+    anchorRect.offsetMin = new Vector2(0f, anchorRect.offsetMin.y);
+    anchorRect.offsetMax = new Vector2(0f, -20f);
 
     GameObject logo = new GameObject("TitleLogo", typeof(RectTransform));
     logo.transform.SetParent(anchor.transform, false);
@@ -1088,11 +1090,11 @@ public class UIManager : MonoBehaviour
     GameObject subGo = new GameObject("Tagline", typeof(RectTransform));
     subGo.transform.SetParent(contentParent, false);
     RectTransform subRect = subGo.GetComponent<RectTransform>();
-    subRect.anchorMin = new Vector2(0f, 1f);
-    subRect.anchorMax = new Vector2(1f, 1f);
-    subRect.pivot = new Vector2(0.5f, 1f);
-    subRect.sizeDelta = new Vector2(-120f, 60f);
-    subRect.anchoredPosition = new Vector2(0f, -325f);
+    subRect.anchorMin = new Vector2(0.1f, 0.60f);
+    subRect.anchorMax = new Vector2(0.9f, 0.65f);
+    subRect.pivot = new Vector2(0.5f, 0.5f);
+    subRect.sizeDelta = Vector2.zero;
+    subRect.anchoredPosition = Vector2.zero;
     TextMeshProUGUI sub = subGo.AddComponent<TextMeshProUGUI>();
     sub.text = "Catch the gems. Don't miss.";
     sub.fontStyle = FontStyles.Italic;
@@ -1137,7 +1139,9 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
     // Sized for 3 menu buttons: 3 * 130px tall + 2 * 26px spacing ≈ 442px.
-    stackRect.anchoredPosition = new Vector2(0f, -80f);
+    // Position buttons in the lower portion of the screen so they don't
+    // overlap the enlarged title (top 33%).
+    stackRect.anchoredPosition = new Vector2(0f, -160f);
     stackRect.sizeDelta = new Vector2(620f, 500f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
