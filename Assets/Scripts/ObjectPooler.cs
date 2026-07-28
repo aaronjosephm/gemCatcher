@@ -456,15 +456,24 @@ public class ObjectPooler : MonoBehaviour
         SpecialGemType variant = RollSpecialType();
 
         // Prefab selection: any inactive pooled instance is fair game,
-        // including HeartGem. The heart-shaped mesh is no longer reserved
-        // for the ExtraLife power-up — a plain HeartGem catch awards the
-        // standard +20 points like any other gem; it's the magenta tint +
-        // fiery aura that signals "this is the ExtraLife power-up, +3
-        // lives". In daily mode we still route the prefab choice through
-        // the seeded RNG (one Next() advance per spawn) so every player
-        // sees the same gem sequence on the same date.
+        // including HeartGem. In daily mode we still route the prefab choice
+        // through the seeded RNG (one Next() advance per spawn) so every
+        // player sees the same gem sequence on the same date.
+        //
+        // Golden gems MUST always use the HeartGem prefab (heart shape with
+        // gold tint). Power-ups that ride on specific prefabs are handled
+        // separately in TrySpawnPowerUp.
         GameObject obj;
-        if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
+        if (variant == SpecialGemType.Golden)
+        {
+            // Golden always uses HeartGem mesh.
+            obj = GetInactivePooledObjectByPrefabName(objectPool, "HeartGem");
+            if (obj == null) obj = GetRandomPooledObject(objectPool);
+            // Advance the RNG so daily-mode sequences stay deterministic.
+            if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
+                rng.Next(0, objectPrefabs.Length);
+        }
+        else if (gemCapForRound > 0 && objectPrefabs != null && objectPrefabs.Length > 0)
         {
             int prefabIdx = rng.Next(0, objectPrefabs.Length);
             string targetName = objectPrefabs[prefabIdx] != null ? objectPrefabs[prefabIdx].name : null;
