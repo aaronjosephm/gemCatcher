@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Spawns a transparent midground image in front of the cave background
@@ -23,6 +24,18 @@ public class MidgroundLayer : MonoBehaviour
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void EnsureInstance()
+    {
+        ApplyMidground();
+        SceneManager.sceneLoaded -= OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
+    }
+
+    static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        ApplyMidground();
+    }
+
+    static void ApplyMidground()
     {
         // Destroy any existing midground from a previous level selection.
         var existing = FindAnyObjectByType<MidgroundLayer>();

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 /// <summary>
 /// Scales the backdrop to COVER the camera: full phone screen, no
@@ -21,11 +22,29 @@ public class CaveBackgroundFit : MonoBehaviour
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
   static void EnsureInstance()
   {
+    ApplyToPlane();
+    // Re-apply on every scene reload (Try Again reloads the scene).
+    SceneManager.sceneLoaded -= OnSceneLoaded;
+    SceneManager.sceneLoaded += OnSceneLoaded;
+  }
+
+  static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+  {
+    ApplyToPlane();
+  }
+
+  static void ApplyToPlane()
+  {
     GameObject plane = GameObject.Find("Plane");
     if (plane == null) return;
     if (plane.GetComponent<CaveBackgroundFit>() == null)
     {
       plane.AddComponent<CaveBackgroundFit>();
+    }
+    else
+    {
+      // Component exists but needs to re-apply the level background.
+      plane.GetComponent<CaveBackgroundFit>().ApplyLevelBackground();
     }
   }
 
@@ -52,7 +71,7 @@ public class CaveBackgroundFit : MonoBehaviour
   /// Loads the background texture for the currently selected level and
   /// applies it to this plane's material.
   /// </summary>
-  void ApplyLevelBackground()
+  public void ApplyLevelBackground()
   {
     var cfg = LevelManager.CurrentConfig;
 
