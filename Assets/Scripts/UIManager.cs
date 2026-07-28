@@ -178,6 +178,8 @@ public class UIManager : MonoBehaviour
 
   void Start()
   {
+    levelAtSceneLoad = LevelManager.SelectedLevel;
+
     // Initialize UI
     if (gameOverPanel != null)
     {
@@ -1611,8 +1613,18 @@ public class UIManager : MonoBehaviour
     if (livesDisplay != null) livesDisplay.gameObject.SetActive(visible);
   }
 
+  // Track which level was active when this scene instance loaded.
+  private LevelManager.LevelId levelAtSceneLoad;
+
   void OnPlayClicked()
   {
+    // If the player selected a different level from the menu, reload the
+    // scene so background/music/difficulty all update.
+    if (LevelManager.SelectedLevel != levelAtSceneLoad)
+    {
+      SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+      return;
+    }
     ShowGameplay();
   }
 
