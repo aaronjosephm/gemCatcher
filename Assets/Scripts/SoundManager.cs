@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Random = UnityEngine.Random;
 
 // Centralised audio playback.
@@ -141,6 +142,9 @@ public class SoundManager : MonoBehaviour
 
         EnsureBackgroundMusicFromResources();
         EnsureMenuMusicFromResources();
+
+        // Re-check background music on scene reload (level switch).
+        SceneManager.sceneLoaded += OnSceneLoadedMusic;
 
         foreach (SoundEffect sound in soundDictionary.Values)
         {
@@ -351,14 +355,8 @@ public class SoundManager : MonoBehaviour
 
     private void EnsureBackgroundMusicFromResources()
     {
-        if (soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect existing)
-            && existing.clip != null)
-        {
-            existing.loop = true;
-            return;
-        }
-
-        AudioClip clip = Resources.Load<AudioClip>(LevelManager.CurrentConfig.musicResource ?? "Audio/BackgroundMusic");
+        string desiredPath = LevelManager.CurrentConfig.musicResource ?? "Audio/BackgroundMusic";
+        AudioClip clip = Resources.Load<AudioClip>(desiredPath);
         if (clip == null)
             clip = Resources.Load<AudioClip>("Audio/BackgroundMusic");
         if (clip == null)
@@ -366,6 +364,17 @@ public class SoundManager : MonoBehaviour
             Debug.LogWarning("[SoundManager] No background music found — BGM skipped.");
             return;
         }
+
+        // If the clip is already the correct one, just ensure it loops.
+        if (soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect existing)
+            && existing.clip == clip)
+        {
+            existing.loop = true;
+            return;
+        }
+
+        // Stop any currently playing BGM before swapping the clip.
+        Stop("BackgroundMusic");
 
         SoundEffect bgm = existing ?? new SoundEffect
         {
@@ -377,6 +386,16 @@ public class SoundManager : MonoBehaviour
         bgm.loop = true;
         if (bgm.volume <= 0f) bgm.volume = 0.55f;
         soundDictionary["BackgroundMusic"] = bgm;
+    }
+
+    private void OnSceneLoadedMusic(Scene scene, LoadSceneMode mode)
+    {
+        EnsureBackgroundMusicFromResources();
+        // Ensure the new clip has an AudioSource configured.
+        if (soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm) && bgm.source != null)
+        {
+            bgm.source.clip = bgm.clip;
+        }
     }
 
     private void EnsureMenuMusicFromResources()
