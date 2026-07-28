@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 using TMPro;
-using TMPro.EditorUtilities;
+using UnityEngine.TextCore.LowLevel;
 
 /// <summary>
 /// One-shot editor script that generates a TMP SDF font asset from the Nunito TTF
