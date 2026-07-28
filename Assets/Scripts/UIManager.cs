@@ -111,6 +111,8 @@ public class UIManager : MonoBehaviour
   private Button dailyChallengeMenuButton;
   private TextMeshProUGUI dailyChallengeButtonLabel;
   private Image dailyChallengeButtonBg;
+  private TextMeshProUGUI bestScoreMenuTmp;
+  private GameObject bestScoreMenuGo;
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -1098,8 +1100,7 @@ public class UIManager : MonoBehaviour
 
     // Title is static — no pulse animation.
 
-    // Best score — centered between title (ends ~45%) and buttons, only if player has a score.
-    if (highScore > 0)
+    // Best score — centered between title and buttons. Always built; hidden if 0.
     {
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
@@ -1117,6 +1118,9 @@ public class UIManager : MonoBehaviour
       best.characterSpacing = 8f;
       best.fontSize = 36f;
       best.enableWordWrapping = false;
+      bestScoreMenuTmp = best;
+      bestScoreMenuGo = bestGo;
+      bestGo.SetActive(highScore > 0);
     }
 
     // Centered button stack — pushed lower to make room for best score above Play.
@@ -1558,6 +1562,12 @@ public class UIManager : MonoBehaviour
     // changed since last menu visit (e.g. UTC midnight rolled over while the
     // app was foregrounded).
     RefreshDailyChallengeButton();
+    // Refresh best score display in case it changed after a game.
+    if (bestScoreMenuTmp != null)
+    {
+      bestScoreMenuTmp.text = "BEST  " + highScore;
+      bestScoreMenuGo.SetActive(highScore > 0);
+    }
     FadePanel(mainMenuPanel, true, 0.25f);
   }
 
