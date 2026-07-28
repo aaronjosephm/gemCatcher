@@ -1168,7 +1168,7 @@ public class UIManager : MonoBehaviour
         new Color(0.85f, 0.55f, 0.15f), OnDailyChallengeClicked);
     dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
     dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
-    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Help",        new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
+    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
 
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
@@ -1255,67 +1255,65 @@ public class UIManager : MonoBehaviour
 
     GameObject panel = BuildFullScreenPanel("HelpPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(contentParent, "HOW TO PLAY", new Color(1f, 0.85f, 0.35f), 100f);
+    AddPanelTitle(contentParent, "INSTRUCTIONS", new Color(1f, 0.85f, 0.35f), 90f);
 
     string helpText =
-        "Catch the falling gems with your glass cube catcher.\n\n" +
+        "<color=#FFD86A><size=42>\u2666  THE GOAL</size></color>\n" +
+        "Catch falling gems with your crystal catcher.\n" +
+        "Don\u2019t let them slip past!\n\n" +
 
-        "<b>Controls</b>\n" +
-        "  • During the placement countdown, tap any slot at the bottom of the screen to position the catcher — or drag left/right to slide it.\n" +
-        "  • You can reposition the catcher as many times as you want before the countdown ends.\n\n" +
+        "<color=#6FD9FF><size=42>\u270B  CONTROLS</size></color>\n" +
+        "  \u2022  <b>Tap</b> a slot to place your catcher\n" +
+        "  \u2022  <b>Drag</b> left or right to slide it\n" +
+        "  \u2022  Reposition freely during the countdown\n\n" +
 
-        "<b>Scoring</b>\n" +
-        "  • Catch a gem: <color=#7FE787>+20 points</color>.\n" +
-        "  • Miss a gem: <color=#FF7373>-1 life</color>.\n" +
-        "  • Every <b>100 points</b> earns you a bonus life (capped at <b>10</b>).\n\n" +
+        "<color=#7FE787><size=42>\u2605  SCORING</size></color>\n" +
+        "  \u2022  Catch a gem \u2192 <color=#7FE787>+20 pts</color>\n" +
+        "  \u2022  Miss a gem \u2192 <color=#FF7373>\u22121 life</color>\n" +
+        "  \u2022  Every <b>100 pts</b> \u2192 bonus life (max 10)\n\n" +
 
-        "<b>Combo Streak</b>\n" +
-        "  Catch gems in a row to build a streak \u2014 bigger streaks multiply every catch.\n" +
-        "  • <color=#FFE885>\u00d71.5</color> at 3 catches\n" +
-        "  • <color=#FFC065>\u00d72</color> at 5 catches\n" +
-        "  • <color=#FF8B40>\u00d73</color> at 7 catches\n" +
-        "  • <color=#FF4F4F>\u00d75</color> at 10 catches\n" +
-        "  A miss or a caught bomb breaks the streak. <color=#FFD86A>Shield</color> saves it.\n\n" +
+        "<color=#FFC065><size=42>\ud83d\udd25  COMBO STREAK</size></color>\n" +
+        "Catch gems in a row to build a multiplier!\n" +
+        "  <color=#FFE885>\u00d71.5</color>  at 3 catches     " +
+        "<color=#FFC065>\u00d72</color>  at 5 catches\n" +
+        "  <color=#FF8B40>\u00d73</color>  at 7 catches     " +
+        "<color=#FF4F4F>\u00d75</color>  at 10 catches\n" +
+        "  A miss or bomb breaks the streak.\n\n" +
 
-        "<b>Special Gems</b>\n" +
-        "  • <color=#FFD86A>Golden gem</color> (rare): <color=#7FE787>+100 points</color>.\n" +
-        "  • <color=#FFE066>Gold bar</color> (jackpot, very rare): <color=#7FE787>+500 points</color> \u2014 unmistakable wide gold shape.\n" +
-        "  • <color=#FF6B5B>Bomb gem</color>: <color=#FF7373>DON'T CATCH IT</color> \u2014 costs a life and breaks your streak. Let it fall past you.\n" +
-        "  • <color=#FF8FB8>Heart gem</color> (very rare): <color=#7FE787>+1 life</color> on catch.\n\n" +
+        "<color=#FF8FB8><size=42>\u2B50  SPECIAL GEMS</size></color>\n" +
+        "  \u2022  <color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n" +
+        "  \u2022  <color=#FF6B5B>Bomb</color> \u2014 <b>avoid!</b> Costs a life + breaks streak\n" +
+        "  \u2022  <color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color>\n\n" +
 
-        "<b>Power-Ups</b>\n" +
-        "  After your first <b>10 drops</b>, a glowing pickup arrives every <b>10 drops</b> like clockwork. Catch it to activate \u2014 each effect stays on until your next miss.\n" +
-        "  • <color=#6FD9FF>WIDE CATCHER</color> \u2014 your cube grows wider.\n" +
-        "  • <color=#FFD86A>SHIELD</color> \u2014 absorbs your next miss without penalty.\n" +
-        "  • <color=#7FE787>2\u00d7 SCORE</color> \u2014 every catch is worth double.\n\n" +
+        "<color=#6FD9FF><size=42>\u26A1  POWER-UPS</size></color>\n" +
+        "A glowing pickup arrives every 10 drops.\n" +
+        "  \u2022  <color=#6FD9FF>Wide Catcher</color> \u2014 wider catch zone\n" +
+        "  \u2022  <color=#FFD86A>Shield</color> \u2014 absorbs your next miss\n" +
+        "  \u2022  <color=#7FE787>2\u00d7 Score</color> \u2014 double points per catch\n\n" +
 
-        "<b>Milestones</b>\n" +
-        "  Hitting <b>500 / 1000 / 2500 / 5000 / 10000</b> points triggers a celebration banner plus a free reward \u2014 power-ups, bonus lives, or both. The big one at 10000 gives you everything.\n\n" +
+        "<color=#FF7373><size=42>\u23F6  DIFFICULTY</size></color>\n" +
+        "  \u2022  Gems speed up as your score rises\n" +
+        "  \u2022  At <b>1000 pts</b> gems shrink to half size\n" +
+        "  \u2022  At <b>2000 pts</b> the catcher shrinks too\n\n" +
 
-        "<b>Difficulty</b>\n" +
-        "  • Gems fall faster as your score climbs.\n" +
-        "  • At <b>1000 points</b> gems shrink to half size \u2014 keep your eyes sharp.\n" +
-        "  • At <b>2000 points</b> your catcher also shrinks to half size \u2014 tighter aim required.\n\n" +
+        "<color=#B89CFF><size=42>\ud83d\udcc5  DAILY CHALLENGE</size></color>\n" +
+        "  \u2022  One run per day \u2014 same gems for everyone\n" +
+        "  \u2022  3 lives, no bonuses, 30 gems total\n\n" +
 
-        "<b>Daily Challenge</b>\n" +
-        "  • One run per day with a fixed sequence \u2014 every player faces the same gems.\n" +
-        "  • Locked at <b>3 lives</b>, no bonus lives, ends after 30 gems. Build a streak to climb the daily score.\n\n" +
+        "<color=#AAAAAA><size=36>You start with 3 lives (max 10).\nWhen they\u2019re gone, it\u2019s game over.</size></color>\n\n" +
 
-        "<b>Game Over</b>\n" +
-        "  • You start with <b>3 lives</b> (max <b>10</b>). The game ends when you run out.\n\n" +
+        "<color=#FFD86A><size=38>\u2728  Good luck, gem catcher!  \u2728</size></color>";
 
-        "Good luck!";
-
+    // Scrollable text with styled sections.
     BuildScrollableTextBlock(
         contentParent, "HelpScroll", helpText,
-        // Reserve ~240 px at the top (title + a bit of breathing room) and ~210 px
-        // at the bottom for the Back button and its margin.
         offsetMin: new Vector2(-560f, 210f),
-        offsetMax: new Vector2(560f, -240f));
+        offsetMax: new Vector2(560f, -220f),
+        fontSize: 34f,
+        lineSpacing: 8f);
 
-    BuildPanelButton(contentParent, "BackButton", "Back",
-        new Color(0.35f, 0.35f, 0.40f), new Vector2(0f, 80f), new Vector2(280f, 90f),
-        OnHelpBackClicked);
+    // Back button — matches main menu style.
+    BuildStackedBackButton(contentParent, OnHelpBackClicked);
 
     helpPanel = panel;
     helpPanel.SetActive(false);
@@ -1327,7 +1325,7 @@ public class UIManager : MonoBehaviour
   // the user can scroll (mouse wheel / touch drag) to see the rest. If it fits, the
   // ScrollRect just sits there inert.
   void BuildScrollableTextBlock(Transform parent, string name, string text,
-      Vector2 offsetMin, Vector2 offsetMax)
+      Vector2 offsetMin, Vector2 offsetMax, float fontSize = 32f, float lineSpacing = 0f)
   {
     // Outer ScrollRect — anchored stretch between top/bottom of the parent.
     GameObject scrollGo = new GameObject(name, typeof(RectTransform), typeof(ScrollRect));
@@ -1377,9 +1375,11 @@ public class UIManager : MonoBehaviour
     // so the ContentSizeFitter can read its preferred height directly.
     TextMeshProUGUI body = contentGo.AddComponent<TextMeshProUGUI>();
     body.alignment = TextAlignmentOptions.TopLeft;
-    body.fontSize = 32f;
-    body.color = Color.white;
+    body.fontSize = fontSize;
+    body.lineSpacing = lineSpacing;
+    body.color = new Color(0.92f, 0.90f, 0.85f);
     body.enableWordWrapping = true;
+    body.richText = true;
     body.text = text;
 
     ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
@@ -1390,6 +1390,23 @@ public class UIManager : MonoBehaviour
     sr.movementType = ScrollRect.MovementType.Elastic;
     sr.elasticity = 0.1f;
     sr.scrollSensitivity = 40f;
+  }
+
+  // Builds a crystal-styled "Back" button anchored to the bottom-center of a panel.
+  void BuildStackedBackButton(Transform parent, UnityEngine.Events.UnityAction onClick)
+  {
+    GameObject container = new GameObject("BackButtonContainer",
+        typeof(RectTransform));
+    container.transform.SetParent(parent, false);
+    RectTransform cRect = container.GetComponent<RectTransform>();
+    cRect.anchorMin = new Vector2(0.5f, 0f);
+    cRect.anchorMax = new Vector2(0.5f, 0f);
+    cRect.pivot = new Vector2(0.5f, 0f);
+    cRect.anchoredPosition = new Vector2(0f, 40f);
+    cRect.sizeDelta = new Vector2(560f, 130f);
+
+    BuildStackedMenuButton(container.transform, "BackButton", "Back",
+        new Color(0.35f, 0.35f, 0.40f), onClick);
   }
 
   // Builds a full-screen, near-opaque panel that hosts a single menu screen.
