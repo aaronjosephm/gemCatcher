@@ -1500,6 +1500,10 @@ public class UIManager : MonoBehaviour
     tmp.fontSizeMin = 48f;
     tmp.fontSizeMax = 96f;
     tmp.enableWordWrapping = false;
+
+    // Use Nunito if available.
+    TMP_FontAsset nunito = Resources.Load<TMP_FontAsset>("Fonts/Nunito SDF");
+    if (nunito != null) tmp.font = nunito;
   }
 
   // Stacked menu buttons share width/height so they line up nicely under VerticalLayoutGroup.
