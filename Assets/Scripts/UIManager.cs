@@ -2360,8 +2360,6 @@ public class UIManager : MonoBehaviour
     GameObject panel = BuildFullScreenPanel(
         "SettingsPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    AddPanelTitle(contentParent, "Settings", new Color(1f, 0.85f, 0.35f), 100f);
-
     GameObject stackGo = new GameObject("ToggleStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
