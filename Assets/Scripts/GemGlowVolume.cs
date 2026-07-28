@@ -15,11 +15,11 @@ public class GemGlowVolume : MonoBehaviour
 {
     [Header("Glow Settings")]
     [Tooltip("Radius of the glow halo in world units.")]
-    public float glowRadius = 0.8f;
+    public float glowRadius = 0.45f;
 
     [Tooltip("Opacity of the glow at center.")]
     [Range(0f, 1f)]
-    public float glowAlpha = 0.45f;
+    public float glowAlpha = 0.7f;
 
     [Tooltip("Color override. If left white, auto-detects from gem name.")]
     public Color glowColor = Color.white;
@@ -42,8 +42,9 @@ public class GemGlowVolume : MonoBehaviour
         }
 
         glowQuad = new GameObject("GlowHalo");
-        glowQuad.transform.SetParent(transform, false);
-        glowQuad.transform.localPosition = new Vector3(0f, 0f, 0.1f);
+        // Don't parent to the gem — we follow position only so the halo
+        // stays camera-facing and doesn't spin with the gem's rotation.
+        glowQuad.transform.position = transform.position + new Vector3(0f, 0f, 0.1f);
         glowQuad.transform.localScale = Vector3.one * glowRadius * 2f;
 
         MeshFilter mf = glowQuad.AddComponent<MeshFilter>();
@@ -54,6 +55,29 @@ public class GemGlowVolume : MonoBehaviour
         mr.sharedMaterial = glowMat;
         mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         mr.receiveShadows = false;
+    }
+
+    void LateUpdate()
+    {
+        if (glowQuad != null)
+        {
+            glowQuad.transform.position = transform.position + new Vector3(0f, 0f, 0.1f);
+        }
+    }
+
+    void OnEnable()
+    {
+        if (glowQuad != null) glowQuad.SetActive(true);
+    }
+
+    void OnDisable()
+    {
+        if (glowQuad != null) glowQuad.SetActive(false);
+    }
+
+    void OnDestroy()
+    {
+        if (glowQuad != null) Destroy(glowQuad);
     }
 
     /// <summary>
