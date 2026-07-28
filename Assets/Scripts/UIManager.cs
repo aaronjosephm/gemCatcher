@@ -1066,8 +1066,8 @@ public class UIManager : MonoBehaviour
     anchorRect.anchorMin = new Vector2(0f, 1f);
     anchorRect.anchorMax = new Vector2(1f, 1f);
     anchorRect.pivot = new Vector2(0.5f, 1f);
-    anchorRect.sizeDelta = new Vector2(-100f, 220f);
-    anchorRect.anchoredPosition = new Vector2(0f, -90f);
+    anchorRect.sizeDelta = new Vector2(-40f, 300f);
+    anchorRect.anchoredPosition = new Vector2(0f, -40f);
 
     GameObject logo = new GameObject("TitleLogo", typeof(RectTransform));
     logo.transform.SetParent(anchor.transform, false);
@@ -1182,101 +1182,50 @@ public class UIManager : MonoBehaviour
   //   3. The shared parent rect stretches to fill its TitleAnchor strip and
   //      uses TMP auto-sizing so the logo scales gracefully on portrait
   //      phones the same way the old single-line title did.
-  // Returns the face TMP so callers can grab a reference if they want.
+  // Returns null — the image-based logo doesn't need a TMP reference.
   TextMeshProUGUI BuildLogoTitle(Transform parent)
   {
-    const string text = "GEM CATCH";
-    const float fontSizeMin = 64f;
-    const float fontSizeMax = 168f;
-    const float characterSpacing = 14f;
-
-    // ---- Drop shadow ------------------------------------------------------
-    GameObject shadowGo = new GameObject("TitleShadow", typeof(RectTransform));
-    shadowGo.transform.SetParent(parent, false);
-    RectTransform shadowRect = shadowGo.GetComponent<RectTransform>();
-    shadowRect.anchorMin = Vector2.zero;
-    shadowRect.anchorMax = Vector2.one;
-    shadowRect.offsetMin = Vector2.zero;
-    shadowRect.offsetMax = Vector2.zero;
-    // Offset the shadow down-right by a few pixels so the face sits slightly
-    // proud of it. Sized in anchored coords so the offset scales with the
-    // panel.
-    shadowRect.anchoredPosition = new Vector2(6f, -8f);
-
-    TextMeshProUGUI shadow = shadowGo.AddComponent<TextMeshProUGUI>();
-    shadow.text = text;
-    shadow.fontStyle = FontStyles.Bold;
-    shadow.alignment = TextAlignmentOptions.Center;
-    shadow.color = new Color(0f, 0f, 0f, 0.55f);
-    shadow.characterSpacing = characterSpacing;
-    shadow.enableAutoSizing = true;
-    shadow.fontSizeMin = fontSizeMin;
-    shadow.fontSizeMax = fontSizeMax;
-    shadow.enableWordWrapping = false;
-    shadow.raycastTarget = false;
-
-    // ---- Face -------------------------------------------------------------
-    GameObject faceGo = new GameObject("TitleFace", typeof(RectTransform));
-    faceGo.transform.SetParent(parent, false);
-    RectTransform faceRect = faceGo.GetComponent<RectTransform>();
-    faceRect.anchorMin = Vector2.zero;
-    faceRect.anchorMax = Vector2.one;
-    faceRect.offsetMin = Vector2.zero;
-    faceRect.offsetMax = Vector2.zero;
-
-    TextMeshProUGUI face = faceGo.AddComponent<TextMeshProUGUI>();
-    face.text = text;
-    face.fontStyle = FontStyles.Bold;
-    face.alignment = TextAlignmentOptions.Center;
-    face.color = Color.white; // base; vertex gradient multiplies in over this
-    face.characterSpacing = characterSpacing;
-    face.enableAutoSizing = true;
-    face.fontSizeMin = fontSizeMin;
-    face.fontSizeMax = fontSizeMax;
-    face.enableWordWrapping = false;
-    face.raycastTarget = false;
-
-    // Top-to-bottom metallic-jewel gradient — bright cream up top fading into
-    // a deep orange at the baseline. Both top corners and both bottom corners
-    // share a row color so the gradient is purely vertical.
-    face.enableVertexGradient = true;
-    face.colorGradient = new VertexGradient(
-        new Color(1.00f, 0.96f, 0.62f), // top-left
-        new Color(1.00f, 0.96f, 0.62f), // top-right
-        new Color(1.00f, 0.55f, 0.10f), // bottom-left
-        new Color(1.00f, 0.55f, 0.10f)  // bottom-right
-    );
-
-    // Outline + face dilate on a private material instance so we don't mutate
-    // the shared TMP default. Wrapped in try/catch because some font assets
-    // ship without these shader properties — the logo still looks good
-    // without the outline thanks to the gradient + drop shadow.
-    try
+    Texture2D titleTex = Resources.Load<Texture2D>("UI/GemCatchTitle");
+    if (titleTex == null)
     {
-      Material runtimeMat = new Material(face.fontMaterial);
-      face.fontMaterial = runtimeMat;
-
-      if (runtimeMat.HasProperty(ShaderUtilities.ID_OutlineWidth))
-      {
-        runtimeMat.SetFloat(ShaderUtilities.ID_OutlineWidth, 0.18f);
-      }
-      if (runtimeMat.HasProperty(ShaderUtilities.ID_OutlineColor))
-      {
-        runtimeMat.SetColor(ShaderUtilities.ID_OutlineColor,
-            new Color(0.20f, 0.10f, 0.02f, 1.0f));
-      }
-      if (runtimeMat.HasProperty(ShaderUtilities.ID_FaceDilate))
-      {
-        runtimeMat.SetFloat(ShaderUtilities.ID_FaceDilate, 0.10f);
-      }
-    }
-    catch
-    {
-      // Material customization is purely cosmetic — failures shouldn't break
-      // the menu.
+      // Fallback: simple text if image not found.
+      GameObject fallback = new GameObject("TitleFallback", typeof(RectTransform));
+      fallback.transform.SetParent(parent, false);
+      RectTransform fbRect = fallback.GetComponent<RectTransform>();
+      fbRect.anchorMin = Vector2.zero;
+      fbRect.anchorMax = Vector2.one;
+      fbRect.offsetMin = Vector2.zero;
+      fbRect.offsetMax = Vector2.zero;
+      TextMeshProUGUI tmp = fallback.AddComponent<TextMeshProUGUI>();
+      tmp.text = "GEM CATCH";
+      tmp.fontSize = 120f;
+      tmp.fontStyle = FontStyles.Bold;
+      tmp.alignment = TextAlignmentOptions.Center;
+      tmp.color = new Color(1f, 0.85f, 0.3f);
+      tmp.enableAutoSizing = true;
+      tmp.fontSizeMin = 64f;
+      tmp.fontSizeMax = 168f;
+      tmp.raycastTarget = false;
+      return tmp;
     }
 
-    return face;
+    // Image-based title logo.
+    GameObject imgGo = new GameObject("TitleImage", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    imgGo.transform.SetParent(parent, false);
+    RectTransform rt = imgGo.GetComponent<RectTransform>();
+    rt.anchorMin = Vector2.zero;
+    rt.anchorMax = Vector2.one;
+    rt.offsetMin = Vector2.zero;
+    rt.offsetMax = Vector2.zero;
+
+    Image img = imgGo.GetComponent<Image>();
+    img.sprite = Sprite.Create(titleTex,
+        new Rect(0, 0, titleTex.width, titleTex.height),
+        new Vector2(0.5f, 0.5f), 100f);
+    img.preserveAspect = true;
+    img.raycastTarget = false;
+
+    return null;
   }
 
   // Builds the help sub-panel: title + instructions text + Back button.
