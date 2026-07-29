@@ -31,6 +31,7 @@ public static class LevelManager
         public float goldenChance;
         public float dailyMaxFallSpeed;
         public float dailyMinSpawnInterval;
+        public float catcherYOffset;         // Extra downward offset for catcher position (0 = default)
     }
 
     private static readonly LevelConfig[] levels = new[]
@@ -88,6 +89,7 @@ public static class LevelManager
             goldenChance = 0.07f,
             dailyMaxFallSpeed = 8.0f,
             dailyMinSpawnInterval = 1.2f,
+            catcherYOffset = -0.8f,
         },
     };
 

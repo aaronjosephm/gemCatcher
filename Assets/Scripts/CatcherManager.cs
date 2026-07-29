@@ -243,7 +243,7 @@ public class CatcherManager : MonoBehaviour
     // body stays inside the safe play area.
     void MoveCatcherToX(float worldX, bool playFeedback)
     {
-        float catcherY = ScreenPadding.WorldBottom + slotHeight / 2.0f;
+        float catcherY = ScreenPadding.WorldBottom + slotHeight / 2.0f + LevelManager.CurrentConfig.catcherYOffset;
         float halfExtent = GetCatcherHalfWidth();
         float minX = ScreenPadding.WorldLeft + halfExtent;
         float maxX = ScreenPadding.WorldRight - halfExtent;
