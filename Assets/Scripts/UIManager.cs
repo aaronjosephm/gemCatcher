@@ -1790,7 +1790,7 @@ public class UIManager : MonoBehaviour
     diffTmp.fontSize = 28f;
     diffTmp.alignment = TextAlignmentOptions.Center;
     diffTmp.color = new Color(1f, 0.85f, 0.35f);
-    diffTmp.text = config.id == LevelManager.LevelId.Cave ? "★" : "★★";
+    diffTmp.text = config.id == LevelManager.LevelId.Cave ? "Easy" : "Hard";
 
     // Button interaction
     if (unlocked && !selected)
