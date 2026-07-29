@@ -254,6 +254,12 @@ public class UIManager : MonoBehaviour
       GameState.SkipMainMenuOnLoad = false;
       ShowGameplay();
     }
+    else if (s_returnToLevelSelect)
+    {
+      s_returnToLevelSelect = false;
+      ShowMainMenu();
+      OnLevelsClicked();
+    }
     else
     {
       ShowMainMenu();
@@ -1795,11 +1801,13 @@ public class UIManager : MonoBehaviour
     }
   }
 
+  // When true, show level select panel instead of main menu after scene reload.
+  private static bool s_returnToLevelSelect;
+
   void SelectLevel(LevelManager.LevelId id)
   {
     LevelManager.SelectedLevel = id;
-    // Reload the scene immediately so the new level's background, music,
-    // and environment take effect right away.
+    s_returnToLevelSelect = true;
     SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
   }
 
