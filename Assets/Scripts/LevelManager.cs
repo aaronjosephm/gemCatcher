@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle }
+    public enum LevelId { Cave, Jungle, Volcano }
 
     [System.Serializable]
     public struct LevelConfig
@@ -70,6 +70,24 @@ public static class LevelManager
             goldenChance = 0.06f,
             dailyMaxFallSpeed = 7.0f,
             dailyMinSpawnInterval = 1.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Volcano,
+            displayName = "Volcano Run",
+            sceneName = "VolcanoRun",
+            backgroundResource = "Backgrounds/VolcanoBackground",
+            midgroundResource = null,
+            musicResource = "Audio/VolcanoMusic",
+            extraGemPrefabs = new[] { "Gems/BlueGem" },
+            unlockScore = 2000,
+            cameraColor = new Color(0.15f, 0.05f, 0.02f, 1f),
+            initialFallSpeed = 4.5f,
+            initialSpawnInterval = 2.0f,
+            bombChance = 0.15f,
+            goldenChance = 0.07f,
+            dailyMaxFallSpeed = 8.0f,
+            dailyMinSpawnInterval = 1.2f,
         },
     };
 
