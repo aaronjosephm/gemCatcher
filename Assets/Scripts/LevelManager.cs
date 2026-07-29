@@ -89,7 +89,7 @@ public static class LevelManager
             goldenChance = 0.07f,
             dailyMaxFallSpeed = 8.0f,
             dailyMinSpawnInterval = 1.2f,
-            catcherYOffset = -2.5f,
+            catcherYOffset = -1.2f,
         },
     };
 
