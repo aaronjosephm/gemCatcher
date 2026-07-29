@@ -545,6 +545,11 @@ public class CatcherManager : MonoBehaviour
             {
                 catcherInstance.AddComponent<CatchZone>();
             }
+            // Attach Catchy's face to the front of the cube.
+            if (catcherInstance.GetComponent<CatchyFace>() == null)
+            {
+                catcherInstance.AddComponent<CatchyFace>();
+            }
             catcherBaseScale = catcherInstance.transform.localScale;
             feedbackScale = Vector3.one;
         }
