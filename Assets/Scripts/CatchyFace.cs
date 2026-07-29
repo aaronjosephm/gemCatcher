@@ -39,12 +39,14 @@ public class CatchyFace : MonoBehaviour
 
         GemCatcher.OnGemCaught += OnCaught;
         GemCatcher.OnGemMissed += OnMissed;
+        GemCatcher.OnBombHit += OnBombHit;
     }
 
     void OnDestroy()
     {
         GemCatcher.OnGemCaught -= OnCaught;
         GemCatcher.OnGemMissed -= OnMissed;
+        GemCatcher.OnBombHit -= OnBombHit;
     }
 
     void Update()
@@ -66,6 +68,13 @@ public class CatchyFace : MonoBehaviour
     }
 
     void OnMissed(int amount, Vector3 worldPos)
+    {
+        ShowSad();
+        expressionTimer = ExpressionDuration;
+        isExpressing = true;
+    }
+
+    void OnBombHit(Vector3 worldPos)
     {
         ShowSad();
         expressionTimer = ExpressionDuration;
