@@ -1628,7 +1628,7 @@ public class UIManager : MonoBehaviour
     // scene so background/music/difficulty all update.
     if (LevelManager.SelectedLevel != levelAtSceneLoad)
     {
-      SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+      SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
       return;
     }
     ShowGameplay();
@@ -1808,7 +1808,7 @@ public class UIManager : MonoBehaviour
   {
     LevelManager.SelectedLevel = id;
     s_returnToLevelSelect = true;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // ---------------------------------------------------------------------------
@@ -1867,7 +1867,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.Mode = GameState.GameMode.Daily;
     GameState.SkipMainMenuOnLoad = true;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Show the "come back tomorrow" panel (built lazily on first show).
@@ -2035,7 +2035,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;
     GameState.Mode = GameState.GameMode.Normal;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Spawn a "+20" / "-N" numeric pop-up at the given world position, on the HUD canvas.
@@ -2399,7 +2399,7 @@ public class UIManager : MonoBehaviour
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.
     GameState.SkipMainMenuOnLoad = true;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Called by ObjectPooler when a new placement phase starts

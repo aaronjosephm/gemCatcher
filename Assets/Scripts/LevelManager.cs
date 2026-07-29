@@ -16,6 +16,7 @@ public static class LevelManager
     {
         public LevelId id;
         public string displayName;
+        public string sceneName;             // Scene to load for this level
         public string backgroundResource;   // Resources/ path to background texture
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
         public string musicResource;         // Resources/ path to background music
@@ -38,6 +39,7 @@ public static class LevelManager
         {
             id = LevelId.Cave,
             displayName = "Crystal Cave",
+            sceneName = "SampleScene",
             backgroundResource = "Backgrounds/CaveBackground",
             midgroundResource = "Backgrounds/MidgroundCave",
             musicResource = "Audio/BackgroundMusic",
@@ -55,6 +57,7 @@ public static class LevelManager
         {
             id = LevelId.Jungle,
             displayName = "Jungle Falls",
+            sceneName = "JungleFalls",
             backgroundResource = "Backgrounds/WaterfallBackground",
             midgroundResource = null,
             musicResource = "Audio/JungleMusic",
