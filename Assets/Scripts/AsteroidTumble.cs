@@ -1,28 +1,37 @@
 using UnityEngine;
 
 /// <summary>
-/// Slowly tumbles the attached object on all axes.
-/// Attach to each asteroid/rock in the scene.
-/// Each instance picks a random rotation speed so they don't all spin identically.
+/// Spins the attached object around a configurable axis.
+/// Set the axis and speed in the Inspector for each rock.
 /// </summary>
 public class AsteroidTumble : MonoBehaviour
 {
-    private Vector3 rotationSpeed;
+    public enum RotationAxis { X, Y, Z }
+
+    [Tooltip("Which axis to rotate around")]
+    public RotationAxis axis = RotationAxis.Z;
+
+    [Tooltip("Rotation speed in degrees per second")]
+    public float speed = 10f;
+
+    [Tooltip("Reverse the rotation direction")]
+    public bool reverse = false;
 
     void Start()
     {
         // Disable colliders so nothing pushes the rock around
         foreach (var col in GetComponentsInChildren<Collider>())
             col.enabled = false;
-
-        // Random Y-axis spin only (like a turntable) so the rock
-        // doesn't clip through the background plane behind it
-        float speed = Random.Range(5f, 15f) * (Random.value > 0.5f ? 1f : -1f);
-        rotationSpeed = new Vector3(0f, 0f, speed);
     }
 
     void Update()
     {
-        transform.Rotate(rotationSpeed * Time.deltaTime, Space.Self);
+        float s = speed * (reverse ? -1f : 1f) * Time.deltaTime;
+        switch (axis)
+        {
+            case RotationAxis.X: transform.Rotate(s, 0f, 0f, Space.Self); break;
+            case RotationAxis.Y: transform.Rotate(0f, s, 0f, Space.Self); break;
+            case RotationAxis.Z: transform.Rotate(0f, 0f, s, Space.Self); break;
+        }
     }
 }
