@@ -18,7 +18,7 @@ public class AsteroidTumble : MonoBehaviour
         // Random Y-axis spin only (like a turntable) so the rock
         // doesn't clip through the background plane behind it
         float speed = Random.Range(5f, 15f) * (Random.value > 0.5f ? 1f : -1f);
-        rotationSpeed = new Vector3(speed, 0f, 0f);
+        rotationSpeed = new Vector3(0f, 0f, speed);
     }
 
     void Update()
