@@ -180,6 +180,16 @@ public class UIManager : MonoBehaviour
   {
     levelAtSceneLoad = LevelManager.SelectedLevel;
 
+    // If the app started/restarted and the loaded scene doesn't match the
+    // player's last selected level, redirect to the correct scene immediately.
+    string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+    string expectedScene = LevelManager.CurrentConfig.sceneName;
+    if (currentScene != expectedScene)
+    {
+      UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
+      return;
+    }
+
     // Initialize UI
     if (gameOverPanel != null)
     {
