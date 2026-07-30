@@ -73,9 +73,9 @@ public class OrbitingEarth : MonoBehaviour
 
         earthTransform.localScale = new Vector3(earthSize, earthSize, earthSize);
 
-        // Position well below screen and behind everything (high Z = further from camera)
+        // Position below screen, between background (Z=2) and gameplay (Z=0)
         float bottomY = -orthoSize;
-        earthTransform.localPosition = new Vector3(0f, bottomY - earthSize * 0.35f, 5f);
+        earthTransform.localPosition = new Vector3(0f, bottomY - earthSize * 0.25f, 1.8f);
     }
 
     void Update()
