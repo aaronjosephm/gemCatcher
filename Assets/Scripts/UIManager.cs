@@ -1282,11 +1282,11 @@ public class UIManager : MonoBehaviour
 
     // --- Catchy character (matches in-game crystal catcher) ---
     float catchySize = 200f;
-    float catchyX = -240f;
+    float catchyX = 0f; // centered horizontally
     float catchyTopY = 300f;
 
     // Catchy body — uses the ACTUAL glass color from CatcherManager
-    Color catcherColor = new Color(0.65f, 0.85f, 1.0f, 1f);
+    Color catcherColor = new Color(0.65f, 0.85f, 1.0f, 0.55f);
     GameObject catchyBody = new GameObject("CatchyBody", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     catchyBody.transform.SetParent(contentParent, false);
     RectTransform bodyRect = catchyBody.GetComponent<RectTransform>();
@@ -1335,7 +1335,7 @@ public class UIManager : MonoBehaviour
     smileTopRect.anchorMax = new Vector2(0.5f, 0.5f);
     smileTopRect.anchoredPosition = new Vector2(0f, -6f);
     smileTopRect.sizeDelta = new Vector2(72f, 18f);
-    smileTop.GetComponent<Image>().color = catcherColor;
+    smileTop.GetComponent<Image>().color = new Color(0.65f, 0.85f, 1.0f, 0.55f);
 
     // Smile corner upticks (the ends of the smile curve up)
     for (int i = 0; i < 2; i++)
@@ -1350,12 +1350,11 @@ public class UIManager : MonoBehaviour
       corner.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
     }
 
-    // --- Chat bubble (positioned to the right of Catchy, no overlap) ---
-    float bubbleLeft = catchyX + catchySize / 2f + 60f; // 60px gap after Catchy
-    float bubbleW = 480f;
-    float bubbleH = 360f;
-    float bubbleCenterX = bubbleLeft + bubbleW / 2f;
-    float bubbleCenterY = -120f - catchySize / 2f + 20f; // roughly aligned with Catchy center
+    // --- Chat bubble (centered below Catchy) ---
+    float bubbleW = 520f;
+    float bubbleH = 340f;
+    float bubbleCenterX = 0f;
+    float bubbleTopY = -120f - catchySize - 30f; // 30px below Catchy
 
     // Bubble background
     GameObject bubble = new GameObject("ChatBubble", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -1364,23 +1363,22 @@ public class UIManager : MonoBehaviour
     bubbleRect.anchorMin = new Vector2(0.5f, 1f);
     bubbleRect.anchorMax = new Vector2(0.5f, 1f);
     bubbleRect.pivot = new Vector2(0.5f, 1f);
-    bubbleRect.anchoredPosition = new Vector2(bubbleCenterX, bubbleCenterY + bubbleH / 2f);
+    bubbleRect.anchoredPosition = new Vector2(bubbleCenterX, bubbleTopY);
     bubbleRect.sizeDelta = new Vector2(bubbleW, bubbleH);
     Image bubbleImg = bubble.GetComponent<Image>();
-    bubbleImg.color = new Color(0.18f, 0.22f, 0.30f, 0.95f);
+    bubbleImg.color = new Color(1f, 1f, 1f, 0.95f);
 
-    // Bubble tail — triangle pointing LEFT toward Catchy
-    // Use a rotated diamond shape anchored to the left edge of the bubble
+    // Bubble tail — triangle pointing UP toward Catchy
     GameObject tail = new GameObject("BubbleTail", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     tail.transform.SetParent(bubble.transform, false);
     RectTransform tailRect = tail.GetComponent<RectTransform>();
-    tailRect.anchorMin = new Vector2(0f, 0.6f);
-    tailRect.anchorMax = new Vector2(0f, 0.6f);
-    tailRect.pivot = new Vector2(0.85f, 0.5f);
+    tailRect.anchorMin = new Vector2(0.5f, 1f);
+    tailRect.anchorMax = new Vector2(0.5f, 1f);
+    tailRect.pivot = new Vector2(0.5f, 0f);
     tailRect.anchoredPosition = new Vector2(0f, 0f);
-    tailRect.sizeDelta = new Vector2(40f, 40f);
+    tailRect.sizeDelta = new Vector2(36f, 36f);
     tailRect.localEulerAngles = new Vector3(0f, 0f, 45f);
-    tail.GetComponent<Image>().color = new Color(0.18f, 0.22f, 0.30f, 0.95f);
+    tail.GetComponent<Image>().color = new Color(1f, 1f, 1f, 0.95f);
 
     // Bubble text content
     GameObject textGo = new GameObject("BubbleText", typeof(RectTransform));
@@ -1393,7 +1391,7 @@ public class UIManager : MonoBehaviour
     helpBubbleText = textGo.AddComponent<TextMeshProUGUI>();
     helpBubbleText.fontSize = 36f;
     helpBubbleText.alignment = TextAlignmentOptions.MidlineLeft;
-    helpBubbleText.color = Color.white;
+    helpBubbleText.color = Color.black;
     helpBubbleText.enableWordWrapping = true;
     helpBubbleText.lineSpacing = 8f;
     helpBubbleText.text = helpSlides[0];
@@ -1404,7 +1402,7 @@ public class UIManager : MonoBehaviour
     RectTransform counterRect = counterGo.GetComponent<RectTransform>();
     counterRect.anchorMin = new Vector2(0.5f, 1f);
     counterRect.anchorMax = new Vector2(0.5f, 1f);
-    counterRect.anchoredPosition = new Vector2(bubbleCenterX, bubbleCenterY - bubbleH / 2f - 30f);
+    counterRect.anchoredPosition = new Vector2(0f, bubbleTopY - bubbleH - 30f);
     counterRect.sizeDelta = new Vector2(300f, 50f);
     helpSlideCounter = counterGo.AddComponent<TextMeshProUGUI>();
     helpSlideCounter.fontSize = 30f;
@@ -1412,7 +1410,7 @@ public class UIManager : MonoBehaviour
     helpSlideCounter.color = new Color(0.5f, 0.5f, 0.55f);
 
     // --- Navigation buttons (well-spaced, below everything) ---
-    float navY = -580f;
+    float navY = bubbleTopY - bubbleH - 90f;
 
     // Previous button — left side
     GameObject prevGo = new GameObject("PrevBtn", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
@@ -1432,7 +1430,7 @@ public class UIManager : MonoBehaviour
     prevLblRect.anchorMin = Vector2.zero; prevLblRect.anchorMax = Vector2.one;
     prevLblRect.offsetMin = Vector2.zero; prevLblRect.offsetMax = Vector2.zero;
     TextMeshProUGUI prevTmp = prevLabel.AddComponent<TextMeshProUGUI>();
-    prevTmp.text = "\u25C0  Back";
+    prevTmp.text = "Back";
     prevTmp.fontSize = 44f;
     prevTmp.fontStyle = FontStyles.Bold;
     prevTmp.alignment = TextAlignmentOptions.Center;
@@ -1460,7 +1458,7 @@ public class UIManager : MonoBehaviour
     nextLblRect.anchorMin = Vector2.zero; nextLblRect.anchorMax = Vector2.one;
     nextLblRect.offsetMin = Vector2.zero; nextLblRect.offsetMax = Vector2.zero;
     TextMeshProUGUI nextTmp = nextLabel.AddComponent<TextMeshProUGUI>();
-    nextTmp.text = "Next  \u25B6";
+    nextTmp.text = "Next";
     nextTmp.fontSize = 44f;
     nextTmp.fontStyle = FontStyles.Bold;
     nextTmp.alignment = TextAlignmentOptions.Center;
@@ -1499,7 +1497,7 @@ public class UIManager : MonoBehaviour
     {
       var label = helpNextBtn.GetComponentInChildren<TextMeshProUGUI>();
       if (label != null)
-        label.text = helpSlideIndex < helpSlides.Length - 1 ? "Next  \u25B6" : "Done  \u2713";
+        label.text = helpSlideIndex < helpSlides.Length - 1 ? "Next" : "Done";
     }
   }
 
