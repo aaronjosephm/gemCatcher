@@ -43,6 +43,9 @@ public class OrbitingEarth : MonoBehaviour
         Texture2D tex = Resources.Load<Texture2D>("Textures/Earth");
         if (tex == null) { Destroy(gameObject); return; }
 
+        // Set wrap mode to Repeat so UV scrolling loops seamlessly
+        tex.wrapMode = TextureWrapMode.Repeat;
+
         // Create a quad for the earth
         GameObject earthGo = GameObject.CreatePrimitive(PrimitiveType.Quad);
         earthGo.name = "EarthSprite";
@@ -58,7 +61,6 @@ public class OrbitingEarth : MonoBehaviour
         earthMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
         earthMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
         earthMat.SetFloat("_ZWrite", 0f);
-        earthMat.SetFloat("_Cull", 0f); // Double-sided (no backface culling)
         earthMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         earthMat.renderQueue = 2999;
         earthGo.GetComponent<Renderer>().material = earthMat;
@@ -86,8 +88,10 @@ public class OrbitingEarth : MonoBehaviour
 
     void Update()
     {
-        // Rotate around Y axis so it looks like the globe is spinning
-        transform.GetChild(0).Rotate(0f, 5f * Time.deltaTime, 0f, Space.Self);
+        if (earthMat == null) return;
+        // Scroll UV horizontally to simulate globe rotation
+        float offset = Time.time * 0.015f;
+        earthMat.SetTextureOffset("_BaseMap", new Vector2(offset, 0f));
     }
 
     void OnDestroy()
