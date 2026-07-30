@@ -15,12 +15,10 @@ public class AsteroidTumble : MonoBehaviour
         foreach (var col in GetComponentsInChildren<Collider>())
             col.enabled = false;
 
-        // Random speed between 5-15°/s on each axis, random direction
-        rotationSpeed = new Vector3(
-            Random.Range(-15f, 15f),
-            Random.Range(-15f, 15f),
-            Random.Range(-15f, 15f)
-        );
+        // Random Y-axis spin only (like a turntable) so the rock
+        // doesn't clip through the background plane behind it
+        float speed = Random.Range(5f, 15f) * (Random.value > 0.5f ? 1f : -1f);
+        rotationSpeed = new Vector3(0f, speed, 0f);
     }
 
     void Update()
