@@ -11,6 +11,10 @@ public class AsteroidTumble : MonoBehaviour
 
     void Start()
     {
+        // Disable colliders so nothing pushes the rock around
+        foreach (var col in GetComponentsInChildren<Collider>())
+            col.enabled = false;
+
         // Random speed between 5-15°/s on each axis, random direction
         rotationSpeed = new Vector3(
             Random.Range(-15f, 15f),
