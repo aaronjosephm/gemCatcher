@@ -54,16 +54,22 @@ public class OrbitingEarth : MonoBehaviour
 
         earthTransform = earthGo.transform;
 
-        // Unlit material with earth texture, alpha cutout for circular edge
+        // Transparent unlit material — works reliably on mobile
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetTexture("_BaseMap", tex);
         mat.SetColor("_BaseColor", Color.white);
 
-        // Enable alpha clipping to cut away transparent pixels (no white ring)
-        mat.SetFloat("_Cutoff", 0.5f);
-        mat.SetFloat("_Surface", 0); // opaque
-        mat.EnableKeyword("_ALPHATEST_ON");
-        mat.renderQueue = 2450; // AlphaTest queue
+        // Set surface type to Transparent for proper alpha on Android
+        mat.SetFloat("_Surface", 1); // 1 = Transparent
+        mat.SetFloat("_Blend", 0);   // Alpha blend
+        mat.SetOverrideTag("RenderType", "Transparent");
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.DisableKeyword("_ALPHATEST_ON");
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        mat.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+        mat.renderQueue = 3000; // Transparent queue
 
         earthGo.GetComponent<Renderer>().material = mat;
 
