@@ -1810,7 +1810,30 @@ public class UIManager : MonoBehaviour
   {
     LevelManager.SelectedLevel = id;
     s_returnToLevelSelect = true;
-    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    StartCoroutine(FadeAndLoadScene(LevelManager.CurrentConfig.sceneName));
+  }
+
+  System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
+  {
+    // Create a full-screen black overlay to hide the scene transition flash
+    var fadeGo = new GameObject("SceneFade");
+    var fadeCanvas = fadeGo.AddComponent<Canvas>();
+    fadeCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+    fadeCanvas.sortingOrder = 9999;
+    var img = fadeGo.AddComponent<UnityEngine.UI.Image>();
+    img.color = new Color(0f, 0f, 0f, 0f);
+    img.raycastTarget = false;
+
+    // Fade to black over 0.2s
+    float t = 0f;
+    while (t < 0.2f)
+    {
+      t += Time.unscaledDeltaTime;
+      img.color = new Color(0f, 0f, 0f, Mathf.Clamp01(t / 0.2f));
+      yield return null;
+    }
+
+    SceneManager.LoadScene(sceneName);
   }
 
   // ---------------------------------------------------------------------------
