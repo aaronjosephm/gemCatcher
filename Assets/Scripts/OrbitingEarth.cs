@@ -85,11 +85,8 @@ public class OrbitingEarth : MonoBehaviour
 
     void Update()
     {
-        if (earthMat == null) return;
-
-        // Scroll UV to simulate earth rotation (slow drift to the left)
-        float offset = Time.time * 0.01f; // Very slow rotation
-        earthMat.SetTextureOffset("_BaseMap", new Vector2(offset, 0f));
+        // Rotate the earth around its Z axis (facing camera) for a slow spin
+        transform.Rotate(0f, 0f, -2f * Time.deltaTime); // ~2 degrees/sec
     }
 
     void OnDestroy()
