@@ -122,8 +122,13 @@ public static class LevelManager
 
     public static LevelConfig CurrentConfig => GetConfig(SelectedLevel);
 
+    // TODO: Re-enable unlock requirements for release
+    // Set to false to require score thresholds for level unlocks
+    private const bool AllLevelsUnlocked = true;
+
     public static bool IsUnlocked(LevelId id)
     {
+        if (AllLevelsUnlocked) return true;
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
         int best = PlayerPrefs.GetInt("HighScore", 0);
