@@ -52,10 +52,12 @@ public class OrbitingEarth : MonoBehaviour
         if (col != null) { col.enabled = false; Destroy(col); }
         earthTransform = earthGo.transform;
 
-        // Opaque unlit material — the sphere geometry provides the circle
+        // Opaque unlit material — render queue just after geometry (background)
+        // so it draws on top of the background but behind gameplay sprites/objects
         Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
         mat.SetTexture("_BaseMap", tex);
         mat.SetColor("_BaseColor", Color.white);
+        mat.renderQueue = 2001; // geometry is 2000; this draws just after background
         earthGo.GetComponent<Renderer>().material = mat;
 
         PositionEarth();
@@ -73,9 +75,10 @@ public class OrbitingEarth : MonoBehaviour
 
         earthTransform.localScale = new Vector3(earthSize, earthSize, earthSize);
 
-        // Position below screen, between background (Z=2) and gameplay (Z=0)
+        // Position far behind everything in Z, but render queue ensures it draws
+        // in front of background. This avoids the sphere visually overlapping Catchy.
         float bottomY = -orthoSize;
-        earthTransform.localPosition = new Vector3(0f, bottomY - earthSize * 0.25f, 1.8f);
+        earthTransform.localPosition = new Vector3(0f, bottomY - earthSize * 0.25f, 50f);
     }
 
     void Update()
