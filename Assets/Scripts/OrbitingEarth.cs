@@ -91,7 +91,7 @@ public class OrbitingEarth : MonoBehaviour
     {
         if (earthTransform == null) return;
         // Rotate around the forward axis (Z) — spins the earth image in place
-        earthTransform.Rotate(0f, 0f, -3f * Time.deltaTime, Space.Self);
+        earthTransform.Rotate(0f, 0f, -1f * Time.deltaTime, Space.Self);
     }
 
     void OnDestroy()
