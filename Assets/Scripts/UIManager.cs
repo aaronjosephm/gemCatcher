@@ -1242,25 +1242,25 @@ public class UIManager : MonoBehaviour
   private Button helpPrevBtn;
   private readonly string[] helpSlides = new string[]
   {
-    "Hey there! I'm <color=#FFD86A>Catchy</color>!\nLet me show you how to play this game!",
+    "Hey there! I'm <color=#FFD86A>Catchy</color>!\nLet me show you how to play!",
 
-    "<color=#FFD86A>THE GOAL</color>\nCatch falling gems with me!\nDon\u2019t let them slip past or I'll lose a life!",
+    "<color=#FFD86A>THE GOAL</color>\nCatch falling gems with me!\nDon\u2019t let them slip past\nor I'll lose a life!",
 
-    "<color=#6FD9FF>CONTROLS</color>\n<b>Tap</b> a slot to place me.\n<b>Drag</b> left or right to slide me around.\nYou can reposition during the countdown!",
+    "<color=#6FD9FF>CONTROLS</color>\n<b>Tap</b> a slot to place me.\n<b>Drag</b> left or right to slide me.\nReposition during the countdown!",
 
     "<color=#7FE787>SCORING</color>\nCatch a gem = <color=#7FE787>+20 pts</color>\nMiss a gem = <color=#FF7373>\u22121 life</color>\nEvery <b>100 pts</b> = bonus life (max 10)",
 
-    "<color=#FFC065>COMBO STREAK</color>\nCatch gems in a row for multipliers!\n\n<color=#FFE885>\u00d71.5</color> at 3 catches\n<color=#FFC065>\u00d72</color> at 5 catches\n<color=#FF8B40>\u00d73</color> at 7 catches\n<color=#FF4F4F>\u00d75</color> at 10 catches",
+    "<color=#FFC065>COMBO STREAK</color>\nCatch gems in a row!\n\n<color=#FFE885>\u00d71.5</color> at 3  \u2022  <color=#FFC065>\u00d72</color> at 5\n<color=#FF8B40>\u00d73</color> at 7  \u2022  <color=#FF4F4F>\u00d75</color> at 10\n\nA miss or bomb breaks it!",
 
-    "<color=#FF8FB8>SPECIAL GEMS</color>\n<color=#FFD86A>Golden</color> \u2014 rare, worth <color=#7FE787>+100 pts</color>\n<color=#FF6B5B>Bomb</color> \u2014 avoid! Costs a life\n<color=#FF8FB8>Heart</color> \u2014 very rare, grants <color=#7FE787>+1 life</color>",
+    "<color=#FF8FB8>SPECIAL GEMS</color>\n<color=#FFD86A>Golden</color> \u2014 worth <color=#7FE787>+100 pts</color>\n<color=#FF6B5B>Bomb</color> \u2014 avoid! Costs a life\n<color=#FF8FB8>Heart</color> \u2014 grants <color=#7FE787>+1 life</color>",
 
-    "<color=#6FD9FF>POWER-UPS</color>\nA glowing pickup arrives every 10 drops!\n\n<color=#6FD9FF>Wide Catcher</color> \u2014 wider catch zone\n<color=#FFD86A>Shield</color> \u2014 absorbs a miss\n<color=#7FE787>2\u00d7 Score</color> \u2014 double points",
+    "<color=#6FD9FF>POWER-UPS</color>\nA pickup arrives every 10 drops!\n\n<color=#6FD9FF>Wide Catcher</color> \u2014 wider zone\n<color=#FFD86A>Shield</color> \u2014 absorbs a miss\n<color=#7FE787>2\u00d7 Score</color> \u2014 double points",
 
-    "<color=#FF7373>DIFFICULTY</color>\nGems speed up as your score rises.\nAt <b>1000 pts</b> gems shrink to half size.\nAt <b>2000 pts</b> I shrink too!",
+    "<color=#FF7373>DIFFICULTY</color>\nGems speed up as you score.\nAt <b>1000 pts</b> gems shrink.\nAt <b>2000 pts</b> I shrink too!",
 
-    "<color=#B89CFF>DAILY CHALLENGE</color>\nOne run per day \u2014 same gems for everyone.\n3 lives, no bonuses, 30 gems total.",
+    "<color=#B89CFF>DAILY CHALLENGE</color>\nOne run per day!\nSame gems for everyone.\n3 lives, no bonuses, 30 gems.",
 
-    "You start with 3 lives (max 10).\nWhen they're gone, it's game over.\n\n<color=#FFD86A>Good luck out there!</color>"
+    "You start with 3 lives (max 10).\nWhen they're gone, game over!\n\n<color=#FFD86A>Good luck out there! \u2728</color>"
   };
 
   void EnsureHelpPanel()
@@ -1275,27 +1275,34 @@ public class UIManager : MonoBehaviour
 
     GameObject panel = BuildFullScreenPanel("HelpPanel (auto)", new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
-    // --- Catchy character (procedural cube face, upper-left area) ---
-    float catchySize = 260f;
-    float catchyX = -180f;
-    float catchyY = 220f;
+    // ---------------------------------------------------------------
+    // Layout: Catchy on the left, chat bubble on the right, buttons below
+    // All positioned relative to center anchors for consistent scaling
+    // ---------------------------------------------------------------
 
-    // Catchy body (rounded square)
+    // --- Catchy character (matches in-game crystal catcher) ---
+    float catchySize = 200f;
+    float catchyX = -240f;
+    float catchyTopY = 300f;
+
+    // Catchy body — uses the ACTUAL glass color from CatcherManager
+    Color catcherColor = new Color(0.65f, 0.85f, 1.0f, 1f);
     GameObject catchyBody = new GameObject("CatchyBody", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     catchyBody.transform.SetParent(contentParent, false);
     RectTransform bodyRect = catchyBody.GetComponent<RectTransform>();
-    bodyRect.anchorMin = new Vector2(0.5f, 0.5f);
-    bodyRect.anchorMax = new Vector2(0.5f, 0.5f);
-    bodyRect.pivot = new Vector2(0.5f, 0.5f);
-    bodyRect.anchoredPosition = new Vector2(catchyX, catchyY);
+    bodyRect.anchorMin = new Vector2(0.5f, 1f);
+    bodyRect.anchorMax = new Vector2(0.5f, 1f);
+    bodyRect.pivot = new Vector2(0.5f, 1f);
+    bodyRect.anchoredPosition = new Vector2(catchyX, -120f);
     bodyRect.sizeDelta = new Vector2(catchySize, catchySize);
     Image bodyImg = catchyBody.GetComponent<Image>();
-    bodyImg.color = new Color(0.45f, 0.80f, 0.95f, 1f); // light blue crystal color
+    bodyImg.color = catcherColor;
 
-    // Eyes (two dark squares)
-    float eyeSize = 40f;
-    float eyeSpacing = 55f;
-    float eyeY = 30f;
+    // Happy eyes — squinted (wider than tall = happy!)
+    float eyeW = 44f;
+    float eyeH = 24f;
+    float eyeSpacing = 42f;
+    float eyeY = 35f;
     for (int i = 0; i < 2; i++)
     {
       GameObject eye = new GameObject(i == 0 ? "LeftEye" : "RightEye", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -1304,105 +1311,166 @@ public class UIManager : MonoBehaviour
       eyeRect.anchorMin = new Vector2(0.5f, 0.5f);
       eyeRect.anchorMax = new Vector2(0.5f, 0.5f);
       eyeRect.anchoredPosition = new Vector2((i == 0 ? -1 : 1) * eyeSpacing, eyeY);
-      eyeRect.sizeDelta = new Vector2(eyeSize, eyeSize);
+      eyeRect.sizeDelta = new Vector2(eyeW, eyeH);
       eye.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
     }
 
-    // Smile (wide bar)
-    GameObject smile = new GameObject("Smile", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    smile.transform.SetParent(catchyBody.transform, false);
-    RectTransform smileRect = smile.GetComponent<RectTransform>();
-    smileRect.anchorMin = new Vector2(0.5f, 0.5f);
-    smileRect.anchorMax = new Vector2(0.5f, 0.5f);
-    smileRect.anchoredPosition = new Vector2(0f, -35f);
-    smileRect.sizeDelta = new Vector2(90f, 18f);
-    smile.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
+    // Big happy open-mouth smile — arc made from overlapping shapes
+    // Smile base (wide rounded rectangle)
+    GameObject smileBase = new GameObject("SmileBase", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    smileBase.transform.SetParent(catchyBody.transform, false);
+    RectTransform smileBaseRect = smileBase.GetComponent<RectTransform>();
+    smileBaseRect.anchorMin = new Vector2(0.5f, 0.5f);
+    smileBaseRect.anchorMax = new Vector2(0.5f, 0.5f);
+    smileBaseRect.anchoredPosition = new Vector2(0f, -20f);
+    smileBaseRect.sizeDelta = new Vector2(80f, 40f);
+    smileBase.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
 
-    // --- Chat bubble ---
-    float bubbleX = 100f;
-    float bubbleY = 180f;
-    float bubbleW = 520f;
-    float bubbleH = 400f;
+    // Smile top cover (to make it look like an open mouth / D-shape)
+    // A body-colored rectangle covers the top half of the mouth
+    GameObject smileTop = new GameObject("SmileTop", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    smileTop.transform.SetParent(catchyBody.transform, false);
+    RectTransform smileTopRect = smileTop.GetComponent<RectTransform>();
+    smileTopRect.anchorMin = new Vector2(0.5f, 0.5f);
+    smileTopRect.anchorMax = new Vector2(0.5f, 0.5f);
+    smileTopRect.anchoredPosition = new Vector2(0f, -6f);
+    smileTopRect.sizeDelta = new Vector2(72f, 18f);
+    smileTop.GetComponent<Image>().color = catcherColor;
+
+    // Smile corner upticks (the ends of the smile curve up)
+    for (int i = 0; i < 2; i++)
+    {
+      GameObject corner = new GameObject(i == 0 ? "SmileCornerL" : "SmileCornerR", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      corner.transform.SetParent(catchyBody.transform, false);
+      RectTransform cRect = corner.GetComponent<RectTransform>();
+      cRect.anchorMin = new Vector2(0.5f, 0.5f);
+      cRect.anchorMax = new Vector2(0.5f, 0.5f);
+      cRect.anchoredPosition = new Vector2((i == 0 ? -1 : 1) * 44f, -14f);
+      cRect.sizeDelta = new Vector2(10f, 10f);
+      corner.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
+    }
+
+    // --- Chat bubble (positioned to the right of Catchy, no overlap) ---
+    float bubbleLeft = catchyX + catchySize / 2f + 60f; // 60px gap after Catchy
+    float bubbleW = 480f;
+    float bubbleH = 360f;
+    float bubbleCenterX = bubbleLeft + bubbleW / 2f;
+    float bubbleCenterY = -120f - catchySize / 2f + 20f; // roughly aligned with Catchy center
 
     // Bubble background
     GameObject bubble = new GameObject("ChatBubble", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     bubble.transform.SetParent(contentParent, false);
     RectTransform bubbleRect = bubble.GetComponent<RectTransform>();
-    bubbleRect.anchorMin = new Vector2(0.5f, 0.5f);
-    bubbleRect.anchorMax = new Vector2(0.5f, 0.5f);
-    bubbleRect.pivot = new Vector2(0.5f, 0.5f);
-    bubbleRect.anchoredPosition = new Vector2(bubbleX, bubbleY);
+    bubbleRect.anchorMin = new Vector2(0.5f, 1f);
+    bubbleRect.anchorMax = new Vector2(0.5f, 1f);
+    bubbleRect.pivot = new Vector2(0.5f, 1f);
+    bubbleRect.anchoredPosition = new Vector2(bubbleCenterX, bubbleCenterY + bubbleH / 2f);
     bubbleRect.sizeDelta = new Vector2(bubbleW, bubbleH);
     Image bubbleImg = bubble.GetComponent<Image>();
-    bubbleImg.color = new Color(0.15f, 0.18f, 0.25f, 0.95f);
+    bubbleImg.color = new Color(0.18f, 0.22f, 0.30f, 0.95f);
 
-    // Bubble tail (small triangle-ish square pointing toward Catchy)
+    // Bubble tail — triangle pointing LEFT toward Catchy
+    // Use a rotated diamond shape anchored to the left edge of the bubble
     GameObject tail = new GameObject("BubbleTail", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     tail.transform.SetParent(bubble.transform, false);
     RectTransform tailRect = tail.GetComponent<RectTransform>();
-    tailRect.anchorMin = new Vector2(0f, 0.5f);
-    tailRect.anchorMax = new Vector2(0f, 0.5f);
-    tailRect.pivot = new Vector2(1f, 0.5f);
-    tailRect.anchoredPosition = new Vector2(0f, 20f);
-    tailRect.sizeDelta = new Vector2(30f, 30f);
+    tailRect.anchorMin = new Vector2(0f, 0.6f);
+    tailRect.anchorMax = new Vector2(0f, 0.6f);
+    tailRect.pivot = new Vector2(0.85f, 0.5f);
+    tailRect.anchoredPosition = new Vector2(0f, 0f);
+    tailRect.sizeDelta = new Vector2(40f, 40f);
     tailRect.localEulerAngles = new Vector3(0f, 0f, 45f);
-    tail.GetComponent<Image>().color = new Color(0.15f, 0.18f, 0.25f, 0.95f);
+    tail.GetComponent<Image>().color = new Color(0.18f, 0.22f, 0.30f, 0.95f);
 
-    // Bubble text
+    // Bubble text content
     GameObject textGo = new GameObject("BubbleText", typeof(RectTransform));
     textGo.transform.SetParent(bubble.transform, false);
     RectTransform textRect = textGo.GetComponent<RectTransform>();
     textRect.anchorMin = Vector2.zero;
     textRect.anchorMax = Vector2.one;
-    textRect.offsetMin = new Vector2(30f, 30f);
-    textRect.offsetMax = new Vector2(-30f, -30f);
+    textRect.offsetMin = new Vector2(35f, 35f);
+    textRect.offsetMax = new Vector2(-35f, -35f);
     helpBubbleText = textGo.AddComponent<TextMeshProUGUI>();
-    helpBubbleText.fontSize = 38f;
-    helpBubbleText.alignment = TextAlignmentOptions.Center;
+    helpBubbleText.fontSize = 36f;
+    helpBubbleText.alignment = TextAlignmentOptions.MidlineLeft;
     helpBubbleText.color = Color.white;
     helpBubbleText.enableWordWrapping = true;
+    helpBubbleText.lineSpacing = 8f;
     helpBubbleText.text = helpSlides[0];
 
-    // --- Slide counter ---
+    // --- Slide counter (below bubble) ---
     GameObject counterGo = new GameObject("SlideCounter", typeof(RectTransform));
     counterGo.transform.SetParent(contentParent, false);
     RectTransform counterRect = counterGo.GetComponent<RectTransform>();
-    counterRect.anchorMin = new Vector2(0.5f, 0.5f);
-    counterRect.anchorMax = new Vector2(0.5f, 0.5f);
-    counterRect.anchoredPosition = new Vector2(bubbleX, bubbleY - bubbleH / 2f - 40f);
+    counterRect.anchorMin = new Vector2(0.5f, 1f);
+    counterRect.anchorMax = new Vector2(0.5f, 1f);
+    counterRect.anchoredPosition = new Vector2(bubbleCenterX, bubbleCenterY - bubbleH / 2f - 30f);
     counterRect.sizeDelta = new Vector2(300f, 50f);
     helpSlideCounter = counterGo.AddComponent<TextMeshProUGUI>();
-    helpSlideCounter.fontSize = 32f;
+    helpSlideCounter.fontSize = 30f;
     helpSlideCounter.alignment = TextAlignmentOptions.Center;
-    helpSlideCounter.color = new Color(0.6f, 0.6f, 0.6f);
+    helpSlideCounter.color = new Color(0.5f, 0.5f, 0.55f);
 
-    // --- Navigation buttons ---
-    float navY = -280f;
-    float navSpacing = 200f;
+    // --- Navigation buttons (well-spaced, below everything) ---
+    float navY = -580f;
 
-    // Previous button
-    GameObject prevContainer = new GameObject("PrevBtnContainer", typeof(RectTransform));
-    prevContainer.transform.SetParent(contentParent, false);
-    RectTransform prevCRect = prevContainer.GetComponent<RectTransform>();
-    prevCRect.anchorMin = new Vector2(0.5f, 0.5f);
-    prevCRect.anchorMax = new Vector2(0.5f, 0.5f);
-    prevCRect.anchoredPosition = new Vector2(-navSpacing, navY);
-    prevCRect.sizeDelta = new Vector2(260f, 110f);
-    helpPrevBtn = BuildStackedMenuButton(prevContainer.transform, "PrevBtn", "\u25C0  Back",
-        new Color(0.30f, 0.30f, 0.35f), OnHelpPrev).GetComponent<Button>();
+    // Previous button — left side
+    GameObject prevGo = new GameObject("PrevBtn", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    prevGo.transform.SetParent(contentParent, false);
+    RectTransform prevRect = prevGo.GetComponent<RectTransform>();
+    prevRect.anchorMin = new Vector2(0.5f, 1f);
+    prevRect.anchorMax = new Vector2(0.5f, 1f);
+    prevRect.anchoredPosition = new Vector2(-160f, navY);
+    prevRect.sizeDelta = new Vector2(240f, 100f);
+    Image prevBg = prevGo.GetComponent<Image>();
+    prevBg.color = new Color(0.25f, 0.25f, 0.30f);
+    CrystalButtonStyle.Apply(prevGo, prevBg.color);
 
-    // Next button
-    GameObject nextContainer = new GameObject("NextBtnContainer", typeof(RectTransform));
-    nextContainer.transform.SetParent(contentParent, false);
-    RectTransform nextCRect = nextContainer.GetComponent<RectTransform>();
-    nextCRect.anchorMin = new Vector2(0.5f, 0.5f);
-    nextCRect.anchorMax = new Vector2(0.5f, 0.5f);
-    nextCRect.anchoredPosition = new Vector2(navSpacing, navY);
-    nextCRect.sizeDelta = new Vector2(260f, 110f);
-    helpNextBtn = BuildStackedMenuButton(nextContainer.transform, "NextBtn", "Next  \u25B6",
-        new Color(0.20f, 0.55f, 0.35f), OnHelpNext).GetComponent<Button>();
+    GameObject prevLabel = new GameObject("Label", typeof(RectTransform));
+    prevLabel.transform.SetParent(prevGo.transform, false);
+    RectTransform prevLblRect = prevLabel.GetComponent<RectTransform>();
+    prevLblRect.anchorMin = Vector2.zero; prevLblRect.anchorMax = Vector2.one;
+    prevLblRect.offsetMin = Vector2.zero; prevLblRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI prevTmp = prevLabel.AddComponent<TextMeshProUGUI>();
+    prevTmp.text = "\u25C0  Back";
+    prevTmp.fontSize = 44f;
+    prevTmp.fontStyle = FontStyles.Bold;
+    prevTmp.alignment = TextAlignmentOptions.Center;
+    prevTmp.color = Color.white;
 
-    // Menu button (always accessible)
+    helpPrevBtn = prevGo.GetComponent<Button>();
+    helpPrevBtn.targetGraphic = prevBg;
+    helpPrevBtn.onClick.AddListener(OnHelpPrev);
+
+    // Next button — right side
+    GameObject nextGo = new GameObject("NextBtn", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    nextGo.transform.SetParent(contentParent, false);
+    RectTransform nextRect = nextGo.GetComponent<RectTransform>();
+    nextRect.anchorMin = new Vector2(0.5f, 1f);
+    nextRect.anchorMax = new Vector2(0.5f, 1f);
+    nextRect.anchoredPosition = new Vector2(160f, navY);
+    nextRect.sizeDelta = new Vector2(240f, 100f);
+    Image nextBg = nextGo.GetComponent<Image>();
+    nextBg.color = new Color(0.20f, 0.55f, 0.35f);
+    CrystalButtonStyle.Apply(nextGo, nextBg.color);
+
+    GameObject nextLabel = new GameObject("Label", typeof(RectTransform));
+    nextLabel.transform.SetParent(nextGo.transform, false);
+    RectTransform nextLblRect = nextLabel.GetComponent<RectTransform>();
+    nextLblRect.anchorMin = Vector2.zero; nextLblRect.anchorMax = Vector2.one;
+    nextLblRect.offsetMin = Vector2.zero; nextLblRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI nextTmp = nextLabel.AddComponent<TextMeshProUGUI>();
+    nextTmp.text = "Next  \u25B6";
+    nextTmp.fontSize = 44f;
+    nextTmp.fontStyle = FontStyles.Bold;
+    nextTmp.alignment = TextAlignmentOptions.Center;
+    nextTmp.color = Color.white;
+
+    helpNextBtn = nextGo.GetComponent<Button>();
+    helpNextBtn.targetGraphic = nextBg;
+    helpNextBtn.onClick.AddListener(OnHelpNext);
+
+    // Menu button — centered at bottom, always accessible
     GameObject menuContainer = new GameObject("MenuBtnContainer", typeof(RectTransform));
     menuContainer.transform.SetParent(contentParent, false);
     RectTransform menuCRect = menuContainer.GetComponent<RectTransform>();
@@ -1429,7 +1497,6 @@ public class UIManager : MonoBehaviour
       helpPrevBtn.interactable = helpSlideIndex > 0;
     if (helpNextBtn != null)
     {
-      // Change label to "Done" on last slide
       var label = helpNextBtn.GetComponentInChildren<TextMeshProUGUI>();
       if (label != null)
         label.text = helpSlideIndex < helpSlides.Length - 1 ? "Next  \u25B6" : "Done  \u2713";
@@ -1454,7 +1521,6 @@ public class UIManager : MonoBehaviour
     }
     else
     {
-      // Last slide — return to menu
       OnHelpBackClicked();
     }
   }
