@@ -47,7 +47,9 @@ public class OrbitingEarth : MonoBehaviour
         GameObject earthGo = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         earthGo.name = "EarthSphere";
         earthGo.transform.SetParent(transform, false);
-        Destroy(earthGo.GetComponent<Collider>());
+        // Immediately disable then destroy collider so it can't push Catchy
+        Collider col = earthGo.GetComponent<Collider>();
+        if (col != null) { col.enabled = false; Destroy(col); }
         earthTransform = earthGo.transform;
 
         // Opaque unlit material — the sphere geometry provides the circle
@@ -66,14 +68,14 @@ public class OrbitingEarth : MonoBehaviour
 
         float orthoSize = cam.orthographicSize;
         float screenWidth = orthoSize * 2f * cam.aspect;
-        // Earth diameter: 1.5x screen width for that massive orbital feel
-        float earthSize = screenWidth * 1.5f;
+        // Earth diameter: 2x screen width for massive scale
+        float earthSize = screenWidth * 2f;
 
         earthTransform.localScale = new Vector3(earthSize, earthSize, earthSize);
 
-        // Position below screen — top curve peeks above the bottom edge
+        // Position well below screen and behind everything (high Z = further from camera)
         float bottomY = -orthoSize;
-        earthTransform.localPosition = new Vector3(0f, bottomY - earthSize * 0.3f, 1.5f);
+        earthTransform.localPosition = new Vector3(0f, bottomY - earthSize * 0.35f, 5f);
     }
 
     void Update()
