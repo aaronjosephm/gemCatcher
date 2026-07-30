@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Volcano }
+    public enum LevelId { Cave, Jungle, Space }
 
     [System.Serializable]
     public struct LevelConfig
@@ -74,15 +74,15 @@ public static class LevelManager
         },
         new LevelConfig
         {
-            id = LevelId.Volcano,
-            displayName = "Volcano Run",
-            sceneName = "VolcanoRun",
-            backgroundResource = "Backgrounds/VolcanoBackground",
+            id = LevelId.Space,
+            displayName = "Deep Space",
+            sceneName = "DeepSpace",
+            backgroundResource = "Backgrounds/SpaceBackground",
             midgroundResource = null,
-            musicResource = "Audio/VolcanoMusic",
+            musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = new[] { "Gems/BlueGem" },
             unlockScore = 2000,
-            cameraColor = new Color(0.15f, 0.05f, 0.02f, 1f),
+            cameraColor = new Color(0.01f, 0.02f, 0.06f, 1f),
             initialFallSpeed = 4.5f,
             initialSpawnInterval = 2.0f,
             bombChance = 0.15f,
