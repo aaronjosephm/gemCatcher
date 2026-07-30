@@ -180,6 +180,16 @@ public class UIManager : MonoBehaviour
   {
     levelAtSceneLoad = LevelManager.SelectedLevel;
 
+    // If the app started/restarted and the loaded scene doesn't match the
+    // player's last selected level, redirect to the correct scene immediately.
+    string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+    string expectedScene = LevelManager.CurrentConfig.sceneName;
+    if (currentScene != expectedScene)
+    {
+      UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
+      return;
+    }
+
     // Initialize UI
     if (gameOverPanel != null)
     {
@@ -253,6 +263,12 @@ public class UIManager : MonoBehaviour
     {
       GameState.SkipMainMenuOnLoad = false;
       ShowGameplay();
+    }
+    else if (s_returnToLevelSelect)
+    {
+      s_returnToLevelSelect = false;
+      ShowMainMenu();
+      OnLevelsClicked();
     }
     else
     {
@@ -1228,6 +1244,7 @@ public class UIManager : MonoBehaviour
     return null;
   }
 
+  // Builds the help sub-panel: Catchy slideshow with chat bubbles + Menu button.
   // Builds the help sub-panel: title + instructions text + Back button.
   void EnsureHelpPanel()
   {
@@ -1622,7 +1639,7 @@ public class UIManager : MonoBehaviour
     // scene so background/music/difficulty all update.
     if (LevelManager.SelectedLevel != levelAtSceneLoad)
     {
-      SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+      SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
       return;
     }
     ShowGameplay();
@@ -1634,9 +1651,6 @@ public class UIManager : MonoBehaviour
     FadePanel(helpPanel, true);
     if (helpPanel != null)
     {
-      // Force layout pass now so the ContentSizeFitter inside our scroll view sizes
-      // the content to the wrapped TMP text on the same frame the panel becomes
-      // visible (otherwise the very first frame can show empty / mis-sized content).
       RectTransform rt = helpPanel.transform as RectTransform;
       if (rt != null) LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
     }
@@ -1784,7 +1798,9 @@ public class UIManager : MonoBehaviour
     diffTmp.fontSize = 28f;
     diffTmp.alignment = TextAlignmentOptions.Center;
     diffTmp.color = new Color(1f, 0.85f, 0.35f);
-    diffTmp.text = config.id == LevelManager.LevelId.Cave ? "★" : "★★";
+    diffTmp.text = config.id == LevelManager.LevelId.Cave ? "Easy"
+                 : config.id == LevelManager.LevelId.Jungle ? "Hard"
+                 : "Expert";
 
     // Button interaction
     if (unlocked && !selected)
@@ -1795,12 +1811,37 @@ public class UIManager : MonoBehaviour
     }
   }
 
+  // When true, show level select panel instead of main menu after scene reload.
+  private static bool s_returnToLevelSelect;
+
   void SelectLevel(LevelManager.LevelId id)
   {
     LevelManager.SelectedLevel = id;
-    // Reload the scene immediately so the new level's background, music,
-    // and environment take effect right away.
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    s_returnToLevelSelect = true;
+    StartCoroutine(FadeAndLoadScene(LevelManager.CurrentConfig.sceneName));
+  }
+
+  System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
+  {
+    // Create a full-screen black overlay to hide the scene transition flash
+    var fadeGo = new GameObject("SceneFade");
+    var fadeCanvas = fadeGo.AddComponent<Canvas>();
+    fadeCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+    fadeCanvas.sortingOrder = 9999;
+    var img = fadeGo.AddComponent<UnityEngine.UI.Image>();
+    img.color = new Color(0f, 0f, 0f, 0f);
+    img.raycastTarget = false;
+
+    // Fade to black over 0.2s
+    float t = 0f;
+    while (t < 0.2f)
+    {
+      t += Time.unscaledDeltaTime;
+      img.color = new Color(0f, 0f, 0f, Mathf.Clamp01(t / 0.2f));
+      yield return null;
+    }
+
+    SceneManager.LoadScene(sceneName);
   }
 
   // ---------------------------------------------------------------------------
@@ -1859,7 +1900,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.Mode = GameState.GameMode.Daily;
     GameState.SkipMainMenuOnLoad = true;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Show the "come back tomorrow" panel (built lazily on first show).
@@ -2027,7 +2068,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;
     GameState.Mode = GameState.GameMode.Normal;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Spawn a "+20" / "-N" numeric pop-up at the given world position, on the HUD canvas.
@@ -2263,6 +2304,18 @@ public class UIManager : MonoBehaviour
       }
     }
 
+    // Also include level-specific extra gem prefabs loaded from Resources
+    var levelCfg = LevelManager.CurrentConfig;
+    if (levelCfg.extraGemPrefabs != null)
+    {
+      foreach (string path in levelCfg.extraGemPrefabs)
+      {
+        GameObject extraPrefab = Resources.Load<GameObject>(path);
+        if (extraPrefab != null && !prefabsByName.ContainsKey(extraPrefab.name))
+          prefabsByName[extraPrefab.name] = extraPrefab;
+      }
+    }
+
     Dictionary<string, int> catches = GemCatcher.CatchesByGemName;
     if (catches == null || catches.Count == 0)
     {
@@ -2391,7 +2444,7 @@ public class UIManager : MonoBehaviour
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.
     GameState.SkipMainMenuOnLoad = true;
-    SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Called by ObjectPooler when a new placement phase starts

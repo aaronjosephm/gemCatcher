@@ -9,13 +9,14 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle }
+    public enum LevelId { Cave, Jungle, Space }
 
     [System.Serializable]
     public struct LevelConfig
     {
         public LevelId id;
         public string displayName;
+        public string sceneName;             // Scene to load for this level
         public string backgroundResource;   // Resources/ path to background texture
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
         public string musicResource;         // Resources/ path to background music
@@ -30,6 +31,7 @@ public static class LevelManager
         public float goldenChance;
         public float dailyMaxFallSpeed;
         public float dailyMinSpawnInterval;
+        public float catcherYOffset;         // Extra downward offset for catcher position (0 = default)
     }
 
     private static readonly LevelConfig[] levels = new[]
@@ -38,6 +40,7 @@ public static class LevelManager
         {
             id = LevelId.Cave,
             displayName = "Crystal Cave",
+            sceneName = "SampleScene",
             backgroundResource = "Backgrounds/CaveBackground",
             midgroundResource = "Backgrounds/MidgroundCave",
             musicResource = "Audio/BackgroundMusic",
@@ -55,6 +58,7 @@ public static class LevelManager
         {
             id = LevelId.Jungle,
             displayName = "Jungle Falls",
+            sceneName = "JungleFalls",
             backgroundResource = "Backgrounds/WaterfallBackground",
             midgroundResource = null,
             musicResource = "Audio/JungleMusic",
@@ -67,6 +71,25 @@ public static class LevelManager
             goldenChance = 0.06f,
             dailyMaxFallSpeed = 7.0f,
             dailyMinSpawnInterval = 1.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Space,
+            displayName = "Deep Space",
+            sceneName = "DeepSpace",
+            backgroundResource = "Backgrounds/SpaceBackground",
+            midgroundResource = null,
+            musicResource = "Audio/SpaceMusic",
+            extraGemPrefabs = new[] { "Gems/BlueGem" },
+            unlockScore = 2000,
+            cameraColor = new Color(0.01f, 0.02f, 0.06f, 1f),
+            initialFallSpeed = 4.5f,
+            initialSpawnInterval = 2.0f,
+            bombChance = 0.15f,
+            goldenChance = 0.07f,
+            dailyMaxFallSpeed = 8.0f,
+            dailyMinSpawnInterval = 1.2f,
+            catcherYOffset = 0f,
         },
     };
 
@@ -99,8 +122,13 @@ public static class LevelManager
 
     public static LevelConfig CurrentConfig => GetConfig(SelectedLevel);
 
+    // TODO: Re-enable unlock requirements for release
+    // Set to false to require score thresholds for level unlocks
+    private const bool AllLevelsUnlocked = true;
+
     public static bool IsUnlocked(LevelId id)
     {
+        if (AllLevelsUnlocked) return true;
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
         int best = PlayerPrefs.GetInt("HighScore", 0);

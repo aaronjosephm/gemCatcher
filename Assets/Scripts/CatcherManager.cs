@@ -243,7 +243,7 @@ public class CatcherManager : MonoBehaviour
     // body stays inside the safe play area.
     void MoveCatcherToX(float worldX, bool playFeedback)
     {
-        float catcherY = ScreenPadding.WorldBottom + slotHeight / 2.0f;
+        float catcherY = ScreenPadding.WorldBottom + slotHeight / 2.0f + LevelManager.CurrentConfig.catcherYOffset;
         float halfExtent = GetCatcherHalfWidth();
         float minX = ScreenPadding.WorldLeft + halfExtent;
         float maxX = ScreenPadding.WorldRight - halfExtent;
@@ -544,6 +544,11 @@ public class CatcherManager : MonoBehaviour
             if (catcherInstance.GetComponent<CatchZone>() == null)
             {
                 catcherInstance.AddComponent<CatchZone>();
+            }
+            // Attach Catchy's face to the front of the cube.
+            if (catcherInstance.GetComponent<CatchyFace>() == null)
+            {
+                catcherInstance.AddComponent<CatchyFace>();
             }
             catcherBaseScale = catcherInstance.transform.localScale;
             feedbackScale = Vector3.one;
