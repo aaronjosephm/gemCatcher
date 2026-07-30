@@ -1298,11 +1298,10 @@ public class UIManager : MonoBehaviour
     Image bodyImg = catchyBody.GetComponent<Image>();
     bodyImg.color = catcherColor;
 
-    // Happy eyes — squinted (wider than tall = happy!)
-    float eyeW = 44f;
-    float eyeH = 24f;
-    float eyeSpacing = 42f;
-    float eyeY = 35f;
+    // Eyes — round-ish squares, friendly and open
+    float eyeSize = 32f;
+    float eyeSpacing = 40f;
+    float eyeY = 25f;
     for (int i = 0; i < 2; i++)
     {
       GameObject eye = new GameObject(i == 0 ? "LeftEye" : "RightEye", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -1311,43 +1310,52 @@ public class UIManager : MonoBehaviour
       eyeRect.anchorMin = new Vector2(0.5f, 0.5f);
       eyeRect.anchorMax = new Vector2(0.5f, 0.5f);
       eyeRect.anchoredPosition = new Vector2((i == 0 ? -1 : 1) * eyeSpacing, eyeY);
-      eyeRect.sizeDelta = new Vector2(eyeW, eyeH);
+      eyeRect.sizeDelta = new Vector2(eyeSize, eyeSize);
       eye.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
+
+      // Eye shine (white dot in upper-right of each eye)
+      GameObject shine = new GameObject("Shine", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      shine.transform.SetParent(eye.transform, false);
+      RectTransform shineRect = shine.GetComponent<RectTransform>();
+      shineRect.anchorMin = new Vector2(0.5f, 0.5f);
+      shineRect.anchorMax = new Vector2(0.5f, 0.5f);
+      shineRect.anchoredPosition = new Vector2(5f, 5f);
+      shineRect.sizeDelta = new Vector2(10f, 10f);
+      shine.GetComponent<Image>().color = Color.white;
     }
 
-    // Big happy open-mouth smile — arc made from overlapping shapes
-    // Smile base (wide rounded rectangle)
-    GameObject smileBase = new GameObject("SmileBase", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    smileBase.transform.SetParent(catchyBody.transform, false);
-    RectTransform smileBaseRect = smileBase.GetComponent<RectTransform>();
-    smileBaseRect.anchorMin = new Vector2(0.5f, 0.5f);
-    smileBaseRect.anchorMax = new Vector2(0.5f, 0.5f);
-    smileBaseRect.anchoredPosition = new Vector2(0f, -20f);
-    smileBaseRect.sizeDelta = new Vector2(80f, 40f);
-    smileBase.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
+    // Smile — curved shape using: bottom arc (tall oval) with body-color cover on top half
+    // This creates a "U" / open smile shape
+    GameObject smileOuter = new GameObject("SmileOuter", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    smileOuter.transform.SetParent(catchyBody.transform, false);
+    RectTransform smileOuterRect = smileOuter.GetComponent<RectTransform>();
+    smileOuterRect.anchorMin = new Vector2(0.5f, 0.5f);
+    smileOuterRect.anchorMax = new Vector2(0.5f, 0.5f);
+    smileOuterRect.anchoredPosition = new Vector2(0f, -30f);
+    smileOuterRect.sizeDelta = new Vector2(60f, 36f);
+    smileOuter.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
 
-    // Smile top cover (to make it look like an open mouth / D-shape)
-    // A body-colored rectangle covers the top half of the mouth
-    GameObject smileTop = new GameObject("SmileTop", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    smileTop.transform.SetParent(catchyBody.transform, false);
-    RectTransform smileTopRect = smileTop.GetComponent<RectTransform>();
-    smileTopRect.anchorMin = new Vector2(0.5f, 0.5f);
-    smileTopRect.anchorMax = new Vector2(0.5f, 0.5f);
-    smileTopRect.anchoredPosition = new Vector2(0f, -6f);
-    smileTopRect.sizeDelta = new Vector2(72f, 18f);
-    smileTop.GetComponent<Image>().color = new Color(0.65f, 0.85f, 1.0f, 0.55f);
+    // Cover the top portion to make it look like an upward curve (smile)
+    GameObject smileCover = new GameObject("SmileCover", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    smileCover.transform.SetParent(smileOuter.transform, false);
+    RectTransform smileCoverRect = smileCover.GetComponent<RectTransform>();
+    smileCoverRect.anchorMin = new Vector2(0f, 0.5f);
+    smileCoverRect.anchorMax = new Vector2(1f, 1f);
+    smileCoverRect.offsetMin = new Vector2(-2f, 0f);
+    smileCoverRect.offsetMax = new Vector2(2f, 2f);
+    smileCover.GetComponent<Image>().color = catcherColor;
 
-    // Smile corner upticks (the ends of the smile curve up)
+    // Rosy cheeks for cuteness
     for (int i = 0; i < 2; i++)
     {
-      GameObject corner = new GameObject(i == 0 ? "SmileCornerL" : "SmileCornerR", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      corner.transform.SetParent(catchyBody.transform, false);
-      RectTransform cRect = corner.GetComponent<RectTransform>();
-      cRect.anchorMin = new Vector2(0.5f, 0.5f);
-      cRect.anchorMax = new Vector2(0.5f, 0.5f);
-      cRect.anchoredPosition = new Vector2((i == 0 ? -1 : 1) * 44f, -14f);
-      cRect.sizeDelta = new Vector2(10f, 10f);
-      corner.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.15f);
+      GameObject cheek = new GameObject(i == 0 ? "CheekL" : "CheekR", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      cheek.transform.SetParent(catchyBody.transform, false);
+      RectTransform cheekRect = cheek.GetComponent<RectTransform>();
+      cheekRect.anchorMin = new Vector2(0.5f, 0.5f);
+      cheekRect.anchorMax = new Vector2(0.5f, 0.5f);
+      cheekRect.anchoredPosition = new Vector2((i == 0 ? -1 : 1) * 62f, -8f);
+      cheekRect.sizeDelta = new Vector2(22f, 14f);
+      cheek.GetComponent<Image>().color = new Color(1f, 0.6f, 0.7f, 0.5f);
     }
 
     // --- Chat bubble (centered below Catchy) ---
