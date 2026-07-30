@@ -58,6 +58,7 @@ public class OrbitingEarth : MonoBehaviour
         earthMat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
         earthMat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
         earthMat.SetFloat("_ZWrite", 0f);
+        earthMat.SetFloat("_Cull", 0f); // Double-sided (no backface culling)
         earthMat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         earthMat.renderQueue = 2999;
         earthGo.GetComponent<Renderer>().material = earthMat;
@@ -85,8 +86,8 @@ public class OrbitingEarth : MonoBehaviour
 
     void Update()
     {
-        // Rotate the earth around its Z axis (facing camera) for a slow spin
-        transform.Rotate(0f, 0f, -2f * Time.deltaTime); // ~2 degrees/sec
+        // Rotate around Y axis so it looks like the globe is spinning
+        transform.GetChild(0).Rotate(0f, 5f * Time.deltaTime, 0f, Space.Self);
     }
 
     void OnDestroy()
