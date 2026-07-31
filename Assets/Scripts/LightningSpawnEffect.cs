@@ -23,7 +23,7 @@ public class LightningSpawnEffect : MonoBehaviour
     private Vector3[] basePoints;
 
     // Layer configs: width multiplier, color, z-offset
-    private static readonly float[] layerWidths = { 0.35f, 0.18f, 0.08f, 0.04f };
+    private static readonly float[] layerWidths = { 3.5f, 1.8f, 0.8f, 0.4f };
     private static readonly Color[] layerColors =
     {
         new Color(0.3f, 0.4f, 1f, 0.25f),   // outer glow (wide, faint blue)
