@@ -32,6 +32,7 @@ public static class LevelManager
         public float dailyMaxFallSpeed;
         public float dailyMinSpawnInterval;
         public float catcherYOffset;         // Extra downward offset for catcher position (0 = default)
+        public float placementDuration;      // Seconds the gem blinks before going solid (0 = use default 3s)
     }
 
     private static readonly LevelConfig[] levels = new[]
@@ -53,6 +54,7 @@ public static class LevelManager
             goldenChance = 0.05f,
             dailyMaxFallSpeed = 5.5f,
             dailyMinSpawnInterval = 2.0f,
+            placementDuration = 4.0f,
         },
         new LevelConfig
         {
@@ -71,6 +73,7 @@ public static class LevelManager
             goldenChance = 0.06f,
             dailyMaxFallSpeed = 7.0f,
             dailyMinSpawnInterval = 1.5f,
+            placementDuration = 3.5f,
         },
         new LevelConfig
         {
@@ -90,6 +93,7 @@ public static class LevelManager
             dailyMaxFallSpeed = 8.0f,
             dailyMinSpawnInterval = 1.2f,
             catcherYOffset = 0f,
+            placementDuration = 3.0f,
         },
     };
 

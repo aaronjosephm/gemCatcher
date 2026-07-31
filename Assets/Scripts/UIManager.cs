@@ -182,12 +182,36 @@ public class UIManager : MonoBehaviour
 
     // If the app started/restarted and the loaded scene doesn't match the
     // player's last selected level, redirect to the correct scene immediately.
+    // Skip this check for the Tutorial scene (it's a special standalone scene).
     string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-    string expectedScene = LevelManager.CurrentConfig.sceneName;
-    if (currentScene != expectedScene)
+    if (currentScene == "Tutorial")
     {
-      UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
-      return;
+      // Bootstrap tutorial: set white background, spawn TutorialManager, hide menu
+      GameState.IsTutorial = true;
+      Camera.main.backgroundColor = Color.white;
+      Camera.main.clearFlags = CameraClearFlags.SolidColor;
+      // Hide the background plane if present
+      GameObject bgPlane = GameObject.Find("BackgroundPlane");
+      if (bgPlane != null) bgPlane.SetActive(false);
+      GameObject midPlane = GameObject.Find("MidgroundPlane");
+      if (midPlane != null) midPlane.SetActive(false);
+      // Disable CaveBackgroundFit so it doesn't overwrite the white camera bg
+      CaveBackgroundFit cbf = FindObjectOfType<CaveBackgroundFit>();
+      if (cbf != null) cbf.enabled = false;
+      // Create TutorialManager
+      if (TutorialManager.Instance == null)
+      {
+        new GameObject("TutorialManager").AddComponent<TutorialManager>();
+      }
+    }
+    else
+    {
+      string expectedScene = LevelManager.CurrentConfig.sceneName;
+      if (currentScene != expectedScene)
+      {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
+        return;
+      }
     }
 
     // Initialize UI
@@ -872,6 +896,7 @@ public class UIManager : MonoBehaviour
 
   void HandleGameOverEvent()
   {
+    if (GameState.IsTutorial) return; // Can't die in tutorial
     GameOver();
   }
 
@@ -1147,7 +1172,7 @@ public class UIManager : MonoBehaviour
         new Color(0.85f, 0.55f, 0.15f), OnDailyChallengeClicked);
     dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
     dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
-    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
+    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Tutorial",     new Color(0.45f, 0.30f, 0.65f), OnTutorialClicked);
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
@@ -1267,7 +1292,7 @@ public class UIManager : MonoBehaviour
         "<b><color=#6FD9FF><size=54>CONTROLS</size></color></b>\n" +
         "<size=44><b>Tap</b> a slot to place your catcher.\n" +
         "<b>Drag</b> left or right to slide it.\n" +
-        "Reposition freely during the countdown.</size>\n\n\n" +
+        "Reposition freely while the gem is blinking.</size>\n\n\n" +
 
         "<b><color=#7FE787><size=54>SCORING</size></color></b>\n" +
         "<size=44>Catch a gem = <color=#7FE787>+20 pts</color>\n" +
@@ -1645,15 +1670,11 @@ public class UIManager : MonoBehaviour
     ShowGameplay();
   }
 
-  void OnHelpClicked()
+  void OnTutorialClicked()
   {
-    FadePanel(mainMenuPanel, false);
-    FadePanel(helpPanel, true);
-    if (helpPanel != null)
-    {
-      RectTransform rt = helpPanel.transform as RectTransform;
-      if (rt != null) LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
-    }
+    GameState.IsTutorial = true;
+    GameState.SkipMainMenuOnLoad = true;
+    SceneManager.LoadScene("Tutorial");
   }
 
   void OnHelpBackClicked()
@@ -2450,29 +2471,14 @@ public class UIManager : MonoBehaviour
   // Called by ObjectPooler when a new placement phase starts
   public void OnPlacementPhaseStarted(float duration)
   {
-    if (gemSpeedupTimerText == null) return;
-
-    // Reset any ongoing fade
-    isFadingOut = false;
-    fadeTimer = 0f;
-
-    // Reset color to full opacity
-    Color resetColor = originalTextColor;
-    resetColor.a = 1f;
-    gemSpeedupTimerText.color = resetColor;
-
-    // Show the timer and set initial value
-    gemSpeedupTimerText.gameObject.SetActive(true);
-    UpdateCountdownDisplay(duration);
+    // Countdown text removed — gem blinking replaces the visual cue.
+    // Keep the event subscription so other systems (catcher spin) still work.
   }
 
   // Called by ObjectPooler when the placement timer is updated
   public void OnPlacementTimerUpdated(float remainingTime)
   {
-    if (gemSpeedupTimerText != null && gemSpeedupTimerText.gameObject.activeInHierarchy && !isFadingOut)
-    {
-      UpdateCountdownDisplay(remainingTime);
-    }
+    // No-op — countdown text removed in favour of gem blinking.
   }
 
   // Update the countdown display with the current time
@@ -2492,12 +2498,7 @@ public class UIManager : MonoBehaviour
   // Called by ObjectPooler when the placement phase ends
   public void OnPlacementPhaseEnded()
   {
-    // Start the fade out animation
-    if (gemSpeedupTimerText != null && gemSpeedupTimerText.gameObject.activeInHierarchy)
-    {
-      isFadingOut = true;
-      fadeTimer = 0f;
-    }
+    // No-op — countdown text removed. Gem blinking handles the visual cue.
   }
 
   // ---------------------------------------------------------------------------

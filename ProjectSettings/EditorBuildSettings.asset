@@ -14,4 +14,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/DeepSpace.unity
     guid: 9a1b355edeb148a4861ec763e232448e
+  - enabled: 1
+    path: Assets/Scenes/Tutorial.unity
+    guid: 1ae4e766508c4924999b2999ea3199b4
   m_configObjects: {}

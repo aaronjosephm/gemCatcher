@@ -171,6 +171,9 @@ public class RoundManager : MonoBehaviour
 
     private void ChangeLives(int delta)
     {
+        // In tutorial mode, never let lives reach zero
+        if (GameState.IsTutorial && delta < 0) return;
+
         int previousLives = Lives;
         Lives = Mathf.Clamp(Lives + delta, 0, MAX_LIVES);
         OnLivesChanged?.Invoke(Lives);

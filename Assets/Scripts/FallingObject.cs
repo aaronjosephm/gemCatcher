@@ -152,6 +152,11 @@ public class FallingObject : MonoBehaviour
         InitializeComponents();
         ClearPowerUp();
 
+        // Ensure all renderers are visible (gem may have been recycled mid-blink)
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = true;
+
         // Refresh glow halo — hide for bombs, tint for normal gems.
         UpdateGlow();
     }

@@ -241,7 +241,7 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver;
+        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver && !GameState.IsTutorial;
         bgm.source.volume = bgm.volume * MusicVolume;
 
         if (wantMusic)
@@ -278,7 +278,7 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        bool wantMenu = !GameState.IsPlaying && !GemCatcher.IsGameOver;
+        bool wantMenu = (!GameState.IsPlaying && !GemCatcher.IsGameOver) || GameState.IsTutorial;
         menu.source.volume = menu.volume * MusicVolume;
 
         if (wantMenu)
