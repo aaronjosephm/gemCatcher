@@ -49,7 +49,17 @@ public class LightningSpawnEffect : MonoBehaviour
             targetPosition.y - BoltLength,
             targetPosition.z
         );
+
+        // Play zap sound
+        if (zapClip == null)
+            zapClip = Resources.Load<AudioClip>("Audio/LightningZap");
+        if (zapClip != null)
+        {
+            AudioSource.PlayClipAtPoint(zapClip, targetPosition, 0.4f);
+        }
     }
+
+    private static AudioClip zapClip;
 
     void Awake()
     {

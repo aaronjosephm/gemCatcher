@@ -578,6 +578,7 @@ public class ObjectPooler : MonoBehaviour
 
             obj.SetActive(true);
             activeObstacles.Add(obj);
+            LightningSpawnEffect.Strike(obj.transform.position);
         }
     }
 
@@ -689,6 +690,7 @@ public class ObjectPooler : MonoBehaviour
 
         pickup.SetActive(true);
         activePickups.Add(pickup);
+        LightningSpawnEffect.Strike(pickup.transform.position);
         // Track the active "gem" pointer so the cycle's catcher-placement /
         // early-termination logic still has something to watch — without
         // this, the placement phase can't tell when the power-up has been
