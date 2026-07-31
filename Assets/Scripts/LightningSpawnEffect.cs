@@ -55,7 +55,7 @@ public class LightningSpawnEffect : MonoBehaviour
             zapClip = Resources.Load<AudioClip>("Audio/LightningZap");
         if (zapClip != null)
         {
-            AudioSource.PlayClipAtPoint(zapClip, targetPosition, 0.4f);
+            AudioSource.PlayClipAtPoint(zapClip, targetPosition, 0.8f);
         }
     }
 
