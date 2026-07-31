@@ -550,6 +550,9 @@ public class ObjectPooler : MonoBehaviour
 
             obj.SetActive(true);
             currentActiveGem = obj;
+
+            // Lightning bolt effect at spawn point
+            LightningSpawnEffect.Strike(obj.transform.position);
         }
     }
 
