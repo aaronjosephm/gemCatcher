@@ -1165,13 +1165,6 @@ public class UIManager : MonoBehaviour
     vlg.childForceExpandHeight = false;
 
     BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
-    // Daily Challenge — second button. The label is rebuilt every time the
-    // menu is shown (NEW / STREAK X / etc.), see RefreshDailyChallengeButton.
-    dailyChallengeMenuButton = BuildStackedMenuButton(
-        stackGo.transform, "DailyChallengeButton", "Daily Challenge",
-        new Color(0.85f, 0.55f, 0.15f), OnDailyChallengeClicked);
-    dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
-    dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
     BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Tutorial",     new Color(0.45f, 0.30f, 0.65f), OnTutorialClicked);
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
@@ -1606,10 +1599,6 @@ public class UIManager : MonoBehaviour
     FadePanel(dailyCooldownPanel, false);
     FadePanel(settingsPanel, false);
     FadePanel(levelSelectPanel, false);
-    // Refresh the daily button label/color in case the streak / lockout state
-    // changed since last menu visit (e.g. UTC midnight rolled over while the
-    // app was foregrounded).
-    RefreshDailyChallengeButton();
     // Refresh best score display in case it changed after a game.
     if (bestScoreMenuTmp != null)
     {
@@ -1637,15 +1626,6 @@ public class UIManager : MonoBehaviour
     SetGameplayHudVisible(true);
     GameState.IsPlaying = true;
     gameIsOver = false;
-
-    // In Daily mode show a brief "DAILY · DAY N" banner so the player knows
-    // they're in the special run. Reuses the existing banner system.
-    if (GameState.Mode == GameState.GameMode.Daily)
-    {
-      SpawnBannerNotification(
-          "DAILY \u2022 DAY " + DailyChallenge.DayNumber,
-          new Color(1f, 0.85f, 0.35f));
-    }
   }
 
   // Toggles the score/lives HUD so they don't bleed through the menu panels.
@@ -2245,42 +2225,20 @@ public class UIManager : MonoBehaviour
 
   void ShowGameOverPanel()
   {
-    bool isDaily = GameState.Mode == GameState.GameMode.Daily;
     int finalScore = GemCatcher.Score;
 
-    if (isDaily)
-    {
-      // Daily runs commit their result here. RecordCompletion advances the
-      // streak (or resets it) and persists the score for the cooldown panel.
-      DailyChallenge.RecordCompletion(finalScore);
-    }
-
-    // Title swap + daily subtitle. The subtitle GameObject lives in the same
-    // panel and is just toggled on/off based on mode.
     if (gameOverTitleTmp != null)
     {
-      gameOverTitleTmp.text = isDaily ? "Daily Done!" : "Game Over";
+      gameOverTitleTmp.text = "Game Over";
     }
     if (gameOverDailySubtitleTmp != null)
     {
-      if (isDaily)
-      {
-        int streak = DailyChallenge.CurrentStreak;
-        gameOverDailySubtitleTmp.text = string.Format(
-            "Day {0}  \u2022  Streak {1}", DailyChallenge.DayNumber, streak);
-        gameOverDailySubtitleTmp.gameObject.SetActive(true);
-      }
-      else
-      {
-        gameOverDailySubtitleTmp.gameObject.SetActive(false);
-      }
+      gameOverDailySubtitleTmp.gameObject.SetActive(false);
     }
 
-    // Hide "Try Again" in daily mode — one attempt per day is the whole point
-    // of the mode. Main Menu remains as the only path off the screen.
     if (restartButton != null)
     {
-      restartButton.gameObject.SetActive(!isDaily);
+      restartButton.gameObject.SetActive(true);
     }
 
     // Populate the breakdown BEFORE fading in so layout is settled when the panel appears.
