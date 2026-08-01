@@ -195,6 +195,19 @@ public class UIManager : MonoBehaviour
       if (bgPlane != null) bgPlane.SetActive(false);
       GameObject midPlane = GameObject.Find("MidgroundPlane");
       if (midPlane != null) midPlane.SetActive(false);
+      // Hide the main Plane (cave background) so it doesn't show behind white
+      GameObject mainPlane = GameObject.Find("Plane");
+      if (mainPlane != null) mainPlane.SetActive(false);
+      // Hide decorative rocks and gems from the SampleScene copy
+      foreach (string objName in new[] {
+          "Rock2", "Rock5A",
+          "Magic_Gem_9", "Magic_Gem_9 (1)",
+          "Magic_Gem_13", "Magic_Gem_13 (1)", "Magic_Gem_13 (2)",
+          "Magic_Gem_14", "Magic_Gem_14 (1)" })
+      {
+        GameObject obj = GameObject.Find(objName);
+        if (obj != null) obj.SetActive(false);
+      }
       // Disable CaveBackgroundFit so it doesn't overwrite the white camera bg
       CaveBackgroundFit cbf = FindObjectOfType<CaveBackgroundFit>();
       if (cbf != null) cbf.enabled = false;
@@ -1594,6 +1607,13 @@ public class UIManager : MonoBehaviour
   {
     GameState.IsPlaying = false;
     SetGameplayHudVisible(false);
+    // Ensure the old countdown label is hidden (could linger from tutorial/scene transition)
+    if (gemSpeedupTimerText != null)
+    {
+      gemSpeedupTimerText.text = "";
+      gemSpeedupTimerText.gameObject.SetActive(false);
+      isFadingOut = false;
+    }
     FadePanel(gameOverPanel, false);
     FadePanel(helpPanel, false);
     FadePanel(dailyCooldownPanel, false);
@@ -2439,19 +2459,8 @@ public class UIManager : MonoBehaviour
     // No-op — countdown text removed in favour of gem blinking.
   }
 
-  // Update the countdown display with the current time
-  void UpdateCountdownDisplay(float remainingTime)
-  {
-    // Round to the nearest integer for a cleaner countdown
-    int countdownValue = Mathf.CeilToInt(remainingTime);
-
-    // Display the countdown number in large text
-    gemSpeedupTimerText.text = countdownValue.ToString();
-
-    // Scale the text based on the remaining time within each second
-    float pulseScale = 1.0f + 0.2f * (1.0f - (remainingTime - Mathf.Floor(remainingTime)));
-    gemSpeedupTimerText.transform.localScale = new Vector3(pulseScale, pulseScale, 1.0f);
-  }
+  // Update the countdown display — no-op, gem blinking replaces visual cue.
+  void UpdateCountdownDisplay(float remainingTime) { }
 
   // Called by ObjectPooler when the placement phase ends
   public void OnPlacementPhaseEnded()

@@ -35,6 +35,9 @@ public class CaveBackgroundFit : MonoBehaviour
 
   static void ApplyToPlane()
   {
+    // Skip during tutorial — UIManager handles the white background.
+    if (GameState.IsTutorial) return;
+
     GameObject plane = GameObject.Find("Plane");
     if (plane == null) return;
     if (plane.GetComponent<CaveBackgroundFit>() == null)

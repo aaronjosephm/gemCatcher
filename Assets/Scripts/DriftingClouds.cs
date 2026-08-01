@@ -64,10 +64,14 @@ public class DriftingClouds : MonoBehaviour
     {
         // Destroy any existing instance.
         var existing = Object.FindAnyObjectByType<DriftingClouds>();
-        if (existing != null) Destroy(existing.gameObject);
+        if (existing != null)
+        {
+            existing.gameObject.SetActive(false); // Hide immediately (Destroy is deferred)
+            Destroy(existing.gameObject);
+        }
 
-        // Only show clouds on Jungle level.
-        if (LevelManager.SelectedLevel != LevelManager.LevelId.Jungle) return;
+        // Only show clouds on Jungle level (and not during tutorial).
+        if (GameState.IsTutorial || LevelManager.SelectedLevel != LevelManager.LevelId.Jungle) return;
 
         GameObject go = new GameObject("DriftingClouds");
         DontDestroyOnLoad(go);

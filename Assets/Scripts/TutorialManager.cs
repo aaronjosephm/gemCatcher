@@ -254,15 +254,6 @@ public class TutorialManager : MonoBehaviour
                     "Once it goes solid - it's falling fast! Let's try one more.");
                 break;
 
-            case TutorialPhase.ExplainBlinking:
-                ShowPopup(
-                    "See how the gem <b>blinks</b> when it first appears? That's your window " +
-                    "to position me!\n\n" +
-                    "The blinking starts <b>slow</b> and gets <b>faster</b> until the gem goes solid. " +
-                    "Once solid, it speeds up and you can't move me anymore.\n\n" +
-                    "Let's practice once more!");
-                break;
-
             case TutorialPhase.DemoSecondGem:
                 HidePopup();
                 GameState.IsPlaying = true;
@@ -349,7 +340,7 @@ public class TutorialManager : MonoBehaviour
                     "- Build combos\n" +
                     "- Don't run out of lives!\n\n" +
                     "Now get out there and find that <color=#FFD86A>Master Gem!</color>\n\n" +
-                    "Good luck, gem hunter!",
+                    "Good luck, gem catcher!",
                     "Back to Menu");
                 break;
         }
@@ -363,9 +354,6 @@ public class TutorialManager : MonoBehaviour
                 ShowPhase(TutorialPhase.DemoFirstGem);
                 break;
             case TutorialPhase.AfterFirstCatch:
-                ShowPhase(TutorialPhase.ExplainBlinking);
-                break;
-            case TutorialPhase.ExplainBlinking:
                 ShowPhase(TutorialPhase.DemoSecondGem);
                 break;
             case TutorialPhase.ExplainGoldenGem:
