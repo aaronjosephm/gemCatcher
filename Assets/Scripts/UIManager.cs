@@ -1792,7 +1792,9 @@ public class UIManager : MonoBehaviour
 
     if (!unlocked)
     {
-      statusTmp.text = $"Score {config.unlockScore} to unlock";
+      int idx = System.Array.FindIndex(LevelManager.AllLevels, l => l.id == config.id);
+      string prevName = idx > 0 ? LevelManager.AllLevels[idx - 1].displayName : "previous level";
+      statusTmp.text = $"Score {config.unlockScore} on {prevName}";
       statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
     }
     else if (selected)
@@ -2246,6 +2248,9 @@ public class UIManager : MonoBehaviour
   void ShowGameOverPanel()
   {
     int finalScore = GemCatcher.Score;
+
+    // Record per-level best score for unlock progression.
+    LevelManager.RecordLevelScore(LevelManager.SelectedLevel, finalScore);
 
     if (gameOverTitleTmp != null)
     {
