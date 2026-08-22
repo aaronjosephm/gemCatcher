@@ -275,6 +275,12 @@ public class ObjectPooler : MonoBehaviour
                 masterGemInstance.SetActive(false);
                 // Scale to match regular gems (prefab is 1x, game gems are 4x).
                 masterGemInstance.transform.localScale = new Vector3(4f, 4f, 4f);
+                // Center child meshes on the pivot so it moves like a normal gem
+                // (the prefab has children offset from center which causes orbiting).
+                foreach (Transform child in masterGemInstance.transform)
+                {
+                    child.localPosition = Vector3.zero;
+                }
                 FallingObject fo = masterGemInstance.GetComponent<FallingObject>();
                 if (fo == null) fo = masterGemInstance.AddComponent<FallingObject>();
                 fo.fallSpeed = currentFallSpeed;
