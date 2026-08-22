@@ -135,13 +135,12 @@ public class RoundManager : MonoBehaviour
     }
 
     /// <summary>
-    /// The player caught the MasterGem — they win! Ends the round with a
-    /// victory instead of a loss.
+    /// The player caught the MasterGem — show victory screen. Does NOT end
+    /// the round so the player can optionally continue playing for high score.
     /// </summary>
     public void WinGame()
     {
         if (IsGameOver) return;
-        IsGameOver = true;
         OnGameWon?.Invoke();
     }
 

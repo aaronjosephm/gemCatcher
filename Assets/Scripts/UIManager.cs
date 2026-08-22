@@ -916,8 +916,8 @@ public class UIManager : MonoBehaviour
 
   void HandleGameWonEvent()
   {
-    GameState.IsPlaying = false;
-    gameIsOver = true;
+    // Pause the game — player can choose to continue or quit.
+    Time.timeScale = 0f;
 
     // Record the score for level progression.
     LevelManager.RecordLevelScore(LevelManager.SelectedLevel, GemCatcher.Score);
@@ -982,33 +982,62 @@ public class UIManager : MonoBehaviour
     subTmp.alignment = TextAlignmentOptions.Center;
     subTmp.color = Color.white;
 
-    // Main Menu button
-    GameObject btnGo = new GameObject("MenuButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
-    btnGo.transform.SetParent(panel.transform, false);
-    RectTransform btnRect = btnGo.GetComponent<RectTransform>();
-    btnRect.anchorMin = new Vector2(0.5f, 0.30f);
-    btnRect.anchorMax = new Vector2(0.5f, 0.30f);
-    btnRect.pivot = new Vector2(0.5f, 0.5f);
-    btnRect.sizeDelta = new Vector2(400f, 100f);
-    btnGo.GetComponent<Image>().color = new Color(0.15f, 0.45f, 0.65f);
-    GameObject btnTextGo = new GameObject("Text", typeof(RectTransform));
-    btnTextGo.transform.SetParent(btnGo.transform, false);
-    RectTransform btnTextRect = btnTextGo.GetComponent<RectTransform>();
-    btnTextRect.anchorMin = Vector2.zero;
-    btnTextRect.anchorMax = Vector2.one;
-    btnTextRect.offsetMin = Vector2.zero;
-    btnTextRect.offsetMax = Vector2.zero;
-    TextMeshProUGUI btnTmp = btnTextGo.AddComponent<TextMeshProUGUI>();
-    btnTmp.text = "Main Menu";
-    btnTmp.fontSize = 44f;
-    btnTmp.fontStyle = FontStyles.Bold;
-    btnTmp.alignment = TextAlignmentOptions.Center;
-    btnTmp.color = Color.white;
-    CrystalButtonStyle.Apply(btnGo, new Color(0.15f, 0.45f, 0.65f));
-    btnGo.GetComponent<Button>().onClick.AddListener(() =>
+    // "Keep Playing" button
+    GameObject keepBtnGo = new GameObject("KeepPlayingButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    keepBtnGo.transform.SetParent(panel.transform, false);
+    RectTransform keepRect = keepBtnGo.GetComponent<RectTransform>();
+    keepRect.anchorMin = new Vector2(0.5f, 0.36f);
+    keepRect.anchorMax = new Vector2(0.5f, 0.36f);
+    keepRect.pivot = new Vector2(0.5f, 0.5f);
+    keepRect.sizeDelta = new Vector2(400f, 100f);
+    keepBtnGo.GetComponent<Image>().color = new Color(0.20f, 0.55f, 0.35f);
+    GameObject keepTextGo = new GameObject("Text", typeof(RectTransform));
+    keepTextGo.transform.SetParent(keepBtnGo.transform, false);
+    RectTransform keepTextRect = keepTextGo.GetComponent<RectTransform>();
+    keepTextRect.anchorMin = Vector2.zero;
+    keepTextRect.anchorMax = Vector2.one;
+    keepTextRect.offsetMin = Vector2.zero;
+    keepTextRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI keepTmp = keepTextGo.AddComponent<TextMeshProUGUI>();
+    keepTmp.text = "Keep Playing";
+    keepTmp.fontSize = 44f;
+    keepTmp.fontStyle = FontStyles.Bold;
+    keepTmp.alignment = TextAlignmentOptions.Center;
+    keepTmp.color = Color.white;
+    CrystalButtonStyle.Apply(keepBtnGo, new Color(0.20f, 0.55f, 0.35f));
+    keepBtnGo.GetComponent<Button>().onClick.AddListener(() =>
     {
       Destroy(panel);
-      // Reset game-over state so menu music resumes on the main menu.
+      Time.timeScale = 1f;
+    });
+
+    // "Main Menu" button
+    GameObject menuBtnGo = new GameObject("MenuButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    menuBtnGo.transform.SetParent(panel.transform, false);
+    RectTransform menuRect = menuBtnGo.GetComponent<RectTransform>();
+    menuRect.anchorMin = new Vector2(0.5f, 0.24f);
+    menuRect.anchorMax = new Vector2(0.5f, 0.24f);
+    menuRect.pivot = new Vector2(0.5f, 0.5f);
+    menuRect.sizeDelta = new Vector2(400f, 100f);
+    menuBtnGo.GetComponent<Image>().color = new Color(0.15f, 0.45f, 0.65f);
+    GameObject menuTextGo = new GameObject("Text", typeof(RectTransform));
+    menuTextGo.transform.SetParent(menuBtnGo.transform, false);
+    RectTransform menuTextRect = menuTextGo.GetComponent<RectTransform>();
+    menuTextRect.anchorMin = Vector2.zero;
+    menuTextRect.anchorMax = Vector2.one;
+    menuTextRect.offsetMin = Vector2.zero;
+    menuTextRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI menuTmp = menuTextGo.AddComponent<TextMeshProUGUI>();
+    menuTmp.text = "Main Menu";
+    menuTmp.fontSize = 44f;
+    menuTmp.fontStyle = FontStyles.Bold;
+    menuTmp.alignment = TextAlignmentOptions.Center;
+    menuTmp.color = Color.white;
+    CrystalButtonStyle.Apply(menuBtnGo, new Color(0.15f, 0.45f, 0.65f));
+    menuBtnGo.GetComponent<Button>().onClick.AddListener(() =>
+    {
+      Destroy(panel);
+      Time.timeScale = 1f;
       GemCatcher.ResetLives();
       GemCatcher.ResetScore();
       GameState.SkipMainMenuOnLoad = false;

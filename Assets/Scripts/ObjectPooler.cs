@@ -306,7 +306,6 @@ public class ObjectPooler : MonoBehaviour
         // Subscribe to score change events to update difficulty
         GemCatcher.OnScoreChanged += CheckDifficultyProgression;
         GemCatcher.OnGameOver += HandleGameOver;
-        GemCatcher.OnGameWon += HandleGameOver; // Same cleanup as game over
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
@@ -993,7 +992,6 @@ public class ObjectPooler : MonoBehaviour
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= CheckDifficultyProgression;
         GemCatcher.OnGameOver -= HandleGameOver;
-        GemCatcher.OnGameWon -= HandleGameOver;
     }
 
     // ---- Tutorial API -------------------------------------------------------
