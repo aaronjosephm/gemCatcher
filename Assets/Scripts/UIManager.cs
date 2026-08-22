@@ -1008,6 +1008,9 @@ public class UIManager : MonoBehaviour
     btnGo.GetComponent<Button>().onClick.AddListener(() =>
     {
       Destroy(panel);
+      // Reset game-over state so menu music resumes on the main menu.
+      GemCatcher.ResetLives();
+      GemCatcher.ResetScore();
       GameState.SkipMainMenuOnLoad = false;
       SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
     });
