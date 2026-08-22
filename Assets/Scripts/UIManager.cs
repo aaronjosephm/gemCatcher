@@ -241,6 +241,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.OnScoreChanged += UpdateScore;
     GemCatcher.OnLivesChanged += UpdateLives;
     GemCatcher.OnGameOver += HandleGameOverEvent;
+    GemCatcher.OnGameWon += HandleGameWonEvent;
     GemCatcher.OnGemCaught += HandleGemCaught;
     GemCatcher.OnGemMissed += HandleGemMissed;
     GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
@@ -911,6 +912,190 @@ public class UIManager : MonoBehaviour
   {
     if (GameState.IsTutorial) return; // Can't die in tutorial
     GameOver();
+  }
+
+  void HandleGameWonEvent()
+  {
+    GameState.IsPlaying = false;
+    gameIsOver = true;
+
+    // Record the score for level progression.
+    LevelManager.RecordLevelScore(LevelManager.SelectedLevel, GemCatcher.Score);
+
+    StartCoroutine(ShowVictorySequence());
+  }
+
+  System.Collections.IEnumerator ShowVictorySequence()
+  {
+    // Brief dramatic pause.
+    yield return new WaitForSecondsRealtime(0.3f);
+
+    // Spawn confetti.
+    StartCoroutine(SpawnConfetti());
+
+    // Show victory panel after confetti starts.
+    yield return new WaitForSecondsRealtime(0.5f);
+    ShowVictoryPanel();
+  }
+
+  void ShowVictoryPanel()
+  {
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    // Full-screen overlay.
+    GameObject panel = new GameObject("VictoryPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    panel.transform.SetParent(hudCanvas.transform, false);
+    RectTransform panelRect = panel.GetComponent<RectTransform>();
+    panelRect.anchorMin = Vector2.zero;
+    panelRect.anchorMax = Vector2.one;
+    panelRect.offsetMin = Vector2.zero;
+    panelRect.offsetMax = Vector2.zero;
+    panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+
+    // Title
+    GameObject titleGo = new GameObject("Title", typeof(RectTransform));
+    titleGo.transform.SetParent(panel.transform, false);
+    RectTransform titleRect = titleGo.GetComponent<RectTransform>();
+    titleRect.anchorMin = new Vector2(0.5f, 0.65f);
+    titleRect.anchorMax = new Vector2(0.5f, 0.65f);
+    titleRect.pivot = new Vector2(0.5f, 0.5f);
+    titleRect.sizeDelta = new Vector2(800f, 200f);
+    TextMeshProUGUI titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+    titleTmp.text = "YOU FOUND THE\nMASTER GEM!";
+    titleTmp.fontSize = 72f;
+    titleTmp.fontStyle = FontStyles.Bold;
+    titleTmp.alignment = TextAlignmentOptions.Center;
+    titleTmp.color = new Color(1f, 0.85f, 0.35f);
+
+    // Subtitle
+    GameObject subGo = new GameObject("Subtitle", typeof(RectTransform));
+    subGo.transform.SetParent(panel.transform, false);
+    RectTransform subRect = subGo.GetComponent<RectTransform>();
+    subRect.anchorMin = new Vector2(0.5f, 0.50f);
+    subRect.anchorMax = new Vector2(0.5f, 0.50f);
+    subRect.pivot = new Vector2(0.5f, 0.5f);
+    subRect.sizeDelta = new Vector2(700f, 100f);
+    TextMeshProUGUI subTmp = subGo.AddComponent<TextMeshProUGUI>();
+    subTmp.text = "Congratulations, gem catcher!";
+    subTmp.fontSize = 40f;
+    subTmp.alignment = TextAlignmentOptions.Center;
+    subTmp.color = Color.white;
+
+    // Main Menu button
+    GameObject btnGo = new GameObject("MenuButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    btnGo.transform.SetParent(panel.transform, false);
+    RectTransform btnRect = btnGo.GetComponent<RectTransform>();
+    btnRect.anchorMin = new Vector2(0.5f, 0.30f);
+    btnRect.anchorMax = new Vector2(0.5f, 0.30f);
+    btnRect.pivot = new Vector2(0.5f, 0.5f);
+    btnRect.sizeDelta = new Vector2(400f, 100f);
+    btnGo.GetComponent<Image>().color = new Color(0.15f, 0.45f, 0.65f);
+    GameObject btnTextGo = new GameObject("Text", typeof(RectTransform));
+    btnTextGo.transform.SetParent(btnGo.transform, false);
+    RectTransform btnTextRect = btnTextGo.GetComponent<RectTransform>();
+    btnTextRect.anchorMin = Vector2.zero;
+    btnTextRect.anchorMax = Vector2.one;
+    btnTextRect.offsetMin = Vector2.zero;
+    btnTextRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI btnTmp = btnTextGo.AddComponent<TextMeshProUGUI>();
+    btnTmp.text = "Main Menu";
+    btnTmp.fontSize = 44f;
+    btnTmp.fontStyle = FontStyles.Bold;
+    btnTmp.alignment = TextAlignmentOptions.Center;
+    btnTmp.color = Color.white;
+    CrystalButtonStyle.Apply(btnGo, new Color(0.15f, 0.45f, 0.65f));
+    btnGo.GetComponent<Button>().onClick.AddListener(() =>
+    {
+      Destroy(panel);
+      GameState.SkipMainMenuOnLoad = false;
+      SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    });
+  }
+
+  /// <summary>
+  /// Procedural confetti that rains down from the top of the screen.
+  /// Uses simple UI Images with random colors, rotations and fall speeds.
+  /// </summary>
+  System.Collections.IEnumerator SpawnConfetti()
+  {
+    EnsureHudCanvas();
+    if (hudCanvas == null) yield break;
+
+    // Create a container that sits above the victory panel.
+    GameObject container = new GameObject("Confetti", typeof(RectTransform));
+    container.transform.SetParent(hudCanvas.transform, false);
+    RectTransform cRect = container.GetComponent<RectTransform>();
+    cRect.anchorMin = Vector2.zero;
+    cRect.anchorMax = Vector2.one;
+    cRect.offsetMin = Vector2.zero;
+    cRect.offsetMax = Vector2.zero;
+
+    Color[] colors = new[]
+    {
+      new Color(1f, 0.3f, 0.3f),  // red
+      new Color(0.3f, 1f, 0.4f),  // green
+      new Color(0.3f, 0.6f, 1f),  // blue
+      new Color(1f, 0.85f, 0.2f), // gold
+      new Color(0.9f, 0.4f, 1f),  // purple
+      new Color(1f, 0.6f, 0.1f),  // orange
+      Color.white,
+    };
+
+    float duration = 8f;
+    float elapsed = 0f;
+    float spawnInterval = 0.03f;
+    float nextSpawn = 0f;
+
+    while (elapsed < duration)
+    {
+      elapsed += Time.unscaledDeltaTime;
+      nextSpawn -= Time.unscaledDeltaTime;
+      if (nextSpawn <= 0f)
+      {
+        nextSpawn = spawnInterval;
+        // Spawn a confetti piece.
+        GameObject piece = new GameObject("C", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        piece.transform.SetParent(container.transform, false);
+        RectTransform pRect = piece.GetComponent<RectTransform>();
+        float x = UnityEngine.Random.Range(-540f, 540f);
+        pRect.anchorMin = new Vector2(0.5f, 1f);
+        pRect.anchorMax = new Vector2(0.5f, 1f);
+        pRect.pivot = new Vector2(0.5f, 0.5f);
+        pRect.anchoredPosition = new Vector2(x, 50f);
+        float w = UnityEngine.Random.Range(12f, 28f);
+        float h = UnityEngine.Random.Range(8f, 20f);
+        pRect.sizeDelta = new Vector2(w, h);
+        pRect.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(0f, 360f));
+        Image img = piece.GetComponent<Image>();
+        img.color = colors[UnityEngine.Random.Range(0, colors.Length)];
+        // Animate via a coroutine.
+        StartCoroutine(AnimateConfettiPiece(pRect, UnityEngine.Random.Range(400f, 900f), UnityEngine.Random.Range(-120f, 120f)));
+      }
+      yield return null;
+    }
+
+    // Let remaining pieces finish falling.
+    yield return new WaitForSecondsRealtime(3f);
+    if (container != null) Destroy(container);
+  }
+
+  System.Collections.IEnumerator AnimateConfettiPiece(RectTransform rt, float fallSpeed, float drift)
+  {
+    float life = 4f;
+    float t = 0f;
+    float rotSpeed = UnityEngine.Random.Range(-360f, 360f);
+    while (t < life && rt != null)
+    {
+      t += Time.unscaledDeltaTime;
+      Vector2 pos = rt.anchoredPosition;
+      pos.y -= fallSpeed * Time.unscaledDeltaTime;
+      pos.x += drift * Time.unscaledDeltaTime;
+      rt.anchoredPosition = pos;
+      rt.Rotate(0f, 0f, rotSpeed * Time.unscaledDeltaTime);
+      yield return null;
+    }
+    if (rt != null) Destroy(rt.gameObject);
   }
 
   // Builds a basic dimmed-overlay game-over panel with a "Try Again" button if the developer
@@ -2943,6 +3128,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.OnScoreChanged -= UpdateScore;
     GemCatcher.OnLivesChanged -= UpdateLives;
     GemCatcher.OnGameOver -= HandleGameOverEvent;
+    GemCatcher.OnGameWon -= HandleGameWonEvent;
     GemCatcher.OnGemCaught -= HandleGemCaught;
     GemCatcher.OnGemMissed -= HandleGemMissed;
     GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;

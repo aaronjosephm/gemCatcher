@@ -52,6 +52,9 @@ public class RoundManager : MonoBehaviour
     /// <summary>Fired exactly once when the player runs out of lives or EndGame is called.</summary>
     public event System.Action OnGameOver;
 
+    /// <summary>Fired when the player catches the MasterGem and wins the game.</summary>
+    public event System.Action OnGameWon;
+
     /// <summary>Fired when a gem is caught. Subscribers use this to spawn floating score pop-ups.</summary>
     public delegate void GemCaughtDelegate(int amount, Vector3 worldPosition);
     public event GemCaughtDelegate OnGemCaught;
@@ -129,6 +132,17 @@ public class RoundManager : MonoBehaviour
         if (IsGameOver) return;
         IsGameOver = true;
         OnGameOver?.Invoke();
+    }
+
+    /// <summary>
+    /// The player caught the MasterGem — they win! Ends the round with a
+    /// victory instead of a loss.
+    /// </summary>
+    public void WinGame()
+    {
+        if (IsGameOver) return;
+        IsGameOver = true;
+        OnGameWon?.Invoke();
     }
 
     /// <summary>Invoke the OnGemCaught event (called by CatchZone after scoring).</summary>

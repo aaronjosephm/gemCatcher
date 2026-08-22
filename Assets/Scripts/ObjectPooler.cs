@@ -150,6 +150,11 @@ public class ObjectPooler : MonoBehaviour
     private int gemCapForRound;
     private int gemsSpawnedThisRound;
 
+    // MasterGem (Deep Space only) — spawns once when score reaches threshold.
+    private GameObject masterGemInstance;
+    private bool masterGemSpawned;
+    private const int MasterGemScoreThreshold = 100;
+
     // Public events for gameplay state changes. Subscribers should unsubscribe in OnDestroy.
     public event Action GemSpawned;
     public event Action<float> PlacementPhaseStarted; // payload = duration
@@ -260,6 +265,22 @@ public class ObjectPooler : MonoBehaviour
             }
         }
 
+        // Load MasterGem for Deep Space level.
+        if (cfg.id == LevelManager.LevelId.Space)
+        {
+            GameObject masterPrefab = Resources.Load<GameObject>("Gems/MasterGem");
+            if (masterPrefab != null)
+            {
+                masterGemInstance = Instantiate(masterPrefab);
+                masterGemInstance.SetActive(false);
+                FallingObject fo = masterGemInstance.GetComponent<FallingObject>();
+                if (fo == null) fo = masterGemInstance.AddComponent<FallingObject>();
+                fo.fallSpeed = currentFallSpeed;
+                // NOT added to objectPool — kept separate so it can't be randomly selected.
+            }
+        }
+        masterGemSpawned = false;
+
         // Initialize obstacle pool if there are obstacle prefabs
         if (obstaclePrefabs != null && obstaclePrefabs.Length > 0)
         {
@@ -277,6 +298,7 @@ public class ObjectPooler : MonoBehaviour
         // Subscribe to score change events to update difficulty
         GemCatcher.OnScoreChanged += CheckDifficultyProgression;
         GemCatcher.OnGameOver += HandleGameOver;
+        GemCatcher.OnGameWon += HandleGameOver; // Same cleanup as game over
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
@@ -523,6 +545,16 @@ public class ObjectPooler : MonoBehaviour
 
     void SpawnGem()
     {
+        // MasterGem spawn check: on Deep Space, once score reaches threshold,
+        // spawn the MasterGem instead of a normal gem. One shot only.
+        if (!masterGemSpawned && masterGemInstance != null
+            && GemCatcher.Score >= MasterGemScoreThreshold)
+        {
+            masterGemSpawned = true;
+            SpawnMasterGem();
+            return;
+        }
+
         // Roll the variant before selecting the pooled gem so the same
         // deterministic RNG stream drives variant selection in daily mode.
         SpecialGemType variant = RollSpecialType();
@@ -606,6 +638,38 @@ public class ObjectPooler : MonoBehaviour
             // Lightning bolt effect at spawn point
             LightningSpawnEffect.Strike(obj.transform.position);
         }
+    }
+
+    /// <summary>
+    /// Spawns the MasterGem. Called once when the player reaches the score
+    /// threshold on Deep Space. Uses the same placement-phase flow as normal gems.
+    /// </summary>
+    void SpawnMasterGem()
+    {
+        GameObject obj = masterGemInstance;
+        if (obj == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = RngRange(minX, maxX);
+        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
+
+        FallingObject fallingObj = obj.GetComponent<FallingObject>();
+        if (fallingObj != null)
+        {
+            fallingObj.ApplyScaleFactor(1f);
+            fallingObj.ResetObject();
+            fallingObj.fallSpeed = placementPhaseFallSpeed;
+            fallingObj.horizontalSpeed = 0f;
+            fallingObj.InitializeMovement(placementPhaseFallSpeed);
+            fallingObj.ApplySpecialType(SpecialGemType.MasterGem);
+        }
+
+        obj.SetActive(true);
+        currentActiveGem = obj;
+
+        LightningSpawnEffect.Strike(obj.transform.position);
+        // Placement phase and GemSpawned are handled by the caller (Update loop).
     }
 
     void SpawnObstacle()
@@ -921,6 +985,7 @@ public class ObjectPooler : MonoBehaviour
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= CheckDifficultyProgression;
         GemCatcher.OnGameOver -= HandleGameOver;
+        GemCatcher.OnGameWon -= HandleGameOver;
     }
 
     // ---- Tutorial API -------------------------------------------------------

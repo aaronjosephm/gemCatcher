@@ -110,6 +110,13 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
+        // MasterGem caught — the player wins!
+        if (variant == SpecialGemType.MasterGem)
+        {
+            rm.WinGame();
+            return;
+        }
+
         // Register the catch for combo tracking.
         ComboManager.RegisterCatch();
         float comboMultiplier = ComboManager.CurrentMultiplier;

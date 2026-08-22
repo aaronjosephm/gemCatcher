@@ -13,6 +13,8 @@ public enum SpecialGemType
     Golden,
     /// <summary>DON'T catch — costs a life and breaks combo on contact. Falling through is the correct play.</summary>
     Bomb,
+    /// <summary>One-shot win condition gem on Deep Space. Catch it to win; miss it = instant game over.</summary>
+    MasterGem,
 }
 
 public class FallingObject : MonoBehaviour
@@ -106,6 +108,10 @@ public class FallingObject : MonoBehaviour
         // Golden gems always get a rich gold glow regardless of prefab.
         if (specialType == SpecialGemType.Golden)
             return new Color(1f, 0.85f, 0.35f);
+
+        // MasterGem gets a brilliant purple-white glow.
+        if (specialType == SpecialGemType.MasterGem)
+            return new Color(0.85f, 0.55f, 1f);
 
         // Infer from gem name.
         string n = gameObject.name.ToLowerInvariant();
@@ -431,6 +437,15 @@ public class FallingObject : MonoBehaviour
                     trailStart = new Color(1.00f, 0.30f, 0.20f, 0.95f),
                     trailEnd = new Color(0.30f, 0.05f, 0.05f, 0.0f),
                 };
+            case SpecialGemType.MasterGem:
+                // Brilliant purple-white glow — the ultimate prize.
+                return new VariantPalette
+                {
+                    albedo = new Color(0.75f, 0.45f, 1.00f),
+                    emission = new Color(1.50f, 0.80f, 2.00f) * 1.2f,
+                    trailStart = new Color(0.90f, 0.60f, 1.00f, 0.95f),
+                    trailEnd = new Color(0.50f, 0.20f, 0.80f, 0.0f),
+                };
             default:
                 return new VariantPalette
                 {
@@ -537,6 +552,14 @@ public class FallingObject : MonoBehaviour
             if (specialType == SpecialGemType.Bomb)
             {
                 gameObject.SetActive(false);
+                return;
+            }
+
+            // MasterGem missed = instant game over.
+            if (specialType == SpecialGemType.MasterGem)
+            {
+                gameObject.SetActive(false);
+                if (RoundManager.Instance != null) RoundManager.Instance.EndGame();
                 return;
             }
 
