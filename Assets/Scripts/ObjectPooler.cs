@@ -273,6 +273,8 @@ public class ObjectPooler : MonoBehaviour
             {
                 masterGemInstance = Instantiate(masterPrefab);
                 masterGemInstance.SetActive(false);
+                // Scale to match regular gems (prefab is 1x, game gems are 4x).
+                masterGemInstance.transform.localScale = new Vector3(4f, 4f, 4f);
                 FallingObject fo = masterGemInstance.GetComponent<FallingObject>();
                 if (fo == null) fo = masterGemInstance.AddComponent<FallingObject>();
                 fo.fallSpeed = currentFallSpeed;
