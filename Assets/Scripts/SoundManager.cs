@@ -180,6 +180,18 @@ public class SoundManager : MonoBehaviour
         {
             if (IsMusic(soundName)) return; // music is driven by SyncGameplayMusic only
             sound.source.volume = sound.volume * SfxVolume;
+            sound.source.pitch = 1f;
+            sound.source.Play();
+        }
+    }
+
+    /// <summary>Play a sound effect at a specific pitch.</summary>
+    public void PlayWithPitch(string soundName, float pitch)
+    {
+        if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
+        {
+            sound.source.volume = sound.volume * SfxVolume;
+            sound.source.pitch = pitch;
             sound.source.Play();
         }
     }

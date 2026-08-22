@@ -113,6 +113,12 @@ public class CatchZone : MonoBehaviour
         // MasterGem caught — the player wins!
         if (variant == SpecialGemType.MasterGem)
         {
+            PlayCatchEffect(fo);
+            // Play catch sound at higher pitch for the ultimate catch.
+            if (SoundManager.Instance != null)
+            {
+                SoundManager.Instance.PlayWithPitch("GemCaught", 1.8f);
+            }
             rm.WinGame();
             return;
         }
