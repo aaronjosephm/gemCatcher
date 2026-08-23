@@ -155,6 +155,15 @@ public class ObjectPooler : MonoBehaviour
     private bool masterGemSpawned;
     private const int MasterGemScoreThreshold = 100;
 
+    /// <summary>
+    /// Experimental mode: gems spawn continuously (every 0.5s) with no
+    /// placement phase. Catcher is always movable. Multiple gems fall
+    /// simultaneously.
+    /// </summary>
+    [Header("Experimental")]
+    public bool continuousSpawnMode = false;
+    private const float ContinuousSpawnInterval = 0.5f;
+
     // Public events for gameplay state changes. Subscribers should unsubscribe in OnDestroy.
     public event Action GemSpawned;
     public event Action<float> PlacementPhaseStarted; // payload = duration
@@ -383,6 +392,31 @@ public class ObjectPooler : MonoBehaviour
             && !GemCatcher.IsGameOver)
         {
             GemCatcher.EndGame();
+            return;
+        }
+
+        // ---- Continuous-spawn experimental mode ----
+        // Gems spawn on a fast timer with no placement phase; multiple gems
+        // can be in flight simultaneously.
+        if (continuousSpawnMode)
+        {
+            if (Time.time >= nextSpawnTime)
+            {
+                dropCounter++;
+                SpawnGem();
+                gemsSpawnedThisRound++;
+                GemSpawned?.Invoke();
+
+                // In continuous mode, make the gem fall at full speed right away.
+                if (currentActiveGem != null)
+                {
+                    FallingObject fo = currentActiveGem.GetComponent<FallingObject>();
+                    if (fo != null) fo.UpdateFallSpeed(currentFallSpeed);
+                }
+
+                nextSpawnTime = Time.time + ContinuousSpawnInterval;
+            }
+            // No placement phase in continuous mode.
             return;
         }
 

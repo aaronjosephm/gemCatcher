@@ -205,7 +205,10 @@ public class CatcherManager : MonoBehaviour
     // when the finger lifts, not while sliding.
     void HandleCatcherPlacementInput()
     {
-        if (!isPlacementPhase)
+        // In continuous mode the catcher is always movable.
+        bool canMove = isPlacementPhase
+                       || (objectPooler != null && objectPooler.continuousSpawnMode);
+        if (!canMove)
         {
             isDraggingCatcher = false;
             return;
