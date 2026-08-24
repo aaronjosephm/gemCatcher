@@ -38,9 +38,9 @@ public class RushConfig : ScriptableObject
     [Header("Rock Sizes")]
     public HazardSize[] hazardSizes = new HazardSize[]
     {
-        new HazardSize { label = "Small",  scale = 0.20f, colliderRadius = 0.2f, worldWidth = 0.3f,  spawnWeight = 3f },
-        new HazardSize { label = "Medium", scale = 0.30f, colliderRadius = 0.35f, worldWidth = 0.5f,  spawnWeight = 2f },
-        new HazardSize { label = "Large",  scale = 0.45f, colliderRadius = 0.5f, worldWidth = 0.8f,  spawnWeight = 0.5f },
+        new HazardSize { label = "Small",  scale = 0.10f, colliderRadius = 0.15f, worldWidth = 0.2f,  spawnWeight = 3f },
+        new HazardSize { label = "Medium", scale = 0.15f, colliderRadius = 0.2f,  worldWidth = 0.3f,  spawnWeight = 2f },
+        new HazardSize { label = "Large",  scale = 0.22f, colliderRadius = 0.3f,  worldWidth = 0.5f,  spawnWeight = 0.5f },
     };
 
     // ------------------------------------------------------------------
