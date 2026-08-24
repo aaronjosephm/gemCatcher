@@ -68,6 +68,14 @@ public class CatchZone : MonoBehaviour
 
         Vector3 catchPosition = fo.transform.position;
 
+        // Hazards (rocks) hurt — same as bombs.
+        if (fo.isHazard)
+        {
+            ApplyBombHit(catchPosition);
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {

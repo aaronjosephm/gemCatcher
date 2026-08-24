@@ -70,6 +70,20 @@ public class FallingObject : MonoBehaviour
 
     public SpecialGemType specialType { get; private set; } = SpecialGemType.Normal;
 
+    // ---- Hazard state (Rush Mode) ------------------------------------------
+    // When true, this object is a rock/hazard — catching it costs a life.
+    // Set by ObjectPooler when spawning hazards in Rush Mode.
+    public bool isHazard { get; private set; } = false;
+
+    /// <summary>Mark this object as a hazard (rock). Called by ObjectPooler at spawn.</summary>
+    public void SetHazard(bool value) { isHazard = value; }
+
+    /// <summary>
+    /// When true, the object falls straight down with no horizontal drift.
+    /// Set by ObjectPooler in Rush Mode.
+    /// </summary>
+    public bool verticalOnly { get; set; } = false;
+
     // ---- Power-up state ----------------------------------------------------
     // When isPowerUp is true, this falling gem is acting as a power-up pickup
     // (a normal gem prefab repainted with the power-up's theme color and
@@ -157,6 +171,7 @@ public class FallingObject : MonoBehaviour
         // Re-initialize components in case anything has changed
         InitializeComponents();
         ClearPowerUp();
+        isHazard = false;
 
         // Ensure all renderers are visible (gem may have been recycled mid-blink)
         Renderer[] renderers = GetComponentsInChildren<Renderer>();
@@ -471,19 +486,28 @@ public class FallingObject : MonoBehaviour
         initialFallSpeed = startingFallSpeed;
         fallSpeed = startingFallSpeed;
 
-        // Initialize movement direction with random horizontal component
-        // Higher probability of diagonal movement
-        float randomDirectionX = Random.Range(-1f, 1f);
-        if (Mathf.Abs(randomDirectionX) < 0.3f) // If too vertical, make it more diagonal
+        if (verticalOnly)
         {
-            randomDirectionX = Mathf.Sign(randomDirectionX) * Random.Range(0.3f, 0.8f);
+            initialHorizontalSpeed = 0f;
+            horizontalSpeed = 0f;
+            movementDirection = new Vector3(0f, -fallSpeed, 0f);
         }
+        else
+        {
+            // Initialize movement direction with random horizontal component
+            // Higher probability of diagonal movement
+            float randomDirectionX = Random.Range(-1f, 1f);
+            if (Mathf.Abs(randomDirectionX) < 0.3f) // If too vertical, make it more diagonal
+            {
+                randomDirectionX = Mathf.Sign(randomDirectionX) * Random.Range(0.3f, 0.8f);
+            }
 
-        // Calculate and store the actual horizontal speed
-        initialHorizontalSpeed = randomDirectionX * horizontalSpeed;
+            // Calculate and store the actual horizontal speed
+            initialHorizontalSpeed = randomDirectionX * horizontalSpeed;
 
-        // Set the movement direction with the initial speeds
-        movementDirection = new Vector3(initialHorizontalSpeed, -fallSpeed, 0f);
+            // Set the movement direction with the initial speeds
+            movementDirection = new Vector3(initialHorizontalSpeed, -fallSpeed, 0f);
+        }
 
 #if UNITY_EDITOR
         Debug.Log($"Gem initialized with fall speed: {fallSpeed}, horizontal speed: {initialHorizontalSpeed}");
@@ -548,8 +572,8 @@ public class FallingObject : MonoBehaviour
         {
             // Bombs are SUPPOSED to be missed — letting one fall through is the
             // correct play, so it's silently retired with no miss penalty,
-            // no combo break, no floating text.
-            if (specialType == SpecialGemType.Bomb)
+            // no combo break, no floating text. Same for hazards (rocks).
+            if (specialType == SpecialGemType.Bomb || isHazard)
             {
                 gameObject.SetActive(false);
                 return;

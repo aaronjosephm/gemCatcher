@@ -161,8 +161,32 @@ public class ObjectPooler : MonoBehaviour
     /// simultaneously.
     /// </summary>
     [Header("Experimental")]
-    public bool continuousSpawnMode = false;
+    public bool continuousSpawnMode = true;
     private const float ContinuousSpawnInterval = 0.5f;
+
+    // ---- Rush Mode ---------------------------------------------------------
+    [System.Serializable]
+    public class RushTier
+    {
+        public float startTime;
+        public float fallSpeed;
+        public float spawnInterval;
+        public float hazardChance; // 0-1 chance each spawn is a rock
+    }
+
+    private static readonly RushTier[] rushTiers = new RushTier[]
+    {
+        new RushTier { startTime = 0f,   fallSpeed = 3.0f, spawnInterval = 1.2f,  hazardChance = 0.00f },
+        new RushTier { startTime = 10f,  fallSpeed = 3.5f, spawnInterval = 0.9f,  hazardChance = 0.10f },
+        new RushTier { startTime = 30f,  fallSpeed = 4.5f, spawnInterval = 0.7f,  hazardChance = 0.20f },
+        new RushTier { startTime = 60f,  fallSpeed = 5.5f, spawnInterval = 0.5f,  hazardChance = 0.25f },
+        new RushTier { startTime = 90f,  fallSpeed = 7.0f, spawnInterval = 0.35f, hazardChance = 0.30f },
+    };
+
+    private float rushStartTime;
+    private RushTier currentRushTier;
+    private List<GameObject> hazardPool;
+    private const int HazardPoolSize = 8;
 
     // Public events for gameplay state changes. Subscribers should unsubscribe in OnDestroy.
     public event Action GemSpawned;
@@ -312,12 +336,44 @@ public class ObjectPooler : MonoBehaviour
             }
         }
 
+        // ---- Rush Mode: hazard pool (rocks that fall like gems) ----
+        hazardPool = new List<GameObject>();
+        if (GameState.Mode == GameState.GameMode.Rush && obstaclePrefabs != null && obstaclePrefabs.Length > 0)
+        {
+            for (int i = 0; i < HazardPoolSize; i++)
+            {
+                GameObject prefab = obstaclePrefabs[i % obstaclePrefabs.Length];
+                GameObject obj = Instantiate(prefab);
+                obj.SetActive(false);
+
+                // Scale rocks to roughly match gem size.
+                obj.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
+
+                // Add FallingObject so they use the same falling/boundary code.
+                FallingObject fo = obj.GetComponent<FallingObject>();
+                if (fo == null) fo = obj.AddComponent<FallingObject>();
+                fo.SetHazard(true);
+
+                // Add a SphereCollider so CatchZone can detect them.
+                if (obj.GetComponent<SphereCollider>() == null)
+                {
+                    SphereCollider sc = obj.AddComponent<SphereCollider>();
+                    sc.radius = 0.5f;
+                    sc.isTrigger = true;
+                }
+
+                hazardPool.Add(obj);
+            }
+        }
+
         // Subscribe to score change events to update difficulty
         GemCatcher.OnScoreChanged += CheckDifficultyProgression;
         GemCatcher.OnGameOver += HandleGameOver;
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
+        rushStartTime = Time.time;
+        currentRushTier = rushTiers[0];
     }
 
     void HandleGameOver()
@@ -352,6 +408,27 @@ public class ObjectPooler : MonoBehaviour
             p.SetActive(false);
         }
         activePickups.Clear();
+
+        // Despawn any active hazards (Rush Mode rocks).
+        if (hazardPool != null)
+        {
+            for (int i = 0; i < hazardPool.Count; i++)
+            {
+                if (hazardPool[i] != null && hazardPool[i].activeInHierarchy)
+                    hazardPool[i].SetActive(false);
+            }
+        }
+
+        // Also deactivate all pooled gems that are still in flight (Rush Mode
+        // can have multiple gems active simultaneously).
+        if (objectPool != null)
+        {
+            for (int i = 0; i < objectPool.Count; i++)
+            {
+                if (objectPool[i] != null && objectPool[i].activeInHierarchy)
+                    objectPool[i].SetActive(false);
+            }
+        }
     }
 
     void Update()
@@ -395,28 +472,38 @@ public class ObjectPooler : MonoBehaviour
             return;
         }
 
-        // ---- Continuous-spawn experimental mode ----
-        // Gems spawn on a fast timer with no placement phase; multiple gems
-        // can be in flight simultaneously.
-        if (continuousSpawnMode)
+        // ---- Rush Mode: continuous multi-object spawning ----
+        if (GameState.Mode == GameState.GameMode.Rush || continuousSpawnMode)
         {
+            if (GameState.Mode == GameState.GameMode.Rush)
+            {
+                UpdateRushTier();
+            }
+
             if (Time.time >= nextSpawnTime)
             {
-                dropCounter++;
-                SpawnGem();
-                gemsSpawnedThisRound++;
-                GemSpawned?.Invoke();
+                float tier_speed = currentRushTier != null ? currentRushTier.fallSpeed : currentFallSpeed;
+                float tier_interval = currentRushTier != null ? currentRushTier.spawnInterval : ContinuousSpawnInterval;
+                float hazardChance = currentRushTier != null ? currentRushTier.hazardChance : 0f;
 
-                // In continuous mode, make the gem fall at full speed right away.
-                if (currentActiveGem != null)
+                // Decide gem vs hazard
+                bool spawnHazard = hazardPool != null && hazardPool.Count > 0
+                    && UnityEngine.Random.value < hazardChance;
+
+                if (spawnHazard)
                 {
-                    FallingObject fo = currentActiveGem.GetComponent<FallingObject>();
-                    if (fo != null) fo.UpdateFallSpeed(currentFallSpeed);
+                    SpawnRushHazard(tier_speed);
+                }
+                else
+                {
+                    dropCounter++;
+                    SpawnRushGem(tier_speed);
+                    gemsSpawnedThisRound++;
+                    GemSpawned?.Invoke();
                 }
 
-                nextSpawnTime = Time.time + ContinuousSpawnInterval;
+                nextSpawnTime = Time.time + tier_interval;
             }
-            // No placement phase in continuous mode.
             return;
         }
 
@@ -711,6 +798,77 @@ public class ObjectPooler : MonoBehaviour
 
         LightningSpawnEffect.Strike(obj.transform.position);
         // Placement phase and GemSpawned are handled by the caller (Update loop).
+    }
+
+    // ---- Rush Mode helpers ------------------------------------------------
+
+    /// <summary>Advance the time-based difficulty tier for Rush Mode.</summary>
+    void UpdateRushTier()
+    {
+        float elapsed = Time.time - rushStartTime;
+        RushTier best = rushTiers[0];
+        for (int i = rushTiers.Length - 1; i >= 0; i--)
+        {
+            if (elapsed >= rushTiers[i].startTime)
+            {
+                best = rushTiers[i];
+                break;
+            }
+        }
+        currentRushTier = best;
+    }
+
+    /// <summary>Spawn a gem for Rush/continuous mode — full speed, vertical only, no lightning.</summary>
+    void SpawnRushGem(float speed)
+    {
+        GameObject obj = GetRandomPooledObject(objectPool);
+        if (obj == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = UnityEngine.Random.Range(minX, maxX);
+        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop + 1f, 0f);
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo != null)
+        {
+            fo.ApplyScaleFactor(GetCurrentGemScaleFactor());
+            fo.ResetObject();
+            fo.verticalOnly = true;
+            fo.horizontalSpeed = 0f;
+            fo.fallSpeed = speed;
+            fo.InitializeMovement(speed);
+            fo.ApplySpecialType(SpecialGemType.Normal);
+        }
+
+        obj.SetActive(true);
+        currentActiveGem = obj;
+        // No lightning effect in Rush Mode.
+    }
+
+    /// <summary>Spawn a falling rock hazard for Rush Mode.</summary>
+    void SpawnRushHazard(float speed)
+    {
+        GameObject obj = GetRandomPooledObject(hazardPool);
+        if (obj == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = UnityEngine.Random.Range(minX, maxX);
+        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop + 1f, 0f);
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo != null)
+        {
+            fo.ResetObject();
+            fo.SetHazard(true);
+            fo.verticalOnly = true;
+            fo.horizontalSpeed = 0f;
+            fo.fallSpeed = speed;
+            fo.InitializeMovement(speed);
+        }
+
+        obj.SetActive(true);
     }
 
     void SpawnObstacle()

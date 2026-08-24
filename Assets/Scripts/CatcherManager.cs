@@ -207,7 +207,8 @@ public class CatcherManager : MonoBehaviour
     {
         // In continuous mode the catcher is always movable.
         bool canMove = isPlacementPhase
-                       || (objectPooler != null && objectPooler.continuousSpawnMode);
+                       || (objectPooler != null && objectPooler.continuousSpawnMode)
+                       || GameState.Mode == GameState.GameMode.Rush;
         if (!canMove)
         {
             isDraggingCatcher = false;

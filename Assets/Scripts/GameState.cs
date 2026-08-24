@@ -17,6 +17,7 @@ public static class GameState
   {
     Normal,
     Daily,
+    Rush,
   }
 
   /// <summary>
