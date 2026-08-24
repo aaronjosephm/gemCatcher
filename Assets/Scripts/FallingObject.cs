@@ -181,6 +181,11 @@ public class FallingObject : MonoBehaviour
         isPoisonGem = false;
         isRushHeart = false;
 
+        // Clear any MaterialPropertyBlock tint (heart red / poison purple).
+        Renderer rr = GetComponent<Renderer>();
+        if (rr == null) rr = GetComponentInChildren<Renderer>();
+        if (rr != null) rr.SetPropertyBlock(null);
+
         // Ensure all renderers are visible (gem may have been recycled mid-blink)
         Renderer[] renderers = GetComponentsInChildren<Renderer>();
         for (int i = 0; i < renderers.Length; i++)

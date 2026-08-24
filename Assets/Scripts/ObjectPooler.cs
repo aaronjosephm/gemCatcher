@@ -722,8 +722,7 @@ public class ObjectPooler : MonoBehaviour
         string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
-        if (obj == null) obj = GetRandomPooledObject(objectPool);
-        if (obj == null) return;
+        if (obj == null) return; // only spawn the exact gem type requested
 
         obj.transform.position = new Vector3(x, y, 0f);
         obj.transform.rotation = Quaternion.identity;
@@ -738,6 +737,20 @@ public class ObjectPooler : MonoBehaviour
             fo.InitializeMovement(speed);
             fo.ApplySpecialType(SpecialGemType.Normal);
             fo.isRushHeart = isHeart;
+
+            // Tint heart gems red so they stand out.
+            if (isHeart)
+            {
+                Renderer r = obj.GetComponent<Renderer>();
+                if (r == null) r = obj.GetComponentInChildren<Renderer>();
+                if (r != null)
+                {
+                    MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+                    r.GetPropertyBlock(mpb);
+                    mpb.SetColor("_Color", new Color(1f, 0.15f, 0.15f, 1f));
+                    r.SetPropertyBlock(mpb);
+                }
+            }
         }
         obj.SetActive(true);
         currentActiveGem = obj;
@@ -748,7 +761,7 @@ public class ObjectPooler : MonoBehaviour
     /// </summary>
     public void SpawnRushPoisonGemAt(float x, float y, float speed)
     {
-        GameObject obj = GetRandomPooledObject(objectPool);
+        GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, "GreenVolcom");
         if (obj == null) return;
 
         obj.transform.position = new Vector3(x, y, 0f);
