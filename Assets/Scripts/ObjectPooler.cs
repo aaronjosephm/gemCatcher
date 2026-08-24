@@ -989,6 +989,7 @@ public class ObjectPooler : MonoBehaviour
     // smallGemScaleFactor of their prefab size.
     private float GetCurrentGemScaleFactor()
     {
+        if (GameState.Mode == GameState.GameMode.Rush) return 1f;
         return GemCatcher.Score >= smallGemScoreThreshold ? smallGemScaleFactor : 1f;
     }
 

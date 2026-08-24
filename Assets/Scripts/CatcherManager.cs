@@ -456,6 +456,12 @@ public class CatcherManager : MonoBehaviour
         // out-of-the-gate baseline); above the threshold it drops to the
         // tighter smallCatcherScaleFactor for the rest of the round (Score
         // is monotonic non-decreasing now that misses don't subtract points).
+        // Rush Mode: catcher size never changes.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            smallCatcherTargetFactor = 1f;
+            return;
+        }
         smallCatcherTargetFactor = newScore >= smallCatcherScoreThreshold
             ? smallCatcherScaleFactor
             : baseCatcherScaleFactor;
