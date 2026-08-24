@@ -338,31 +338,42 @@ public class ObjectPooler : MonoBehaviour
 
         // ---- Rush Mode: hazard pool (rocks that fall like gems) ----
         hazardPool = new List<GameObject>();
-        if (GameState.Mode == GameState.GameMode.Rush && obstaclePrefabs != null && obstaclePrefabs.Length > 0)
+        if (GameState.Mode == GameState.GameMode.Rush)
         {
-            for (int i = 0; i < HazardPoolSize; i++)
+            // Use Inspector-assigned obstacle prefabs if available; otherwise
+            // load rock prefabs from Resources/Rocks/.
+            GameObject[] rockPrefabs = obstaclePrefabs;
+            if (rockPrefabs == null || rockPrefabs.Length == 0)
             {
-                GameObject prefab = obstaclePrefabs[i % obstaclePrefabs.Length];
-                GameObject obj = Instantiate(prefab);
-                obj.SetActive(false);
+                rockPrefabs = Resources.LoadAll<GameObject>("Rocks");
+            }
 
-                // Scale rocks to roughly match gem size.
-                obj.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
-
-                // Add FallingObject so they use the same falling/boundary code.
-                FallingObject fo = obj.GetComponent<FallingObject>();
-                if (fo == null) fo = obj.AddComponent<FallingObject>();
-                fo.SetHazard(true);
-
-                // Add a SphereCollider so CatchZone can detect them.
-                if (obj.GetComponent<SphereCollider>() == null)
+            if (rockPrefabs != null && rockPrefabs.Length > 0)
+            {
+                for (int i = 0; i < HazardPoolSize; i++)
                 {
-                    SphereCollider sc = obj.AddComponent<SphereCollider>();
-                    sc.radius = 0.5f;
-                    sc.isTrigger = true;
-                }
+                    GameObject prefab = rockPrefabs[i % rockPrefabs.Length];
+                    GameObject obj = Instantiate(prefab);
+                    obj.SetActive(false);
 
-                hazardPool.Add(obj);
+                    // Scale rocks to roughly match gem size.
+                    obj.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
+
+                    // Add FallingObject so they use the same falling/boundary code.
+                    FallingObject fo = obj.GetComponent<FallingObject>();
+                    if (fo == null) fo = obj.AddComponent<FallingObject>();
+                    fo.SetHazard(true);
+
+                    // Add a SphereCollider so CatchZone can detect them.
+                    if (obj.GetComponent<SphereCollider>() == null)
+                    {
+                        SphereCollider sc = obj.AddComponent<SphereCollider>();
+                        sc.radius = 0.5f;
+                        sc.isTrigger = true;
+                    }
+
+                    hazardPool.Add(obj);
+                }
             }
         }
 
