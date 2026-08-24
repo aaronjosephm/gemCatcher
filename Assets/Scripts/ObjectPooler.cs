@@ -396,6 +396,13 @@ public class ObjectPooler : MonoBehaviour
         nextSpawnTime = Time.time + currentSpawnInterval;
         rushStartTime = Time.time;
         currentRushTier = rushTiers[0];
+
+        // In Rush mode, attach SpawnDirector to handle wave-based spawning.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            SpawnDirector director = GetComponent<SpawnDirector>();
+            if (director == null) director = gameObject.AddComponent<SpawnDirector>();
+        }
     }
 
     void HandleGameOver()
@@ -494,35 +501,11 @@ public class ObjectPooler : MonoBehaviour
             return;
         }
 
-        // ---- Rush Mode: continuous multi-object spawning ----
+        // ---- Rush Mode: wave-based spawning via SpawnDirector ----
+        // SpawnDirector handles all gem/hazard spawning in Rush mode.
+        // ObjectPooler just skips its own spawn loop.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
-            UpdateRushTier();
-
-            if (Time.time >= nextSpawnTime)
-            {
-                float tier_speed = currentRushTier != null ? currentRushTier.fallSpeed : currentFallSpeed;
-                float tier_interval = currentRushTier != null ? currentRushTier.spawnInterval : ContinuousSpawnInterval;
-                float hazardChance = currentRushTier != null ? currentRushTier.hazardChance : 0f;
-
-                // Decide gem vs hazard
-                bool spawnHazard = hazardPool != null && hazardPool.Count > 0
-                    && UnityEngine.Random.value < hazardChance;
-
-                if (spawnHazard)
-                {
-                    SpawnRushHazard(tier_speed);
-                }
-                else
-                {
-                    dropCounter++;
-                    SpawnRushGem(tier_speed);
-                    gemsSpawnedThisRound++;
-                    GemSpawned?.Invoke();
-                }
-
-                nextSpawnTime = Time.time + tier_interval;
-            }
             return;
         }
 
@@ -863,6 +846,31 @@ public class ObjectPooler : MonoBehaviour
         obj.SetActive(true);
         currentActiveGem = obj;
         // No lightning effect in Rush Mode.
+    }
+
+    /// <summary>
+    /// Public entry point for SpawnDirector to spawn a gem at a specific
+    /// position with a specific speed. Uses the gem pool.
+    /// </summary>
+    public void SpawnRushGemAt(float x, float y, float speed)
+    {
+        GameObject obj = GetRandomPooledObject(objectPool);
+        if (obj == null) return;
+
+        obj.transform.position = new Vector3(x, y, 0f);
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo != null)
+        {
+            fo.ApplyScaleFactor(GetCurrentGemScaleFactor());
+            fo.ResetObject();
+            fo.verticalOnly = true;
+            fo.horizontalSpeed = 0f;
+            fo.fallSpeed = speed;
+            fo.InitializeMovement(speed);
+            fo.ApplySpecialType(SpecialGemType.Normal);
+        }
+        obj.SetActive(true);
+        currentActiveGem = obj;
     }
 
     /// <summary>Spawn a falling rock hazard for Rush Mode.</summary>

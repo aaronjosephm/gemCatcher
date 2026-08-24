@@ -1,0 +1,164 @@
+using UnityEngine;
+
+/// <summary>
+/// Data-driven configuration for Rush Mode. Exposes all tuning variables
+/// in the Inspector via a ScriptableObject so designers can tweak rock
+/// sizes, spawn weights, difficulty curves, and safety margins without
+/// touching code.
+///
+/// Create via Assets → Create → Gem Catch → Rush Config.
+/// </summary>
+[CreateAssetMenu(fileName = "RushConfig", menuName = "Gem Catch/Rush Config")]
+public class RushConfig : ScriptableObject
+{
+    // ------------------------------------------------------------------
+    // Hazard (Rock) Definitions
+    // ------------------------------------------------------------------
+
+    [System.Serializable]
+    public class HazardSize
+    {
+        public string label = "Medium";
+
+        [Tooltip("Uniform scale applied to the rock prefab.")]
+        public float scale = 0.4f;
+
+        [Tooltip("SphereCollider radius on the spawned rock.")]
+        public float colliderRadius = 0.5f;
+
+        [Tooltip("Width this rock occupies in world units. Used by the " +
+                 "wave generator to calculate column coverage.")]
+        public float worldWidth = 0.8f;
+
+        [Tooltip("Relative spawn weight. Higher = more frequent.")]
+        [Range(0f, 10f)]
+        public float spawnWeight = 1f;
+    }
+
+    [Header("Rock Sizes")]
+    public HazardSize[] hazardSizes = new HazardSize[]
+    {
+        new HazardSize { label = "Small",  scale = 0.25f, colliderRadius = 0.3f, worldWidth = 0.5f,  spawnWeight = 3f },
+        new HazardSize { label = "Medium", scale = 0.40f, colliderRadius = 0.5f, worldWidth = 0.8f,  spawnWeight = 2f },
+        new HazardSize { label = "Large",  scale = 0.70f, colliderRadius = 0.8f, worldWidth = 1.4f,  spawnWeight = 0.5f },
+    };
+
+    // ------------------------------------------------------------------
+    // Wave / Spawn Timing
+    // ------------------------------------------------------------------
+
+    [Header("Wave Timing")]
+    [Tooltip("Vertical gap (world units) between consecutive rows in a wave.")]
+    public float rowSpacing = 1.5f;
+
+    [Tooltip("Vertical gap (world units) between waves. Breathing room.")]
+    public float wavePause = 3.0f;
+
+    // ------------------------------------------------------------------
+    // Safe-Path Constraints
+    // ------------------------------------------------------------------
+
+    [Header("Safety")]
+    [Tooltip("Minimum safe corridor width (world units). Must be >= player width + margin.")]
+    public float minSafeCorridorWidth = 0.8f;
+
+    [Tooltip("Player horizontal speed (world units/sec) for reachability checks.")]
+    public float playerMoveSpeed = 8f;
+
+    [Tooltip("Extra reaction-time buffer (seconds) for reachability validation.")]
+    public float reactionTimeBuffer = 0.15f;
+
+    // ------------------------------------------------------------------
+    // Gem Placement
+    // ------------------------------------------------------------------
+
+    [Header("Gems")]
+    [Range(0f, 1f)]
+    [Tooltip("Chance a safe corridor row spawns a gem guiding the player.")]
+    public float gemGuideChance = 0.5f;
+
+    [Range(0f, 1f)]
+    [Tooltip("Chance a risky corridor places a gem as reward.")]
+    public float gemRiskRewardChance = 0.3f;
+
+    // ------------------------------------------------------------------
+    // Difficulty Curve
+    // ------------------------------------------------------------------
+
+    [System.Serializable]
+    public class DifficultyTier
+    {
+        public float startTime;
+        public float fallSpeed = 3f;
+
+        [Range(1, 6)]
+        public int maxRows = 2;
+
+        [Range(0.2f, 1f)]
+        [Tooltip("Fraction of screen width for the safe corridor.")]
+        public float safeCorridorFraction = 0.6f;
+
+        [Range(0f, 1f)]
+        public float largeRockChance = 0f;
+
+        [Range(0f, 2f)]
+        [Tooltip("Weight for complex archetypes (zig-zag, funnel, fork).")]
+        public float complexPatternWeight = 0f;
+    }
+
+    [Header("Difficulty Progression")]
+    public DifficultyTier[] difficultyTiers = new DifficultyTier[]
+    {
+        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.6f,  largeRockChance = 0.0f, complexPatternWeight = 0f },
+        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.5f,  largeRockChance = 0.1f, complexPatternWeight = 0.2f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.45f, largeRockChance = 0.2f, complexPatternWeight = 0.5f },
+        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.35f, largeRockChance = 0.3f, complexPatternWeight = 0.8f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.3f,  largeRockChance = 0.4f, complexPatternWeight = 1.0f },
+    };
+
+    // ------------------------------------------------------------------
+    // Debug
+    // ------------------------------------------------------------------
+
+    [Header("Debug")]
+    public bool debugVisualization = false;
+    public bool logValidation = false;
+
+    // ------------------------------------------------------------------
+    // Helpers
+    // ------------------------------------------------------------------
+
+    /// <summary>Pick a random hazard size weighted by spawnWeight.</summary>
+    public HazardSize PickRandomSize()
+    {
+        if (hazardSizes == null || hazardSizes.Length == 0) return null;
+
+        float totalWeight = 0f;
+        for (int i = 0; i < hazardSizes.Length; i++)
+            totalWeight += hazardSizes[i].spawnWeight;
+
+        float roll = Random.Range(0f, totalWeight);
+        float running = 0f;
+        for (int i = 0; i < hazardSizes.Length; i++)
+        {
+            running += hazardSizes[i].spawnWeight;
+            if (roll <= running) return hazardSizes[i];
+        }
+        return hazardSizes[hazardSizes.Length - 1];
+    }
+
+    /// <summary>Get the difficulty tier for the given elapsed time.</summary>
+    public DifficultyTier GetTier(float elapsedTime)
+    {
+        DifficultyTier best = difficultyTiers[0];
+        for (int i = difficultyTiers.Length - 1; i >= 0; i--)
+        {
+            if (elapsedTime >= difficultyTiers[i].startTime)
+            {
+                best = difficultyTiers[i];
+                break;
+            }
+        }
+        return best;
+    }
+}
