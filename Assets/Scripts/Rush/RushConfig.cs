@@ -38,9 +38,9 @@ public class RushConfig : ScriptableObject
     [Header("Rock Sizes")]
     public HazardSize[] hazardSizes = new HazardSize[]
     {
-        new HazardSize { label = "Small",  scale = 0.25f, colliderRadius = 0.3f, worldWidth = 0.5f,  spawnWeight = 3f },
-        new HazardSize { label = "Medium", scale = 0.40f, colliderRadius = 0.5f, worldWidth = 0.8f,  spawnWeight = 2f },
-        new HazardSize { label = "Large",  scale = 0.70f, colliderRadius = 0.8f, worldWidth = 1.4f,  spawnWeight = 0.5f },
+        new HazardSize { label = "Small",  scale = 0.20f, colliderRadius = 0.2f, worldWidth = 0.3f,  spawnWeight = 3f },
+        new HazardSize { label = "Medium", scale = 0.30f, colliderRadius = 0.35f, worldWidth = 0.5f,  spawnWeight = 2f },
+        new HazardSize { label = "Large",  scale = 0.45f, colliderRadius = 0.5f, worldWidth = 0.8f,  spawnWeight = 0.5f },
     };
 
     // ------------------------------------------------------------------
@@ -60,7 +60,7 @@ public class RushConfig : ScriptableObject
 
     [Header("Safety")]
     [Tooltip("Minimum safe corridor width (world units). Must be >= player width + margin.")]
-    public float minSafeCorridorWidth = 0.8f;
+    public float minSafeCorridorWidth = 1.2f;
 
     [Tooltip("Player horizontal speed (world units/sec) for reachability checks.")]
     public float playerMoveSpeed = 8f;
@@ -109,11 +109,11 @@ public class RushConfig : ScriptableObject
     [Header("Difficulty Progression")]
     public DifficultyTier[] difficultyTiers = new DifficultyTier[]
     {
-        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.6f,  largeRockChance = 0.0f, complexPatternWeight = 0f },
-        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.5f,  largeRockChance = 0.1f, complexPatternWeight = 0.2f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.45f, largeRockChance = 0.2f, complexPatternWeight = 0.5f },
-        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.35f, largeRockChance = 0.3f, complexPatternWeight = 0.8f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.3f,  largeRockChance = 0.4f, complexPatternWeight = 1.0f },
+        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.7f,  largeRockChance = 0.0f, complexPatternWeight = 0f },
+        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.6f,  largeRockChance = 0.05f, complexPatternWeight = 0.2f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f, largeRockChance = 0.1f, complexPatternWeight = 0.5f },
+        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, largeRockChance = 0.2f, complexPatternWeight = 0.8f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  largeRockChance = 0.3f, complexPatternWeight = 1.0f },
     };
 
     // ------------------------------------------------------------------
