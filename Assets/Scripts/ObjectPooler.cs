@@ -338,7 +338,8 @@ public class ObjectPooler : MonoBehaviour
 
         // ---- Rush Mode: hazard pool (rocks that fall like gems) ----
         hazardPool = new List<GameObject>();
-        if (GameState.Mode == GameState.GameMode.Rush)
+        bool needsHazards = GameState.Mode == GameState.GameMode.Rush || continuousSpawnMode;
+        if (needsHazards)
         {
             // Use Inspector-assigned obstacle prefabs if available; otherwise
             // load rock prefabs from Resources/Rocks/.
@@ -382,9 +383,9 @@ public class ObjectPooler : MonoBehaviour
                 Debug.LogWarning("[Rush] No rock prefabs found! Check Resources/Rocks/ or obstaclePrefabs array.");
             }
         }
-        else
+        else if (!needsHazards)
         {
-            Debug.Log($"[Rush] Mode is {GameState.Mode}, skipping hazard pool");
+            Debug.Log($"[Rush] Mode is {GameState.Mode}, continuousSpawn={continuousSpawnMode}, skipping hazard pool");
         }
 
         // Subscribe to score change events to update difficulty
@@ -496,10 +497,7 @@ public class ObjectPooler : MonoBehaviour
         // ---- Rush Mode: continuous multi-object spawning ----
         if (GameState.Mode == GameState.GameMode.Rush || continuousSpawnMode)
         {
-            if (GameState.Mode == GameState.GameMode.Rush)
-            {
-                UpdateRushTier();
-            }
+            UpdateRushTier();
 
             if (Time.time >= nextSpawnTime)
             {
