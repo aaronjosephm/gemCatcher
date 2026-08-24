@@ -14,10 +14,6 @@ public class CatchZone : MonoBehaviour
 {
     private BoxCollider catcherCollider;
 
-    // Cached list of all FallingObject instances. Refreshed each frame to
-    // handle pooled gems being activated/deactivated.
-    private FallingObject[] activeFallingObjects;
-
     // Invincibility after hazard hit
     private bool isInvincible = false;
     private float invincibilityTimer = 0f;
@@ -50,16 +46,15 @@ public class CatchZone : MonoBehaviour
             }
         }
 
-        // Grab current active FallingObjects. With object pooling, typically
-        // only 1-2 gems are active at any time, so this is very lightweight.
-        activeFallingObjects = FindObjectsByType<FallingObject>(FindObjectsSortMode.None);
+        // Use static registry — zero allocations, no scene scan.
+        var activeList = FallingObject.ActiveInstances;
 
         Vector3 catcherCenter = transform.TransformPoint(catcherCollider.center);
         Vector3 catcherSize = Vector3.Scale(catcherCollider.size, transform.lossyScale);
 
-        for (int i = 0; i < activeFallingObjects.Length; i++)
+        for (int i = activeList.Count - 1; i >= 0; i--)
         {
-            FallingObject fo = activeFallingObjects[i];
+            FallingObject fo = activeList[i];
             if (fo == null || !fo.gameObject.activeInHierarchy) continue;
 
             if (IsWithinBounds(fo, catcherCenter, catcherSize))

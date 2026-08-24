@@ -19,6 +19,14 @@ public enum SpecialGemType
 
 public class FallingObject : MonoBehaviour
 {
+    // ---- Static registry for active instances (avoids FindObjectsByType) ----
+    private static readonly System.Collections.Generic.List<FallingObject> s_active =
+        new System.Collections.Generic.List<FallingObject>(32);
+    public static System.Collections.Generic.List<FallingObject> ActiveInstances => s_active;
+
+    void OnEnable()  { s_active.Add(this); }
+    void OnDisable() { s_active.Remove(this); }
+
     public float fallSpeed = 4.0f;
     public float horizontalSpeed = 0.5f;
     private float initialFallSpeed; // Store the initial fall speed
