@@ -541,6 +541,13 @@ public class CatcherManager : MonoBehaviour
         {
             catcherInstance = Instantiate(catcherPrefab, worldPosition, Quaternion.identity);
             catcherInstance.tag = "Catcher";
+
+            // Kinematic Rigidbody prevents physics forces from moving/rotating the catcher.
+            Rigidbody rb = catcherInstance.GetComponent<Rigidbody>();
+            if (rb == null) rb = catcherInstance.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+            rb.useGravity = false;
+
             ApplyGlassAppearance(catcherInstance);
             AddSparkleEffect(catcherInstance);
             // Ensure CatchZone is attached for trigger-based catch detection.

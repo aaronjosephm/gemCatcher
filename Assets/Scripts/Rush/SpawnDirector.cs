@@ -97,9 +97,16 @@ public class SpawnDirector : MonoBehaviour
                 if (fo == null) fo = obj.AddComponent<FallingObject>();
                 fo.SetHazard(true);
 
-                // Set up collider to match configured size.
-                SphereCollider sc = obj.GetComponent<SphereCollider>();
-                if (sc == null) sc = obj.AddComponent<SphereCollider>();
+                // Strip all existing colliders from prefab (asset pack may include MeshColliders).
+                foreach (Collider c in obj.GetComponentsInChildren<Collider>())
+                    Object.Destroy(c);
+
+                // Remove any Rigidbody the prefab ships with.
+                Rigidbody prefabRb = obj.GetComponent<Rigidbody>();
+                if (prefabRb != null) Object.Destroy(prefabRb);
+
+                // Set up a single trigger collider for CatchZone bounds checking.
+                SphereCollider sc = obj.AddComponent<SphereCollider>();
                 sc.radius = size.colliderRadius;
                 sc.isTrigger = true;
 

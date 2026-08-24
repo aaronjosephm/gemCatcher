@@ -18,13 +18,38 @@ public class CatchZone : MonoBehaviour
     // handle pooled gems being activated/deactivated.
     private FallingObject[] activeFallingObjects;
 
+    // Invincibility after hazard hit
+    private bool isInvincible = false;
+    private float invincibilityTimer = 0f;
+    private const float InvincibilityDuration = 3f;
+    private Renderer[] catcherRenderers;
+    private float flashTimer = 0f;
+
     void Awake()
     {
         catcherCollider = GetComponent<BoxCollider>();
     }
 
+    void Start()
+    {
+        catcherRenderers = GetComponentsInChildren<Renderer>(true);
+    }
+
     void Update()
     {
+        if (isInvincible)
+        {
+            invincibilityTimer -= Time.deltaTime;
+            if (invincibilityTimer <= 0f)
+            {
+                EndInvincibility();
+            }
+            else
+            {
+                UpdateFlash();
+            }
+        }
+
         // Grab current active FallingObjects. With object pooling, typically
         // only 1-2 gems are active at any time, so this is very lightweight.
         activeFallingObjects = FindObjectsByType<FallingObject>(FindObjectsSortMode.None);
@@ -71,7 +96,21 @@ public class CatchZone : MonoBehaviour
         // Hazards (rocks) hurt — same as bombs.
         if (fo.isHazard)
         {
+            if (isInvincible)
+            {
+                // Invincible — rock passes through harmlessly.
+                fo.gameObject.SetActive(false);
+                return;
+            }
             ApplyBombHit(catchPosition);
+            fo.gameObject.SetActive(false);
+            StartInvincibility();
+            return;
+        }
+
+        // During invincibility, no points or catches.
+        if (isInvincible)
+        {
             fo.gameObject.SetActive(false);
             return;
         }
@@ -188,5 +227,42 @@ public class CatchZone : MonoBehaviour
     {
         Color burstColor = fo.GetBurstColor();
         CatchBurst.Spawn(fo.transform.position, burstColor);
+    }
+
+    // ---- Invincibility --------------------------------------------------------
+
+    private void StartInvincibility()
+    {
+        isInvincible = true;
+        invincibilityTimer = InvincibilityDuration;
+        flashTimer = 0f;
+        if (catcherRenderers == null || catcherRenderers.Length == 0)
+            catcherRenderers = GetComponentsInChildren<Renderer>(true);
+    }
+
+    private void EndInvincibility()
+    {
+        isInvincible = false;
+        SetRenderersVisible(true);
+    }
+
+    private void UpdateFlash()
+    {
+        // Flash rate accelerates as invincibility wears off (slow → fast).
+        float remaining = invincibilityTimer / InvincibilityDuration; // 1→0
+        float flashRate = Mathf.Lerp(16f, 3f, remaining); // starts slow (3 Hz), ends fast (16 Hz)
+        flashTimer += Time.deltaTime * flashRate;
+        bool visible = Mathf.Sin(flashTimer * Mathf.PI * 2f) > 0f;
+        SetRenderersVisible(visible);
+    }
+
+    private void SetRenderersVisible(bool visible)
+    {
+        if (catcherRenderers == null) return;
+        for (int i = 0; i < catcherRenderers.Length; i++)
+        {
+            if (catcherRenderers[i] != null)
+                catcherRenderers[i].enabled = visible;
+        }
     }
 }
