@@ -107,8 +107,8 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
-        // Poison gems look like gems but cost a life.
-        if (fo.isPoisonGem)
+        // Poison gems look like gems but cost a life (disabled in Rush Mode).
+        if (fo.isPoisonGem && GameState.Mode != GameState.GameMode.Rush)
         {
             if (isInvincible)
             {
@@ -175,8 +175,8 @@ public class CatchZone : MonoBehaviour
     {
         RoundManager rm = RoundManager.Instance;
 
-        // Bombs hurt — short-circuit everything else.
-        if (variant == SpecialGemType.Bomb)
+        // Bombs hurt — short-circuit everything else (disabled in Rush Mode).
+        if (variant == SpecialGemType.Bomb && GameState.Mode != GameState.GameMode.Rush)
         {
             ApplyBombHit(catchPosition);
             return;

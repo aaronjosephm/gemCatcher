@@ -115,9 +115,9 @@ public class RushConfig : ScriptableObject
     {
         new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.7f,  complexPatternWeight = 0f,   poisonGemChance = 0f },
         new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.6f,  complexPatternWeight = 0.2f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f,  complexPatternWeight = 0.5f, poisonGemChance = 0.1f },
-        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, complexPatternWeight = 0.8f, poisonGemChance = 0.15f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  complexPatternWeight = 1.0f, poisonGemChance = 0.2f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f,  complexPatternWeight = 0.5f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, complexPatternWeight = 0.8f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  complexPatternWeight = 1.0f, poisonGemChance = 0f },
     };
 
     // ------------------------------------------------------------------
