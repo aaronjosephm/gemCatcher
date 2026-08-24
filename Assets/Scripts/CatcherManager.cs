@@ -146,6 +146,15 @@ public class CatcherManager : MonoBehaviour
         // Create initial catcher in the middle slot
         PlaceCatcherInSlot(numberOfSlots / 2);
 
+        // In Rush Mode, snap to center column immediately.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            rushCurrentColumn = 2;
+            float centerX = RushColumns.GetColumnX(2);
+            rushTargetX = float.NaN;
+            MoveCatcherToX(centerX, playFeedback: false);
+        }
+
         // Subscribe to score change events
         GemCatcher.OnScoreChanged += UpdateScoreDisplay;
         // Visual feedback on gameplay events.
