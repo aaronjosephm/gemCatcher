@@ -81,6 +81,9 @@ public class FallingObject : MonoBehaviour
     /// <summary>Poison gem — looks like a gem but costs a life when caught.</summary>
     public bool isPoisonGem { get; set; } = false;
 
+    /// <summary>Rush Mode heart gem — awards an extra life when caught.</summary>
+    public bool isRushHeart { get; set; } = false;
+
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
     /// Set by ObjectPooler in Rush Mode.
@@ -176,6 +179,7 @@ public class FallingObject : MonoBehaviour
         ClearPowerUp();
         isHazard = false;
         isPoisonGem = false;
+        isRushHeart = false;
 
         // Ensure all renderers are visible (gem may have been recycled mid-blink)
         Renderer[] renderers = GetComponentsInChildren<Renderer>();

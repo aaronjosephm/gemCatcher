@@ -128,6 +128,18 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
+        // Rush Mode heart gem — awards extra life, no points.
+        if (fo.isRushHeart)
+        {
+            RoundManager rm2 = RoundManager.Instance;
+            if (rm2 != null) rm2.AddLives(1);
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.PlayWithPitch("GemCaught", 1.5f);
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {
@@ -183,10 +195,11 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
-        // Register the catch for combo tracking.
-        ComboManager.RegisterCatch();
-        float comboMultiplier = ComboManager.CurrentMultiplier;
-        int comboAfterCatch = ComboManager.CurrentCombo;
+        // Register the catch for combo tracking (disabled in Rush Mode).
+        bool isRush = GameState.Mode == GameState.GameMode.Rush;
+        if (!isRush) ComboManager.RegisterCatch();
+        float comboMultiplier = isRush ? 1f : ComboManager.CurrentMultiplier;
+        int comboAfterCatch = isRush ? 0 : ComboManager.CurrentCombo;
 
         // Base points per variant.
         int basePoints;
@@ -201,8 +214,8 @@ public class CatchZone : MonoBehaviour
         rm.AddScore(awarded);
         rm.NotifyGemCaught(awarded, catchPosition);
 
-        // Every third consecutive catch grants +1 life.
-        if (comboAfterCatch > 0 && comboAfterCatch % 3 == 0)
+        // Every third consecutive catch grants +1 life (disabled in Rush — hearts only).
+        if (!isRush && comboAfterCatch > 0 && comboAfterCatch % 3 == 0)
         {
             rm.AddLives(1);
         }
@@ -227,7 +240,7 @@ public class CatchZone : MonoBehaviour
         }
 
         PowerUpManager.RevokeAllOnMiss();
-        ComboManager.Break();
+        if (GameState.Mode != GameState.GameMode.Rush) ComboManager.Break();
 
         rm.NotifyBombHit(worldPosition);
         CameraShake.Shake(0.30f, 0.45f);

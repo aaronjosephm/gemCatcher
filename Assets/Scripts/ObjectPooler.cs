@@ -718,13 +718,14 @@ public class ObjectPooler : MonoBehaviour
     /// </summary>
     public void SpawnRushGemAt(float x, float y, float speed)
     {
-        // Rush Mode: use only green gems for uniform appearance.
-        GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, "GreenVolcom");
+        bool isHeart = Random.value < 0.10f; // 10% heart, 90% green
+        string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
+
+        GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
         if (obj == null) obj = GetRandomPooledObject(objectPool);
         if (obj == null) return;
 
         obj.transform.position = new Vector3(x, y, 0f);
-        // Uniform rotation so gems look consistent.
         obj.transform.rotation = Quaternion.identity;
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo != null)
@@ -736,6 +737,7 @@ public class ObjectPooler : MonoBehaviour
             fo.fallSpeed = speed;
             fo.InitializeMovement(speed);
             fo.ApplySpecialType(SpecialGemType.Normal);
+            fo.isRushHeart = isHeart;
         }
         obj.SetActive(true);
         currentActiveGem = obj;
