@@ -25,6 +25,11 @@ public class RoundManager : MonoBehaviour
 
     public const int STARTING_LIVES = 3;
     public const int MAX_LIVES = 10;
+    public const int RUSH_MAX_LIVES = 3;
+
+    /// <summary>Effective max lives for the current game mode.</summary>
+    public static int EffectiveMaxLives =>
+        GameState.Mode == GameState.GameMode.Rush ? RUSH_MAX_LIVES : MAX_LIVES;
 
     // ---- Singleton ---------------------------------------------------------
 
@@ -100,7 +105,7 @@ public class RoundManager : MonoBehaviour
     public void AddLives(int count)
     {
         if (IsGameOver || count <= 0) return;
-        int room = Mathf.Max(0, MAX_LIVES - Lives);
+        int room = Mathf.Max(0, EffectiveMaxLives - Lives);
         int actual = Mathf.Min(count, room);
         if (actual <= 0) return;
         ChangeLives(actual);
@@ -188,7 +193,7 @@ public class RoundManager : MonoBehaviour
         if (GameState.IsTutorial && delta < 0) return;
 
         int previousLives = Lives;
-        Lives = Mathf.Clamp(Lives + delta, 0, MAX_LIVES);
+        Lives = Mathf.Clamp(Lives + delta, 0, EffectiveMaxLives);
         OnLivesChanged?.Invoke(Lives);
 
         if (Lives <= 0 && previousLives > 0 && !IsGameOver)

@@ -604,6 +604,13 @@ public class FallingObject : MonoBehaviour
                 return;
             }
 
+            // In Rush Mode, missing a gem is harmless — no life lost.
+            if (GameState.Mode == GameState.GameMode.Rush)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
             // Report the miss at the gem's last visible position (just above the bottom)
             // so the floating "-10" appears at the edge of play rather than off-screen.
             Vector3 reportPos = transform.position;
