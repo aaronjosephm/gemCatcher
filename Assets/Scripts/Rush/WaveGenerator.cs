@@ -25,18 +25,50 @@ public static class WaveGenerator
         RushConfig.DifficultyTier tier,
         float areaLeft,
         float areaRight,
-        out int attempts)
+        out int attempts,
+        WaveDefinition.Row previousLastRow = null)
     {
-        Archetype arch = PickArchetype(tier);
-        attempts = 1;
-        WaveDefinition wave = BuildArchetype(arch, config, tier);
+        const int MaxAttempts = 20;
+        attempts = 0;
 
-        if (config.logValidation)
+        for (int i = 0; i < MaxAttempts; i++)
         {
-            Debug.Log($"[WaveGen] {arch}: {wave.rows.Count} rows");
+            attempts++;
+            Archetype arch = PickArchetype(tier);
+            WaveDefinition wave = BuildArchetype(arch, config, tier);
+
+            // Validate internal reachability.
+            if (!SafePathValidator.Validate(wave, config, areaLeft, areaRight))
+                continue;
+
+            // Cross-wave reachability: can the player get from the previous
+            // wave's last row safe corridor to this wave's first row?
+            if (previousLastRow != null && wave.rows.Count > 0)
+            {
+                var firstRow = wave.rows[0];
+                float dist = ClosestDistance(
+                    previousLastRow.safeMinX, previousLastRow.safeMaxX,
+                    firstRow.safeMinX, firstRow.safeMaxX);
+
+                // Allow generous travel time for the gap between waves.
+                float travelBudget = config.playerMoveSpeed *
+                    (config.wavePause / Mathf.Max(tier.fallSpeed, 0.1f) + config.reactionTimeBuffer);
+
+                if (dist > travelBudget)
+                    continue;
+            }
+
+            if (config.logValidation)
+                Debug.Log($"[WaveGen] {arch}: {wave.rows.Count} rows (attempt {attempts})");
+
+            return wave;
         }
 
-        return wave;
+        // Fallback: generate a Recovery wave (all columns safe).
+        attempts++;
+        if (config.logValidation)
+            Debug.LogWarning($"[WaveGen] All {MaxAttempts} attempts failed, using Recovery fallback");
+        return BuildArchetype(Archetype.Recovery, config, tier);
     }
 
     /// <summary>Overload without out parameter.</summary>
@@ -46,7 +78,17 @@ public static class WaveGenerator
         float areaLeft,
         float areaRight)
     {
-        return Generate(config, tier, areaLeft, areaRight, out _);
+        return Generate(config, tier, areaLeft, areaRight, out _, null);
+    }
+
+    /// <summary>
+    /// Minimum horizontal distance between two intervals. Zero if overlapping.
+    /// </summary>
+    static float ClosestDistance(float aMin, float aMax, float bMin, float bMax)
+    {
+        if (aMax < bMin) return bMin - aMax;
+        if (bMax < aMin) return aMin - bMax;
+        return 0f;
     }
 
     static Archetype PickArchetype(RushConfig.DifficultyTier tier)

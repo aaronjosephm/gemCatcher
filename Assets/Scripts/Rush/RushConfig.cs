@@ -62,10 +62,10 @@ public class RushConfig : ScriptableObject
     public float minSafeCorridorWidth = 1.2f;
 
     [Tooltip("Player horizontal speed (world units/sec) for reachability checks.")]
-    public float playerMoveSpeed = 8f;
+    public float playerMoveSpeed = 30f;
 
     [Tooltip("Extra reaction-time buffer (seconds) for reachability validation.")]
-    public float reactionTimeBuffer = 0.15f;
+    public float reactionTimeBuffer = 0.2f;
 
     // ------------------------------------------------------------------
     // Gem Placement

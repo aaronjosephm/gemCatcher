@@ -25,6 +25,7 @@ public class SpawnDirector : MonoBehaviour
     private int totalWavesGenerated;
     private int totalRejectedAttempts;
     private WaveDefinition lastSpawnedWave; // for Gizmo drawing
+    private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
 
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
@@ -125,13 +126,17 @@ public class SpawnDirector : MonoBehaviour
         if (activeWave == null)
         {
             int attempts;
-            activeWave = WaveGenerator.Generate(config, tier, GetPlayAreaLeft(), GetPlayAreaRight(), out attempts);
+            activeWave = WaveGenerator.Generate(config, tier, GetPlayAreaLeft(), GetPlayAreaRight(), out attempts, lastWaveFinalRow);
             activeWave.fallSpeed = tier.fallSpeed;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
             lastSpawnedWave = activeWave;
             totalWavesGenerated++;
             totalRejectedAttempts += Mathf.Max(0, attempts - 1);
+
+            // Track final row for cross-wave validation.
+            if (activeWave.rows.Count > 0)
+                lastWaveFinalRow = activeWave.rows[activeWave.rows.Count - 1];
 
             if (config.logValidation)
             {
