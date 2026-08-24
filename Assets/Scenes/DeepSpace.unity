@@ -173,6 +173,7 @@ MonoBehaviour:
   difficultyLevels: []
   dailyMaxFallSpeed: 5.5
   dailyMinSpawnInterval: 2
+  continuousSpawnMode: 1
 --- !u!4 &189072282
 Transform:
   m_ObjectHideFlags: 0

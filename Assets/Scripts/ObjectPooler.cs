@@ -346,6 +346,7 @@ public class ObjectPooler : MonoBehaviour
             if (rockPrefabs == null || rockPrefabs.Length == 0)
             {
                 rockPrefabs = Resources.LoadAll<GameObject>("Rocks");
+                Debug.Log($"[Rush] Loaded {(rockPrefabs != null ? rockPrefabs.Length : 0)} rock prefabs from Resources/Rocks/");
             }
 
             if (rockPrefabs != null && rockPrefabs.Length > 0)
@@ -374,7 +375,16 @@ public class ObjectPooler : MonoBehaviour
 
                     hazardPool.Add(obj);
                 }
+                Debug.Log($"[Rush] Built hazard pool with {hazardPool.Count} rocks");
             }
+            else
+            {
+                Debug.LogWarning("[Rush] No rock prefabs found! Check Resources/Rocks/ or obstaclePrefabs array.");
+            }
+        }
+        else
+        {
+            Debug.Log($"[Rush] Mode is {GameState.Mode}, skipping hazard pool");
         }
 
         // Subscribe to score change events to update difficulty
