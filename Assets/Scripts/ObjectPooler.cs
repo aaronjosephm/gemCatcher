@@ -735,8 +735,8 @@ public class ObjectPooler : MonoBehaviour
             fo.horizontalSpeed = 0f;
             fo.fallSpeed = speed;
             fo.InitializeMovement(speed);
-            fo.ApplySpecialType(SpecialGemType.Normal);
             fo.isRushHeart = isHeart;
+            fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
             if (isHeart)
@@ -751,15 +751,6 @@ public class ObjectPooler : MonoBehaviour
                     mpb.SetColor("_BaseColor", new Color(1f, 0.15f, 0.15f, 1f));
                     mpb.SetColor("_EmissionColor", new Color(1f, 0.2f, 0.2f, 1f));
                     r.SetPropertyBlock(mpb);
-                }
-
-                // Set glow halo to red.
-                var glow = obj.GetComponent<GemGlowVolume>();
-                if (glow == null) glow = obj.GetComponentInChildren<GemGlowVolume>();
-                if (glow != null)
-                {
-                    glow.enabled = true;
-                    glow.RefreshColor(new Color(1f, 0.15f, 0.15f, 1f));
                 }
             }
         }

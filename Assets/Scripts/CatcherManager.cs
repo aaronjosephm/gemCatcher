@@ -250,28 +250,45 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Rush Mode tap controls: tap left half → move one column left,
-    // tap right half → move one column right.
+    // Rush Mode tap/hold controls: tap left/right → move one column,
+    // hold left/right → keep moving at a repeat rate.
     private int rushCurrentColumn = 2; // Start in center column (0-indexed)
     private float rushTargetX = float.NaN;
     private const float RushMoveSpeed = 30f; // world units/sec for lerp
+    private float rushHoldTimer = 0f;
+    private const float RushHoldDelay = 0.25f;   // seconds before hold kicks in
+    private const float RushHoldRepeat = 0.12f;  // seconds between moves while held
+    private bool rushFirstTapHandled = false;
+
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
+        float screenMid = Screen.width * 0.5f;
+        bool isLeft = Input.mousePosition.x < screenMid;
+
         if (Input.GetMouseButtonDown(0))
         {
-            float screenMid = Screen.width * 0.5f;
-            if (Input.mousePosition.x < screenMid)
+            // First tap — move one slot.
+            MoveRushColumn(isLeft ? -1 : 1);
+            rushHoldTimer = 0f;
+            rushFirstTapHandled = true;
+        }
+        else if (Input.GetMouseButton(0) && rushFirstTapHandled)
+        {
+            // Holding — after initial delay, repeat at interval.
+            rushHoldTimer += Time.deltaTime;
+            if (rushHoldTimer >= RushHoldDelay)
             {
-                rushCurrentColumn = Mathf.Max(0, rushCurrentColumn - 1);
+                rushHoldTimer -= RushHoldRepeat;
+                MoveRushColumn(isLeft ? -1 : 1);
             }
-            else
-            {
-                rushCurrentColumn = Mathf.Min(RushColumns.Count - 1, rushCurrentColumn + 1);
-            }
+        }
 
-            rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
+        if (Input.GetMouseButtonUp(0))
+        {
+            rushFirstTapHandled = false;
+            rushHoldTimer = 0f;
         }
 
         // Smooth slide toward target column.
@@ -287,6 +304,14 @@ public class CatcherManager : MonoBehaviour
                 rushTargetX = float.NaN;
             }
         }
+    }
+
+    void MoveRushColumn(int delta)
+    {
+        int newCol = Mathf.Clamp(rushCurrentColumn + delta, 0, RushColumns.Count - 1);
+        if (newCol == rushCurrentColumn) return;
+        rushCurrentColumn = newCol;
+        rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
     }
 
     // Smooth free-X placement along the catcher row. Clamped so the catcher's
@@ -459,7 +484,7 @@ public class CatcherManager : MonoBehaviour
         // Rush Mode: catcher size never changes.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
-            smallCatcherTargetFactor = 0.5f;
+            smallCatcherTargetFactor = 1.5f;
             return;
         }
         smallCatcherTargetFactor = newScore >= smallCatcherScoreThreshold

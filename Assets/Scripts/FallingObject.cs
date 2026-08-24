@@ -211,7 +211,8 @@ public class FallingObject : MonoBehaviour
         else
         {
             glow.enabled = true;
-            glow.RefreshColor(GetBurstColor());
+            Color c = isRushHeart ? new Color(1f, 0.15f, 0.15f, 1f) : GetBurstColor();
+            glow.RefreshColor(c);
         }
     }
 
