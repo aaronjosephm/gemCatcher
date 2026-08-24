@@ -123,6 +123,9 @@ public class FallingObject : MonoBehaviour
     /// </summary>
     public Color GetBurstColor()
     {
+        // Rush heart gems always glow/burst red.
+        if (isRushHeart) return new Color(1f, 0.15f, 0.15f, 1f);
+
         if (burstColor != Color.clear) return burstColor;
 
         // Golden gems always get a rich gold glow regardless of prefab.
@@ -211,8 +214,7 @@ public class FallingObject : MonoBehaviour
         else
         {
             glow.enabled = true;
-            Color c = isRushHeart ? new Color(1f, 0.15f, 0.15f, 1f) : GetBurstColor();
-            glow.RefreshColor(c);
+            glow.RefreshColor(GetBurstColor());
         }
     }
 
