@@ -1892,7 +1892,9 @@ public class UIManager : MonoBehaviour
   void OnRushClicked()
   {
     GameState.Mode = GameState.GameMode.Rush;
-    ShowGameplay();
+    GameState.SkipMainMenuOnLoad = true;
+    // Reload so ObjectPooler.Start() builds the hazard pool with Rush active.
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   void OnTutorialClicked()

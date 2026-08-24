@@ -176,11 +176,11 @@ public class ObjectPooler : MonoBehaviour
 
     private static readonly RushTier[] rushTiers = new RushTier[]
     {
-        new RushTier { startTime = 0f,   fallSpeed = 3.0f, spawnInterval = 1.2f,  hazardChance = 0.00f },
-        new RushTier { startTime = 10f,  fallSpeed = 3.5f, spawnInterval = 0.9f,  hazardChance = 0.10f },
-        new RushTier { startTime = 30f,  fallSpeed = 4.5f, spawnInterval = 0.7f,  hazardChance = 0.20f },
-        new RushTier { startTime = 60f,  fallSpeed = 5.5f, spawnInterval = 0.5f,  hazardChance = 0.25f },
-        new RushTier { startTime = 90f,  fallSpeed = 7.0f, spawnInterval = 0.35f, hazardChance = 0.30f },
+        new RushTier { startTime = 0f,   fallSpeed = 3.0f, spawnInterval = 2.0f,  hazardChance = 0.15f },
+        new RushTier { startTime = 10f,  fallSpeed = 3.5f, spawnInterval = 1.5f,  hazardChance = 0.20f },
+        new RushTier { startTime = 30f,  fallSpeed = 4.5f, spawnInterval = 1.0f,  hazardChance = 0.22f },
+        new RushTier { startTime = 60f,  fallSpeed = 5.5f, spawnInterval = 0.7f,  hazardChance = 0.25f },
+        new RushTier { startTime = 90f,  fallSpeed = 7.0f, spawnInterval = 0.5f,  hazardChance = 0.30f },
     };
 
     private float rushStartTime;
