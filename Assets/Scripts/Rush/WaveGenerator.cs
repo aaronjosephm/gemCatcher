@@ -33,7 +33,8 @@ public static class WaveGenerator
         RushConfig config,
         RushConfig.DifficultyTier tier,
         float areaLeft,
-        float areaRight)
+        float areaRight,
+        out int attempts)
     {
         float areaWidth = areaRight - areaLeft;
         float corridorWidth = areaWidth * tier.safeCorridorFraction;
@@ -43,7 +44,7 @@ public static class WaveGenerator
         Archetype arch = PickArchetype(tier);
 
         WaveDefinition wave;
-        int attempts = 0;
+        attempts = 0;
         do
         {
             wave = BuildArchetype(arch, config, tier, areaLeft, areaRight, corridorWidth);
@@ -57,12 +58,28 @@ public static class WaveGenerator
         }
         while (!SafePathValidator.Validate(wave, config, areaLeft, areaRight));
 
+        // Smart gem placement: add risk/reward gems at corridor edges.
+        foreach (var row in wave.rows)
+        {
+            PlaceRiskRewardGem(row, config, areaLeft, areaRight);
+        }
+
         if (config.logValidation && attempts > 1)
         {
             Debug.Log($"[WaveGen] {arch} accepted after {attempts} attempts");
         }
 
         return wave;
+    }
+
+    /// <summary>Overload without out parameter for backward compatibility.</summary>
+    public static WaveDefinition Generate(
+        RushConfig config,
+        RushConfig.DifficultyTier tier,
+        float areaLeft,
+        float areaRight)
+    {
+        return Generate(config, tier, areaLeft, areaRight, out _);
     }
 
     static Archetype PickArchetype(RushConfig.DifficultyTier tier)
@@ -372,6 +389,42 @@ public static class WaveGenerator
             row.slots.Add(WaveDefinition.Slot.Rock(rockX, size.worldWidth, sizeIdx));
             cursor = rockX + halfW + Random.Range(0.05f, 0.2f); // Small gap between rocks.
         }
+
+        // Poison gem: small chance to place a deceptive gem among the hazards.
+        if (tier.poisonGemChance > 0f && Random.value < tier.poisonGemChance && bandWidth > 0.6f)
+        {
+            float poisonX = Random.Range(fromX + 0.2f, toX - 0.2f);
+            row.slots.Add(WaveDefinition.Slot.PoisonGemAt(poisonX));
+        }
+    }
+
+    /// <summary>
+    /// Place a risk/reward gem at the edge of the safe corridor, close to hazards.
+    /// Only triggers based on gemRiskRewardChance.
+    /// </summary>
+    static void PlaceRiskRewardGem(WaveDefinition.Row row, RushConfig config,
+        float areaLeft, float areaRight)
+    {
+        if (Random.value >= config.gemRiskRewardChance) return;
+
+        // Place near the edge of the safe corridor (0.15 units inside the boundary).
+        float edgeOffset = 0.15f;
+        bool nearMin = Random.value < 0.5f;
+        float gemX;
+        if (nearMin)
+        {
+            gemX = row.safeMinX + edgeOffset;
+            // Only place if there's a hazard band on the left.
+            if (row.safeMinX <= areaLeft + 0.1f) return;
+        }
+        else
+        {
+            gemX = row.safeMaxX - edgeOffset;
+            // Only place if there's a hazard band on the right.
+            if (row.safeMaxX >= areaRight - 0.1f) return;
+        }
+
+        row.slots.Add(WaveDefinition.Slot.GemAt(gemX));
     }
 
     static int GetLargestSizeIndex(RushConfig config)

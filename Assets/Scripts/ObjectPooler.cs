@@ -157,36 +157,8 @@ public class ObjectPooler : MonoBehaviour
 
     /// <summary>
     /// Experimental mode: gems spawn continuously (every 0.5s) with no
-    /// placement phase. Catcher is always movable. Multiple gems fall
-    /// simultaneously.
-    /// </summary>
-    [Header("Experimental")]
-    public bool continuousSpawnMode = true;
-    private const float ContinuousSpawnInterval = 0.5f;
-
     // ---- Rush Mode ---------------------------------------------------------
-    [System.Serializable]
-    public class RushTier
-    {
-        public float startTime;
-        public float fallSpeed;
-        public float spawnInterval;
-        public float hazardChance; // 0-1 chance each spawn is a rock
-    }
-
-    private static readonly RushTier[] rushTiers = new RushTier[]
-    {
-        new RushTier { startTime = 0f,   fallSpeed = 3.0f, spawnInterval = 2.0f,  hazardChance = 0.15f },
-        new RushTier { startTime = 10f,  fallSpeed = 3.5f, spawnInterval = 1.5f,  hazardChance = 0.20f },
-        new RushTier { startTime = 30f,  fallSpeed = 4.5f, spawnInterval = 1.0f,  hazardChance = 0.22f },
-        new RushTier { startTime = 60f,  fallSpeed = 5.5f, spawnInterval = 0.7f,  hazardChance = 0.25f },
-        new RushTier { startTime = 90f,  fallSpeed = 7.0f, spawnInterval = 0.5f,  hazardChance = 0.30f },
-    };
-
-    private float rushStartTime;
-    private RushTier currentRushTier;
-    private List<GameObject> hazardPool;
-    private const int HazardPoolSize = 8;
+    // (Wave-based spawning is handled entirely by SpawnDirector.)
 
     // Public events for gameplay state changes. Subscribers should unsubscribe in OnDestroy.
     public event Action GemSpawned;
@@ -336,66 +308,12 @@ public class ObjectPooler : MonoBehaviour
             }
         }
 
-        // ---- Rush Mode: hazard pool (rocks that fall like gems) ----
-        hazardPool = new List<GameObject>();
-        bool needsHazards = GameState.Mode == GameState.GameMode.Rush;
-        if (needsHazards)
-        {
-            // Use Inspector-assigned obstacle prefabs if available; otherwise
-            // load rock prefabs from Resources/Rocks/.
-            GameObject[] rockPrefabs = obstaclePrefabs;
-            if (rockPrefabs == null || rockPrefabs.Length == 0)
-            {
-                rockPrefabs = Resources.LoadAll<GameObject>("Rocks");
-                Debug.Log($"[Rush] Loaded {(rockPrefabs != null ? rockPrefabs.Length : 0)} rock prefabs from Resources/Rocks/");
-            }
-
-            if (rockPrefabs != null && rockPrefabs.Length > 0)
-            {
-                for (int i = 0; i < HazardPoolSize; i++)
-                {
-                    GameObject prefab = rockPrefabs[i % rockPrefabs.Length];
-                    GameObject obj = Instantiate(prefab);
-                    obj.SetActive(false);
-
-                    // Scale rocks to roughly match gem size.
-                    obj.transform.localScale = new Vector3(0.4f, 0.4f, 0.4f);
-
-                    // Add FallingObject so they use the same falling/boundary code.
-                    FallingObject fo = obj.GetComponent<FallingObject>();
-                    if (fo == null) fo = obj.AddComponent<FallingObject>();
-                    fo.SetHazard(true);
-
-                    // Add a SphereCollider so CatchZone can detect them.
-                    if (obj.GetComponent<SphereCollider>() == null)
-                    {
-                        SphereCollider sc = obj.AddComponent<SphereCollider>();
-                        sc.radius = 0.5f;
-                        sc.isTrigger = true;
-                    }
-
-                    hazardPool.Add(obj);
-                }
-                Debug.Log($"[Rush] Built hazard pool with {hazardPool.Count} rocks");
-            }
-            else
-            {
-                Debug.LogWarning("[Rush] No rock prefabs found! Check Resources/Rocks/ or obstaclePrefabs array.");
-            }
-        }
-        else if (!needsHazards)
-        {
-            Debug.Log($"[Rush] Mode is {GameState.Mode}, skipping hazard pool");
-        }
-
         // Subscribe to score change events to update difficulty
         GemCatcher.OnScoreChanged += CheckDifficultyProgression;
         GemCatcher.OnGameOver += HandleGameOver;
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
-        rushStartTime = Time.time;
-        currentRushTier = rushTiers[0];
 
         // In Rush mode, attach SpawnDirector to handle wave-based spawning.
         if (GameState.Mode == GameState.GameMode.Rush)
@@ -437,16 +355,6 @@ public class ObjectPooler : MonoBehaviour
             p.SetActive(false);
         }
         activePickups.Clear();
-
-        // Despawn any active hazards (Rush Mode rocks).
-        if (hazardPool != null)
-        {
-            for (int i = 0; i < hazardPool.Count; i++)
-            {
-                if (hazardPool[i] != null && hazardPool[i].activeInHierarchy)
-                    hazardPool[i].SetActive(false);
-            }
-        }
 
         // Also deactivate all pooled gems that are still in flight (Rush Mode
         // can have multiple gems active simultaneously).
@@ -804,50 +712,6 @@ public class ObjectPooler : MonoBehaviour
 
     // ---- Rush Mode helpers ------------------------------------------------
 
-    /// <summary>Advance the time-based difficulty tier for Rush Mode.</summary>
-    void UpdateRushTier()
-    {
-        float elapsed = Time.time - rushStartTime;
-        RushTier best = rushTiers[0];
-        for (int i = rushTiers.Length - 1; i >= 0; i--)
-        {
-            if (elapsed >= rushTiers[i].startTime)
-            {
-                best = rushTiers[i];
-                break;
-            }
-        }
-        currentRushTier = best;
-    }
-
-    /// <summary>Spawn a gem for Rush/continuous mode — full speed, vertical only, no lightning.</summary>
-    void SpawnRushGem(float speed)
-    {
-        GameObject obj = GetRandomPooledObject(objectPool);
-        if (obj == null) return;
-
-        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
-        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
-        float randomX = UnityEngine.Random.Range(minX, maxX);
-        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop + 1f, 0f);
-
-        FallingObject fo = obj.GetComponent<FallingObject>();
-        if (fo != null)
-        {
-            fo.ApplyScaleFactor(GetCurrentGemScaleFactor());
-            fo.ResetObject();
-            fo.verticalOnly = true;
-            fo.horizontalSpeed = 0f;
-            fo.fallSpeed = speed;
-            fo.InitializeMovement(speed);
-            fo.ApplySpecialType(SpecialGemType.Normal);
-        }
-
-        obj.SetActive(true);
-        currentActiveGem = obj;
-        // No lightning effect in Rush Mode.
-    }
-
     /// <summary>
     /// Public entry point for SpawnDirector to spawn a gem at a specific
     /// position with a specific speed. Uses the gem pool.
@@ -877,28 +741,39 @@ public class ObjectPooler : MonoBehaviour
         currentActiveGem = obj;
     }
 
-    /// <summary>Spawn a falling rock hazard for Rush Mode.</summary>
-    void SpawnRushHazard(float speed)
+    /// <summary>
+    /// Spawn a poison gem — looks like a gem but tinted purple. Costs a life if caught.
+    /// </summary>
+    public void SpawnRushPoisonGemAt(float x, float y, float speed)
     {
-        GameObject obj = GetRandomPooledObject(hazardPool);
+        GameObject obj = GetRandomPooledObject(objectPool);
         if (obj == null) return;
 
-        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
-        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
-        float randomX = UnityEngine.Random.Range(minX, maxX);
-        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop + 1f, 0f);
-
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.rotation = Quaternion.identity;
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo != null)
         {
+            fo.ApplyScaleFactor(GetCurrentGemScaleFactor());
             fo.ResetObject();
-            fo.SetHazard(true);
             fo.verticalOnly = true;
             fo.horizontalSpeed = 0f;
             fo.fallSpeed = speed;
             fo.InitializeMovement(speed);
-        }
+            fo.ApplySpecialType(SpecialGemType.Normal);
+            fo.isPoisonGem = true;
 
+            // Tint purple so observant players can distinguish.
+            Renderer r = obj.GetComponent<Renderer>();
+            if (r != null)
+            {
+                MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+                r.GetPropertyBlock(mpb);
+                mpb.SetColor("_BaseColor", new Color(0.6f, 0.1f, 0.8f, 1f));
+                mpb.SetColor("_EmissionColor", new Color(0.4f, 0f, 0.5f, 1f));
+                r.SetPropertyBlock(mpb);
+            }
+        }
         obj.SetActive(true);
     }
 

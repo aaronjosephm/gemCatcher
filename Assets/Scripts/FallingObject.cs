@@ -78,6 +78,9 @@ public class FallingObject : MonoBehaviour
     /// <summary>Mark this object as a hazard (rock). Called by ObjectPooler at spawn.</summary>
     public void SetHazard(bool value) { isHazard = value; }
 
+    /// <summary>Poison gem — looks like a gem but costs a life when caught.</summary>
+    public bool isPoisonGem { get; set; } = false;
+
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
     /// Set by ObjectPooler in Rush Mode.
@@ -172,6 +175,7 @@ public class FallingObject : MonoBehaviour
         InitializeComponents();
         ClearPowerUp();
         isHazard = false;
+        isPoisonGem = false;
 
         // Ensure all renderers are visible (gem may have been recycled mid-blink)
         Renderer[] renderers = GetComponentsInChildren<Renderer>();

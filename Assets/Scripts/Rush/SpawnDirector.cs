@@ -21,6 +21,11 @@ public class SpawnDirector : MonoBehaviour
     private int activeRowIndex;          // next row to spawn in activeWave
     private float lastRowSpawnTime;
 
+    // Debug stats
+    private int totalWavesGenerated;
+    private int totalRejectedAttempts;
+    private WaveDefinition lastSpawnedWave; // for Gizmo drawing
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -128,15 +133,20 @@ public class SpawnDirector : MonoBehaviour
         // If no active wave, generate a new one.
         if (activeWave == null)
         {
-            activeWave = WaveGenerator.Generate(config, tier, GetPlayAreaLeft(), GetPlayAreaRight());
+            int attempts;
+            activeWave = WaveGenerator.Generate(config, tier, GetPlayAreaLeft(), GetPlayAreaRight(), out attempts);
             activeWave.fallSpeed = tier.fallSpeed;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
+            lastSpawnedWave = activeWave;
+            totalWavesGenerated++;
+            totalRejectedAttempts += Mathf.Max(0, attempts - 1);
 
             if (config.logValidation)
             {
-                Debug.Log($"[SpawnDirector] Generated wave: {activeWave.archetypeName}, " +
-                          $"{activeWave.rows.Count} rows, speed={tier.fallSpeed:F1}");
+                Debug.Log($"[SpawnDirector] Wave #{totalWavesGenerated}: {activeWave.archetypeName}, " +
+                          $"{activeWave.rows.Count} rows, speed={tier.fallSpeed:F1}, " +
+                          $"attempts={attempts}, totalRejects={totalRejectedAttempts}");
             }
         }
 
@@ -175,6 +185,9 @@ public class SpawnDirector : MonoBehaviour
                     break;
                 case WaveDefinition.SlotType.Gem:
                     SpawnGemAt(slot.x, spawnY, fallSpeed);
+                    break;
+                case WaveDefinition.SlotType.PoisonGem:
+                    SpawnPoisonGemAt(slot.x, spawnY, fallSpeed);
                     break;
             }
         }
@@ -217,9 +230,13 @@ public class SpawnDirector : MonoBehaviour
     void SpawnGemAt(float x, float y, float fallSpeed)
     {
         if (pooler == null) return;
-
-        // Use the existing gem pool via ObjectPooler's public method.
         pooler.SpawnRushGemAt(x, y, fallSpeed);
+    }
+
+    void SpawnPoisonGemAt(float x, float y, float fallSpeed)
+    {
+        if (pooler == null) return;
+        pooler.SpawnRushPoisonGemAt(x, y, fallSpeed);
     }
 
     GameObject GetInactive(List<GameObject> pool)
@@ -233,6 +250,55 @@ public class SpawnDirector : MonoBehaviour
 
     float GetPlayAreaLeft() => ScreenPadding.WorldLeft + 0.3f;
     float GetPlayAreaRight() => ScreenPadding.WorldRight - 0.3f;
+
+#if UNITY_EDITOR
+    void OnDrawGizmos()
+    {
+        if (config == null || !config.debugVisualization) return;
+        if (lastSpawnedWave == null) return;
+
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+
+        for (int i = 0; i < lastSpawnedWave.rows.Count; i++)
+        {
+            var row = lastSpawnedWave.rows[i];
+            float y = spawnY - row.yOffset;
+
+            // Draw safe corridor in green.
+            Gizmos.color = new Color(0f, 1f, 0f, 0.3f);
+            float corridorCenter = (row.safeMinX + row.safeMaxX) * 0.5f;
+            float corridorWidth = row.SafeWidth;
+            Gizmos.DrawCube(new Vector3(corridorCenter, y, 0f), new Vector3(corridorWidth, 0.15f, 0.1f));
+
+            // Draw hazard zones in red.
+            Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
+            foreach (var slot in row.slots)
+            {
+                if (slot.type == WaveDefinition.SlotType.Hazard)
+                {
+                    Gizmos.DrawWireCube(new Vector3(slot.x, y, 0f), new Vector3(slot.width, 0.3f, 0.1f));
+                }
+                else if (slot.type == WaveDefinition.SlotType.Gem)
+                {
+                    Gizmos.color = Color.cyan;
+                    Gizmos.DrawWireSphere(new Vector3(slot.x, y, 0f), 0.12f);
+                    Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
+                }
+                else if (slot.type == WaveDefinition.SlotType.PoisonGem)
+                {
+                    Gizmos.color = new Color(0.6f, 0f, 0.8f, 0.8f);
+                    Gizmos.DrawWireSphere(new Vector3(slot.x, y, 0f), 0.12f);
+                    Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
+                }
+            }
+        }
+
+        // Display stats in Scene view via label.
+        UnityEditor.Handles.Label(
+            new Vector3(GetPlayAreaLeft(), spawnY + 1f, 0f),
+            $"Waves: {totalWavesGenerated}  Rejects: {totalRejectedAttempts}");
+    }
+#endif
 
     void OnDestroy()
     {

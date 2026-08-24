@@ -2667,10 +2667,12 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
 
-    // "Try Again" only exists for Normal mode (the button is hidden in daily
-    // game-over). Defensively force Mode back to Normal so the next round
-    // can never accidentally re-enter the daily seed.
-    GameState.Mode = GameState.GameMode.Normal;
+    // "Try Again" only exists for Normal and Rush modes (the button is hidden in daily
+    // game-over). Force Mode back to Normal only when in Daily mode so the next round
+    // can never accidentally re-enter the daily seed; otherwise preserve current mode
+    // (e.g. Rush stays Rush).
+    if (GameState.Mode == GameState.GameMode.Daily)
+        GameState.Mode = GameState.GameMode.Normal;
 
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.

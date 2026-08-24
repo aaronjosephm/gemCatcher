@@ -15,6 +15,7 @@ public class WaveDefinition
         Empty,
         Hazard,
         Gem,
+        PoisonGem,
     }
 
     /// <summary>One slot in a row — a hazard, gem, or empty space.</summary>
@@ -36,6 +37,8 @@ public class WaveDefinition
             new Slot { type = SlotType.Hazard, x = x, width = width, hazardSizeIndex = sizeIdx };
         public static Slot GemAt(float x) =>
             new Slot { type = SlotType.Gem, x = x, width = 0.4f };
+        public static Slot PoisonGemAt(float x) =>
+            new Slot { type = SlotType.PoisonGem, x = x, width = 0.4f };
     }
 
     /// <summary>One horizontal row of slots, spawned at a specific Y offset from the wave origin.</summary>

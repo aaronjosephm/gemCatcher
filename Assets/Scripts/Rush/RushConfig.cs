@@ -81,6 +81,10 @@ public class RushConfig : ScriptableObject
     [Tooltip("Chance a risky corridor places a gem as reward.")]
     public float gemRiskRewardChance = 0.3f;
 
+    [Range(0f, 1f)]
+    [Tooltip("Chance a poison gem spawns in a hazard formation (higher tiers only).")]
+    public float poisonGemChance = 0f;
+
     // ------------------------------------------------------------------
     // Difficulty Curve
     // ------------------------------------------------------------------
@@ -104,16 +108,20 @@ public class RushConfig : ScriptableObject
         [Range(0f, 2f)]
         [Tooltip("Weight for complex archetypes (zig-zag, funnel, fork).")]
         public float complexPatternWeight = 0f;
+
+        [Range(0f, 1f)]
+        [Tooltip("Chance a poison gem appears in hazard rows at this tier.")]
+        public float poisonGemChance = 0f;
     }
 
     [Header("Difficulty Progression")]
     public DifficultyTier[] difficultyTiers = new DifficultyTier[]
     {
-        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.7f,  largeRockChance = 0.0f, complexPatternWeight = 0f },
-        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.6f,  largeRockChance = 0.05f, complexPatternWeight = 0.2f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f, largeRockChance = 0.1f, complexPatternWeight = 0.5f },
-        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, largeRockChance = 0.2f, complexPatternWeight = 0.8f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  largeRockChance = 0.3f, complexPatternWeight = 1.0f },
+        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.7f,  largeRockChance = 0.0f, complexPatternWeight = 0f,   poisonGemChance = 0f },
+        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.6f,  largeRockChance = 0.05f, complexPatternWeight = 0.2f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f, largeRockChance = 0.1f, complexPatternWeight = 0.5f,  poisonGemChance = 0.1f },
+        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, largeRockChance = 0.2f, complexPatternWeight = 0.8f, poisonGemChance = 0.15f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  largeRockChance = 0.3f, complexPatternWeight = 1.0f, poisonGemChance = 0.2f },
     };
 
     // ------------------------------------------------------------------
@@ -150,15 +158,40 @@ public class RushConfig : ScriptableObject
     /// <summary>Get the difficulty tier for the given elapsed time.</summary>
     public DifficultyTier GetTier(float elapsedTime)
     {
-        DifficultyTier best = difficultyTiers[0];
+        if (difficultyTiers.Length == 0) return new DifficultyTier();
+        if (difficultyTiers.Length == 1) return difficultyTiers[0];
+
+        // Find the two bounding tiers and lerp between them.
         for (int i = difficultyTiers.Length - 1; i >= 0; i--)
         {
             if (elapsedTime >= difficultyTiers[i].startTime)
             {
-                best = difficultyTiers[i];
-                break;
+                if (i == difficultyTiers.Length - 1)
+                    return difficultyTiers[i]; // Past final tier — use it as-is.
+
+                DifficultyTier a = difficultyTiers[i];
+                DifficultyTier b = difficultyTiers[i + 1];
+                float range = b.startTime - a.startTime;
+                float t = Mathf.Clamp01((elapsedTime - a.startTime) / range);
+
+                return LerpTier(a, b, t);
             }
         }
-        return best;
+        return difficultyTiers[0];
+    }
+
+    /// <summary>Linearly interpolate all numeric fields between two tiers.</summary>
+    static DifficultyTier LerpTier(DifficultyTier a, DifficultyTier b, float t)
+    {
+        return new DifficultyTier
+        {
+            startTime              = Mathf.Lerp(a.startTime, b.startTime, t),
+            fallSpeed              = Mathf.Lerp(a.fallSpeed, b.fallSpeed, t),
+            maxRows                = Mathf.RoundToInt(Mathf.Lerp(a.maxRows, b.maxRows, t)),
+            safeCorridorFraction   = Mathf.Lerp(a.safeCorridorFraction, b.safeCorridorFraction, t),
+            largeRockChance        = Mathf.Lerp(a.largeRockChance, b.largeRockChance, t),
+            complexPatternWeight   = Mathf.Lerp(a.complexPatternWeight, b.complexPatternWeight, t),
+            poisonGemChance        = Mathf.Lerp(a.poisonGemChance, b.poisonGemChance, t),
+        };
     }
 }

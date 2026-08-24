@@ -98,7 +98,20 @@ public class CatchZone : MonoBehaviour
         {
             if (isInvincible)
             {
-                // Invincible — rock passes through harmlessly.
+                fo.gameObject.SetActive(false);
+                return;
+            }
+            ApplyBombHit(catchPosition);
+            fo.gameObject.SetActive(false);
+            StartInvincibility();
+            return;
+        }
+
+        // Poison gems look like gems but cost a life.
+        if (fo.isPoisonGem)
+        {
+            if (isInvincible)
+            {
                 fo.gameObject.SetActive(false);
                 return;
             }
