@@ -35,12 +35,11 @@ public class RushConfig : ScriptableObject
         public float spawnWeight = 1f;
     }
 
-    [Header("Rock Sizes")]
-    public HazardSize[] hazardSizes = new HazardSize[]
+    [Header("Rock Size")]
+    public HazardSize rockSize = new HazardSize
     {
-        new HazardSize { label = "Small",  scale = 0.10f, colliderRadius = 0.15f, worldWidth = 0.2f,  spawnWeight = 3f },
-        new HazardSize { label = "Medium", scale = 0.15f, colliderRadius = 0.2f,  worldWidth = 0.3f,  spawnWeight = 2f },
-        new HazardSize { label = "Large",  scale = 0.22f, colliderRadius = 0.3f,  worldWidth = 0.5f,  spawnWeight = 0.5f },
+        label = "Standard", scale = 0.15f, colliderRadius = 0.2f,
+        worldWidth = 0.3f, spawnWeight = 1f
     };
 
     // ------------------------------------------------------------------
@@ -102,9 +101,6 @@ public class RushConfig : ScriptableObject
         [Tooltip("Fraction of screen width for the safe corridor.")]
         public float safeCorridorFraction = 0.6f;
 
-        [Range(0f, 1f)]
-        public float largeRockChance = 0f;
-
         [Range(0f, 2f)]
         [Tooltip("Weight for complex archetypes (zig-zag, funnel, fork).")]
         public float complexPatternWeight = 0f;
@@ -117,11 +113,11 @@ public class RushConfig : ScriptableObject
     [Header("Difficulty Progression")]
     public DifficultyTier[] difficultyTiers = new DifficultyTier[]
     {
-        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.7f,  largeRockChance = 0.0f, complexPatternWeight = 0f,   poisonGemChance = 0f },
-        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.6f,  largeRockChance = 0.05f, complexPatternWeight = 0.2f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f, largeRockChance = 0.1f, complexPatternWeight = 0.5f,  poisonGemChance = 0.1f },
-        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, largeRockChance = 0.2f, complexPatternWeight = 0.8f, poisonGemChance = 0.15f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  largeRockChance = 0.3f, complexPatternWeight = 1.0f, poisonGemChance = 0.2f },
+        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 2, safeCorridorFraction = 0.7f,  complexPatternWeight = 0f,   poisonGemChance = 0f },
+        new DifficultyTier { startTime = 10f,  fallSpeed = 3.5f, maxRows = 2, safeCorridorFraction = 0.6f,  complexPatternWeight = 0.2f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 4.5f, maxRows = 3, safeCorridorFraction = 0.5f,  complexPatternWeight = 0.5f, poisonGemChance = 0.1f },
+        new DifficultyTier { startTime = 60f,  fallSpeed = 5.5f, maxRows = 4, safeCorridorFraction = 0.45f, complexPatternWeight = 0.8f, poisonGemChance = 0.15f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 7.0f, maxRows = 5, safeCorridorFraction = 0.4f,  complexPatternWeight = 1.0f, poisonGemChance = 0.2f },
     };
 
     // ------------------------------------------------------------------
@@ -135,25 +131,6 @@ public class RushConfig : ScriptableObject
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------
-
-    /// <summary>Pick a random hazard size weighted by spawnWeight.</summary>
-    public HazardSize PickRandomSize()
-    {
-        if (hazardSizes == null || hazardSizes.Length == 0) return null;
-
-        float totalWeight = 0f;
-        for (int i = 0; i < hazardSizes.Length; i++)
-            totalWeight += hazardSizes[i].spawnWeight;
-
-        float roll = Random.Range(0f, totalWeight);
-        float running = 0f;
-        for (int i = 0; i < hazardSizes.Length; i++)
-        {
-            running += hazardSizes[i].spawnWeight;
-            if (roll <= running) return hazardSizes[i];
-        }
-        return hazardSizes[hazardSizes.Length - 1];
-    }
 
     /// <summary>Get the difficulty tier for the given elapsed time.</summary>
     public DifficultyTier GetTier(float elapsedTime)
@@ -189,7 +166,6 @@ public class RushConfig : ScriptableObject
             fallSpeed              = Mathf.Lerp(a.fallSpeed, b.fallSpeed, t),
             maxRows                = Mathf.RoundToInt(Mathf.Lerp(a.maxRows, b.maxRows, t)),
             safeCorridorFraction   = Mathf.Lerp(a.safeCorridorFraction, b.safeCorridorFraction, t),
-            largeRockChance        = Mathf.Lerp(a.largeRockChance, b.largeRockChance, t),
             complexPatternWeight   = Mathf.Lerp(a.complexPatternWeight, b.complexPatternWeight, t),
             poisonGemChance        = Mathf.Lerp(a.poisonGemChance, b.poisonGemChance, t),
         };

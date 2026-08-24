@@ -2,19 +2,12 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Generates <see cref="WaveDefinition"/> instances from a library of
-/// archetypes. Each archetype creates a different navigation puzzle:
-/// left opening, right opening, center gap, center blocker, moving
-/// corridor, zig-zag, funnel, fork, risk/reward, and recovery.
-///
-/// The generator picks an archetype weighted by difficulty, fills in
-/// hazard slots using <see cref="RushConfig.HazardSize"/> definitions,
-/// places gems for guidance/reward, and validates the result via
-/// <see cref="SafePathValidator"/>.
+/// Generates <see cref="WaveDefinition"/> instances using a 5-column grid.
+/// Each row assigns every column to Rock, Gem, PoisonGem, or Empty.
+/// At least one column per row is always safe (empty or gem).
 /// </summary>
 public static class WaveGenerator
 {
-    // Archetype enum for weighting and logging.
     enum Archetype
     {
         LeftOpening,
@@ -26,9 +19,7 @@ public static class WaveGenerator
         Recovery,
     }
 
-    /// <summary>
-    /// Generate a wave appropriate for the current difficulty tier.
-    /// </summary>
+    /// <summary>Generate a column-based wave for the current difficulty.</summary>
     public static WaveDefinition Generate(
         RushConfig config,
         RushConfig.DifficultyTier tier,
@@ -36,43 +27,19 @@ public static class WaveGenerator
         float areaRight,
         out int attempts)
     {
-        float areaWidth = areaRight - areaLeft;
-        float corridorWidth = areaWidth * tier.safeCorridorFraction;
-        corridorWidth = Mathf.Max(corridorWidth, config.minSafeCorridorWidth);
-
-        // Pick an archetype.
         Archetype arch = PickArchetype(tier);
+        attempts = 1;
+        WaveDefinition wave = BuildArchetype(arch, config, tier);
 
-        WaveDefinition wave;
-        attempts = 0;
-        do
+        if (config.logValidation)
         {
-            wave = BuildArchetype(arch, config, tier, areaLeft, areaRight, corridorWidth);
-            attempts++;
-            if (attempts > 10)
-            {
-                // Fallback: simple recovery wave.
-                wave = BuildRecovery(config, tier, areaLeft, areaRight, areaWidth);
-                break;
-            }
-        }
-        while (!SafePathValidator.Validate(wave, config, areaLeft, areaRight));
-
-        // Smart gem placement: add risk/reward gems at corridor edges.
-        foreach (var row in wave.rows)
-        {
-            PlaceRiskRewardGem(row, config, areaLeft, areaRight);
-        }
-
-        if (config.logValidation && attempts > 1)
-        {
-            Debug.Log($"[WaveGen] {arch} accepted after {attempts} attempts");
+            Debug.Log($"[WaveGen] {arch}: {wave.rows.Count} rows");
         }
 
         return wave;
     }
 
-    /// <summary>Overload without out parameter for backward compatibility.</summary>
+    /// <summary>Overload without out parameter.</summary>
     public static WaveDefinition Generate(
         RushConfig config,
         RushConfig.DifficultyTier tier,
@@ -84,7 +51,6 @@ public static class WaveGenerator
 
     static Archetype PickArchetype(RushConfig.DifficultyTier tier)
     {
-        // Simple weighted random. Complex patterns get more weight at higher difficulty.
         float simple = 1f;
         float complex = tier.complexPatternWeight;
 
@@ -112,334 +78,212 @@ public static class WaveGenerator
         return Archetype.CenterOpening;
     }
 
-    static WaveDefinition BuildArchetype(
-        Archetype arch,
-        RushConfig config,
-        RushConfig.DifficultyTier tier,
-        float left, float right, float corridorWidth)
+    static WaveDefinition BuildArchetype(Archetype arch, RushConfig config, RushConfig.DifficultyTier tier)
     {
         switch (arch)
         {
-            case Archetype.LeftOpening:    return BuildSideOpening(config, tier, left, right, corridorWidth, true);
-            case Archetype.RightOpening:   return BuildSideOpening(config, tier, left, right, corridorWidth, false);
-            case Archetype.CenterOpening:  return BuildCenterOpening(config, tier, left, right, corridorWidth);
-            case Archetype.CenterBlocker:  return BuildCenterBlocker(config, tier, left, right, corridorWidth);
-            case Archetype.MovingCorridor: return BuildMovingCorridor(config, tier, left, right, corridorWidth);
-            case Archetype.ZigZag:         return BuildZigZag(config, tier, left, right, corridorWidth);
-            case Archetype.Recovery:       return BuildRecovery(config, tier, left, right, right - left);
-            default:                       return BuildCenterOpening(config, tier, left, right, corridorWidth);
+            case Archetype.LeftOpening:    return BuildSideOpening(config, tier, true);
+            case Archetype.RightOpening:   return BuildSideOpening(config, tier, false);
+            case Archetype.CenterOpening:  return BuildCenterOpening(config, tier);
+            case Archetype.CenterBlocker:  return BuildCenterBlocker(config, tier);
+            case Archetype.MovingCorridor: return BuildMovingCorridor(config, tier);
+            case Archetype.ZigZag:         return BuildZigZag(config, tier);
+            case Archetype.Recovery:       return BuildRecovery(config, tier);
+            default:                       return BuildCenterOpening(config, tier);
         }
     }
 
     // ------------------------------------------------------------------
-    // Archetype builders
+    // Archetype builders — all work with column indices 0..4
     // ------------------------------------------------------------------
 
-    /// <summary>Safe corridor on one side, hazards cover the rest.</summary>
-    static WaveDefinition BuildSideOpening(
-        RushConfig config, RushConfig.DifficultyTier tier,
-        float left, float right, float corridorWidth, bool openLeft)
+    // How many columns to keep safe based on safeCorridorFraction.
+    static int SafeColumnCount(RushConfig.DifficultyTier tier)
+    {
+        // 0.7 → 4 safe, 0.5 → 3 safe, 0.4 → 2 safe, <0.3 → 1 safe
+        int safe = Mathf.RoundToInt(tier.safeCorridorFraction * RushColumns.Count);
+        return Mathf.Clamp(safe, 1, RushColumns.Count - 1);
+    }
+
+    /// <summary>Safe columns on one side, rocks on the other.</summary>
+    static WaveDefinition BuildSideOpening(RushConfig config, RushConfig.DifficultyTier tier, bool openLeft)
     {
         var wave = new WaveDefinition { archetypeName = openLeft ? "LeftOpening" : "RightOpening" };
-        int rowCount = Mathf.Min(tier.maxRows, Random.Range(2, tier.maxRows + 1));
+        int rowCount = Mathf.Clamp(Random.Range(2, tier.maxRows + 1), 1, tier.maxRows);
+        int safeCols = SafeColumnCount(tier);
 
         for (int r = 0; r < rowCount; r++)
         {
-            var row = new WaveDefinition.Row { yOffset = r * config.rowSpacing };
-
+            bool[] safe = new bool[RushColumns.Count];
             if (openLeft)
-            {
-                row.safeMinX = left;
-                row.safeMaxX = left + corridorWidth;
-                FillHazards(row, row.safeMaxX, right, config, tier);
-            }
+                for (int c = 0; c < safeCols; c++) safe[c] = true;
             else
-            {
-                row.safeMinX = right - corridorWidth;
-                row.safeMaxX = right;
-                FillHazards(row, left, row.safeMinX, config, tier);
-            }
+                for (int c = RushColumns.Count - safeCols; c < RushColumns.Count; c++) safe[c] = true;
 
-            // Guide gem in the safe corridor.
-            if (Random.value < config.gemGuideChance)
-            {
-                row.slots.Add(WaveDefinition.Slot.GemAt(row.SafeCenter));
-            }
-
-            wave.rows.Add(row);
+            wave.rows.Add(BuildRow(r, safe, config, tier));
         }
-
         return wave;
     }
 
-    /// <summary>Safe corridor in the center, hazards on both sides.</summary>
-    static WaveDefinition BuildCenterOpening(
-        RushConfig config, RushConfig.DifficultyTier tier,
-        float left, float right, float corridorWidth)
+    /// <summary>Safe columns in the center, rocks on both sides.</summary>
+    static WaveDefinition BuildCenterOpening(RushConfig config, RushConfig.DifficultyTier tier)
     {
         var wave = new WaveDefinition { archetypeName = "CenterOpening" };
-        int rowCount = Mathf.Min(tier.maxRows, Random.Range(2, tier.maxRows + 1));
-        float center = (left + right) * 0.5f;
+        int rowCount = Mathf.Clamp(Random.Range(2, tier.maxRows + 1), 1, tier.maxRows);
+        int safeCols = SafeColumnCount(tier);
 
         for (int r = 0; r < rowCount; r++)
         {
-            var row = new WaveDefinition.Row { yOffset = r * config.rowSpacing };
-            row.safeMinX = center - corridorWidth * 0.5f;
-            row.safeMaxX = center + corridorWidth * 0.5f;
+            bool[] safe = new bool[RushColumns.Count];
+            int startSafe = (RushColumns.Count - safeCols) / 2;
+            for (int c = startSafe; c < startSafe + safeCols; c++) safe[c] = true;
 
-            FillHazards(row, left, row.safeMinX, config, tier);
-            FillHazards(row, row.safeMaxX, right, config, tier);
-
-            if (Random.value < config.gemGuideChance)
-            {
-                row.slots.Add(WaveDefinition.Slot.GemAt(center));
-            }
-
-            wave.rows.Add(row);
+            wave.rows.Add(BuildRow(r, safe, config, tier));
         }
-
         return wave;
     }
 
-    /// <summary>Large rock in center, player forced left or right.</summary>
-    static WaveDefinition BuildCenterBlocker(
-        RushConfig config, RushConfig.DifficultyTier tier,
-        float left, float right, float corridorWidth)
+    /// <summary>Rock in center column, safe on both sides.</summary>
+    static WaveDefinition BuildCenterBlocker(RushConfig config, RushConfig.DifficultyTier tier)
     {
         var wave = new WaveDefinition { archetypeName = "CenterBlocker" };
-        float center = (left + right) * 0.5f;
 
-        // Row 1: big rock in center.
-        int largeIdx = GetLargestSizeIndex(config);
-        float largeWidth = config.hazardSizes[largeIdx].worldWidth;
+        // Row 1: rock in center, safe on sides.
+        bool[] safe1 = new bool[RushColumns.Count];
+        for (int c = 0; c < RushColumns.Count; c++) safe1[c] = c != 2;
+        wave.rows.Add(BuildRow(0, safe1, config, tier));
 
-        var row1 = new WaveDefinition.Row { yOffset = 0f };
-        row1.slots.Add(WaveDefinition.Slot.Rock(center, largeWidth, largeIdx));
-        row1.safeMinX = left;
-        row1.safeMaxX = center - largeWidth * 0.5f;
-        // Also safe on the right:
-        float rightSafeMin = center + largeWidth * 0.5f;
-        // For validation we pick the wider safe side.
-        if ((right - rightSafeMin) > row1.SafeWidth)
-        {
-            row1.safeMinX = rightSafeMin;
-            row1.safeMaxX = right;
-        }
-        wave.rows.Add(row1);
-
-        // Row 2: one side has hazards, making the other the correct choice.
+        // Row 2: block one side to force direction.
         bool blockRight = Random.value < 0.5f;
-        var row2 = new WaveDefinition.Row { yOffset = config.rowSpacing };
+        bool[] safe2 = new bool[RushColumns.Count];
         if (blockRight)
-        {
-            FillHazards(row2, center, right, config, tier);
-            row2.safeMinX = left;
-            row2.safeMaxX = center;
-        }
+            for (int c = 0; c < 3; c++) safe2[c] = true;
         else
-        {
-            FillHazards(row2, left, center, config, tier);
-            row2.safeMinX = center;
-            row2.safeMaxX = right;
-        }
-
-        if (Random.value < config.gemGuideChance)
-        {
-            row2.slots.Add(WaveDefinition.Slot.GemAt(row2.SafeCenter));
-        }
-        wave.rows.Add(row2);
+            for (int c = 2; c < RushColumns.Count; c++) safe2[c] = true;
+        wave.rows.Add(BuildRow(1, safe2, config, tier));
 
         return wave;
     }
 
-    /// <summary>Safe opening shifts across rows.</summary>
-    static WaveDefinition BuildMovingCorridor(
-        RushConfig config, RushConfig.DifficultyTier tier,
-        float left, float right, float corridorWidth)
+    /// <summary>Safe column(s) shift across rows.</summary>
+    static WaveDefinition BuildMovingCorridor(RushConfig config, RushConfig.DifficultyTier tier)
     {
         var wave = new WaveDefinition { archetypeName = "MovingCorridor" };
         int rowCount = Mathf.Clamp(tier.maxRows, 3, 5);
-        float areaWidth = right - left;
-
-        // Start position and direction.
-        float openingCenter = Random.Range(left + corridorWidth * 0.5f, right - corridorWidth * 0.5f);
-        float drift = Random.Range(0.3f, 0.6f) * (Random.value < 0.5f ? 1f : -1f);
+        int safeCol = Random.Range(0, RushColumns.Count);
+        int dir = Random.value < 0.5f ? 1 : -1;
 
         for (int r = 0; r < rowCount; r++)
         {
-            var row = new WaveDefinition.Row { yOffset = r * config.rowSpacing };
-            row.safeMinX = openingCenter - corridorWidth * 0.5f;
-            row.safeMaxX = openingCenter + corridorWidth * 0.5f;
+            bool[] safe = new bool[RushColumns.Count];
+            safe[safeCol] = true;
+            // Also make adjacent column safe for playability.
+            if (safeCol > 0) safe[safeCol - 1] = true;
+            if (safeCol < RushColumns.Count - 1) safe[safeCol + 1] = true;
 
-            FillHazards(row, left, row.safeMinX, config, tier);
-            FillHazards(row, row.safeMaxX, right, config, tier);
+            wave.rows.Add(BuildRow(r, safe, config, tier));
 
-            if (Random.value < config.gemGuideChance)
-            {
-                row.slots.Add(WaveDefinition.Slot.GemAt(openingCenter));
-            }
-
-            wave.rows.Add(row);
-
-            // Drift the opening.
-            openingCenter += drift * areaWidth * 0.3f;
-            openingCenter = Mathf.Clamp(openingCenter,
-                left + corridorWidth * 0.5f,
-                right - corridorWidth * 0.5f);
+            safeCol += dir;
+            if (safeCol <= 0 || safeCol >= RushColumns.Count - 1) dir = -dir;
+            safeCol = Mathf.Clamp(safeCol, 0, RushColumns.Count - 1);
         }
-
         return wave;
     }
 
-    /// <summary>Opening alternates left ↔ right.</summary>
-    static WaveDefinition BuildZigZag(
-        RushConfig config, RushConfig.DifficultyTier tier,
-        float left, float right, float corridorWidth)
+    /// <summary>Safe columns alternate left ↔ right.</summary>
+    static WaveDefinition BuildZigZag(RushConfig config, RushConfig.DifficultyTier tier)
     {
         var wave = new WaveDefinition { archetypeName = "ZigZag" };
         int rowCount = Mathf.Clamp(tier.maxRows, 3, 5);
         bool goLeft = Random.value < 0.5f;
+        int safeCols = Mathf.Max(2, SafeColumnCount(tier));
 
         for (int r = 0; r < rowCount; r++)
         {
-            var row = new WaveDefinition.Row { yOffset = r * config.rowSpacing };
-
+            bool[] safe = new bool[RushColumns.Count];
             if (goLeft)
-            {
-                row.safeMinX = left;
-                row.safeMaxX = left + corridorWidth;
-                FillHazards(row, row.safeMaxX, right, config, tier);
-            }
+                for (int c = 0; c < safeCols; c++) safe[c] = true;
             else
-            {
-                row.safeMinX = right - corridorWidth;
-                row.safeMaxX = right;
-                FillHazards(row, left, row.safeMinX, config, tier);
-            }
+                for (int c = RushColumns.Count - safeCols; c < RushColumns.Count; c++) safe[c] = true;
 
-            if (Random.value < config.gemGuideChance)
-            {
-                row.slots.Add(WaveDefinition.Slot.GemAt(row.SafeCenter));
-            }
-
-            wave.rows.Add(row);
+            wave.rows.Add(BuildRow(r, safe, config, tier));
             goLeft = !goLeft;
         }
-
         return wave;
     }
 
-    /// <summary>Easy wave — few or no hazards. Gives the player a breather.</summary>
-    static WaveDefinition BuildRecovery(
-        RushConfig config, RushConfig.DifficultyTier tier,
-        float left, float right, float areaWidth)
+    /// <summary>Easy wave — all columns safe, gem in center.</summary>
+    static WaveDefinition BuildRecovery(RushConfig config, RushConfig.DifficultyTier tier)
     {
         var wave = new WaveDefinition { archetypeName = "Recovery" };
-        var row = new WaveDefinition.Row
-        {
-            yOffset = 0f,
-            safeMinX = left,
-            safeMaxX = right,
-        };
+        bool[] safe = new bool[RushColumns.Count];
+        for (int c = 0; c < RushColumns.Count; c++) safe[c] = true;
 
-        // Just a gem, no rocks.
-        float center = (left + right) * 0.5f;
-        row.slots.Add(WaveDefinition.Slot.GemAt(center));
-
+        var row = BuildRow(0, safe, config, tier);
+        // Override: place a gem in center column.
+        row.slots.Clear();
+        row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(2)));
         wave.rows.Add(row);
         return wave;
     }
 
     // ------------------------------------------------------------------
-    // Helpers
+    // Row builder — one item per column
     // ------------------------------------------------------------------
 
-    /// <summary>Fill a horizontal band [fromX, toX] with hazards.</summary>
-    static void FillHazards(
-        WaveDefinition.Row row,
-        float fromX, float toX,
-        RushConfig config,
-        RushConfig.DifficultyTier tier)
-    {
-        float bandWidth = toX - fromX;
-        if (bandWidth < 0.3f) return; // Too narrow for any rock.
-
-        float cursor = fromX;
-        int safety = 0;
-        while (cursor < toX - 0.1f && safety < 20)
-        {
-            safety++;
-            RushConfig.HazardSize size = config.PickRandomSize();
-            if (size == null) break;
-
-            // Skip large rocks if difficulty doesn't allow them yet.
-            int sizeIdx = System.Array.IndexOf(config.hazardSizes, size);
-            if (sizeIdx == GetLargestSizeIndex(config) && Random.value > tier.largeRockChance)
-            {
-                // Downgrade to medium.
-                sizeIdx = Mathf.Min(1, config.hazardSizes.Length - 1);
-                size = config.hazardSizes[sizeIdx];
-            }
-
-            float halfW = size.worldWidth * 0.5f;
-            float rockX = cursor + halfW;
-
-            if (rockX + halfW > toX + 0.05f) break; // Doesn't fit.
-
-            row.slots.Add(WaveDefinition.Slot.Rock(rockX, size.worldWidth, sizeIdx));
-            cursor = rockX + halfW + Random.Range(0.05f, 0.2f); // Small gap between rocks.
-        }
-
-        // Poison gem: small chance to place a deceptive gem among the hazards.
-        if (tier.poisonGemChance > 0f && Random.value < tier.poisonGemChance && bandWidth > 0.6f)
-        {
-            float poisonX = Random.Range(fromX + 0.2f, toX - 0.2f);
-            row.slots.Add(WaveDefinition.Slot.PoisonGemAt(poisonX));
-        }
-    }
-
     /// <summary>
-    /// Place a risk/reward gem at the edge of the safe corridor, close to hazards.
-    /// Only triggers based on gemRiskRewardChance.
+    /// Build a row from a safe-column mask. Unsafe columns get rocks.
+    /// One safe column may get a guide gem. One unsafe column may get a poison gem.
     /// </summary>
-    static void PlaceRiskRewardGem(WaveDefinition.Row row, RushConfig config,
-        float areaLeft, float areaRight)
+    static WaveDefinition.Row BuildRow(int rowIndex, bool[] safe, RushConfig config, RushConfig.DifficultyTier tier)
     {
-        if (Random.value >= config.gemRiskRewardChance) return;
+        var row = new WaveDefinition.Row { yOffset = rowIndex * config.rowSpacing };
 
-        // Place near the edge of the safe corridor (0.15 units inside the boundary).
-        float edgeOffset = 0.15f;
-        bool nearMin = Random.value < 0.5f;
-        float gemX;
-        if (nearMin)
-        {
-            gemX = row.safeMinX + edgeOffset;
-            // Only place if there's a hazard band on the left.
-            if (row.safeMinX <= areaLeft + 0.1f) return;
-        }
-        else
-        {
-            gemX = row.safeMaxX - edgeOffset;
-            // Only place if there's a hazard band on the right.
-            if (row.safeMaxX >= areaRight - 0.1f) return;
-        }
+        // Determine safe corridor bounds for validator.
+        float minSafe = float.MaxValue;
+        float maxSafe = float.MinValue;
 
-        row.slots.Add(WaveDefinition.Slot.GemAt(gemX));
-    }
-
-    static int GetLargestSizeIndex(RushConfig config)
-    {
-        if (config.hazardSizes == null || config.hazardSizes.Length == 0) return 0;
-        int idx = 0;
-        float maxW = 0f;
-        for (int i = 0; i < config.hazardSizes.Length; i++)
+        for (int c = 0; c < RushColumns.Count; c++)
         {
-            if (config.hazardSizes[i].worldWidth > maxW)
+            float x = RushColumns.GetColumnX(c);
+
+            if (safe[c])
             {
-                maxW = config.hazardSizes[i].worldWidth;
-                idx = i;
+                if (x < minSafe) minSafe = x;
+                if (x > maxSafe) maxSafe = x;
+                // Leave empty (safe)
+            }
+            else
+            {
+                // Poison gem chance in rock columns.
+                if (tier.poisonGemChance > 0f && Random.value < tier.poisonGemChance)
+                {
+                    row.slots.Add(WaveDefinition.Slot.PoisonGemAt(x));
+                }
+                else
+                {
+                    row.slots.Add(WaveDefinition.Slot.Rock(x, config.rockSize.worldWidth, 0));
+                }
             }
         }
-        return idx;
+
+        row.safeMinX = minSafe;
+        row.safeMaxX = maxSafe;
+
+        // Guide gem in one safe column.
+        if (Random.value < config.gemGuideChance)
+        {
+            // Pick a random safe column.
+            List<int> safeCols = new List<int>();
+            for (int c = 0; c < RushColumns.Count; c++)
+                if (safe[c]) safeCols.Add(c);
+            if (safeCols.Count > 0)
+            {
+                int pick = safeCols[Random.Range(0, safeCols.Count)];
+                row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(pick)));
+            }
+        }
+
+        return row;
     }
 }

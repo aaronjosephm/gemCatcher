@@ -250,30 +250,27 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Rush Mode tap controls: tap left half of screen → move left one slot,
-    // tap right half → move right one slot. Hold to auto-repeat.
-    private float rushMoveSpeed = 8f; // world units per second while holding
-    private bool rushHolding = false;
+    // Rush Mode tap controls: tap left half → move one column left,
+    // tap right half → move one column right.
+    private int rushCurrentColumn = 2; // Start in center column (0-indexed)
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
         if (Input.GetMouseButtonDown(0))
         {
-            rushHolding = true;
-        }
-        else if (Input.GetMouseButtonUp(0))
-        {
-            rushHolding = false;
-        }
-
-        if (rushHolding && Input.GetMouseButton(0))
-        {
             float screenMid = Screen.width * 0.5f;
-            float dir = Input.mousePosition.x < screenMid ? -1f : 1f;
-            float currentX = catcherInstance.transform.position.x;
-            float newX = currentX + dir * rushMoveSpeed * Time.deltaTime;
-            MoveCatcherToX(newX, playFeedback: false);
+            if (Input.mousePosition.x < screenMid)
+            {
+                rushCurrentColumn = Mathf.Max(0, rushCurrentColumn - 1);
+            }
+            else
+            {
+                rushCurrentColumn = Mathf.Min(RushColumns.Count - 1, rushCurrentColumn + 1);
+            }
+
+            float targetX = RushColumns.GetColumnX(rushCurrentColumn);
+            MoveCatcherToX(targetX, playFeedback: true);
         }
     }
 

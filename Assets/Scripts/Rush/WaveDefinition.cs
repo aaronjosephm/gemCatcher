@@ -29,7 +29,7 @@ public class WaveDefinition
         /// <summary>World width of this slot's object (used for gap calculations).</summary>
         public float width;
 
-        /// <summary>Index into RushConfig.hazardSizes (only meaningful when type == Hazard).</summary>
+        /// <summary>Size index (reserved for future use, currently always 0).</summary>
         public int hazardSizeIndex;
 
         public static Slot Empty(float x) => new Slot { type = SlotType.Empty, x = x, width = 0f };

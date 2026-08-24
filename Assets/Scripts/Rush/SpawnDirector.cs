@@ -29,14 +29,12 @@ public class SpawnDirector : MonoBehaviour
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
-    // Hazard instances keyed by size index for O(1) pool lookup.
-    // Each size gets its own mini-pool so we can apply the correct
-    // scale + collider without fighting pooled reuse.
-    private Dictionary<int, List<GameObject>> sizedHazardPools;
+    // Single rock pool (all same size).
+    private List<GameObject> rockPool;
 
     // Pre-loaded rock prefabs.
     private GameObject[] rockPrefabs;
-    private const int PoolPerSize = 6;
+    private const int RockPoolSize = 10;
 
     void Start()
     {
@@ -62,65 +60,58 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log("[SpawnDirector] Using default RushConfig (create Assets/Resources/RushConfig via Assets → Create → Gem Catch → Rush Config to customize).");
         }
 
-        BuildSizedHazardPools();
+        BuildRockPool();
         roundStartTime = Time.time;
         nextWaveSpawnY = ScreenPadding.WorldTop + 2f;
     }
 
-    void BuildSizedHazardPools()
+    void BuildRockPool()
     {
-        sizedHazardPools = new Dictionary<int, List<GameObject>>();
+        rockPool = new List<GameObject>();
 
-        // Load specific rock prefabs (uniform shapes only).
+        // Load specific rock prefabs.
         var loaded = new List<GameObject>();
         GameObject r1 = Resources.Load<GameObject>("Rocks/Rock1B");
         GameObject r5 = Resources.Load<GameObject>("Rocks/Rock5B");
         if (r1 != null) loaded.Add(r1);
         if (r5 != null) loaded.Add(r5);
         rockPrefabs = loaded.ToArray();
-        if (rockPrefabs == null || rockPrefabs.Length == 0)
+        if (rockPrefabs.Length == 0)
         {
             Debug.LogWarning("[SpawnDirector] No rock prefabs in Resources/Rocks/.");
             return;
         }
 
-        for (int sizeIdx = 0; sizeIdx < config.hazardSizes.Length; sizeIdx++)
+        RushConfig.HazardSize size = config.rockSize;
+
+        for (int i = 0; i < RockPoolSize; i++)
         {
-            RushConfig.HazardSize size = config.hazardSizes[sizeIdx];
-            List<GameObject> pool = new List<GameObject>();
+            GameObject prefab = rockPrefabs[i % rockPrefabs.Length];
+            GameObject obj = Instantiate(prefab);
+            obj.name = $"Rock_{i}";
+            obj.SetActive(false);
 
-            for (int i = 0; i < PoolPerSize; i++)
-            {
-                GameObject prefab = rockPrefabs[i % rockPrefabs.Length];
-                GameObject obj = Instantiate(prefab);
-                obj.name = $"Hazard_{size.label}_{i}";
-                obj.SetActive(false);
+            obj.transform.localScale = Vector3.one * size.scale;
 
-                obj.transform.localScale = Vector3.one * size.scale;
+            FallingObject fo = obj.GetComponent<FallingObject>();
+            if (fo == null) fo = obj.AddComponent<FallingObject>();
+            fo.SetHazard(true);
 
-                FallingObject fo = obj.GetComponent<FallingObject>();
-                if (fo == null) fo = obj.AddComponent<FallingObject>();
-                fo.SetHazard(true);
+            // Strip all existing colliders from prefab.
+            foreach (Collider c in obj.GetComponentsInChildren<Collider>())
+                Object.Destroy(c);
 
-                // Strip all existing colliders from prefab (asset pack may include MeshColliders).
-                foreach (Collider c in obj.GetComponentsInChildren<Collider>())
-                    Object.Destroy(c);
+            Rigidbody prefabRb = obj.GetComponent<Rigidbody>();
+            if (prefabRb != null) Object.Destroy(prefabRb);
 
-                // Remove any Rigidbody the prefab ships with.
-                Rigidbody prefabRb = obj.GetComponent<Rigidbody>();
-                if (prefabRb != null) Object.Destroy(prefabRb);
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = size.colliderRadius;
+            sc.isTrigger = true;
 
-                // Set up a single trigger collider for CatchZone bounds checking.
-                SphereCollider sc = obj.AddComponent<SphereCollider>();
-                sc.radius = size.colliderRadius;
-                sc.isTrigger = true;
-
-                pool.Add(obj);
-            }
-
-            sizedHazardPools[sizeIdx] = pool;
-            Debug.Log($"[SpawnDirector] Built pool for {size.label} rocks: {pool.Count} instances, scale={size.scale}, collider={size.colliderRadius}");
+            rockPool.Add(obj);
         }
+
+        Debug.Log($"[SpawnDirector] Built rock pool: {rockPool.Count} instances, scale={size.scale}");
     }
 
     void Update()
@@ -205,14 +196,12 @@ public class SpawnDirector : MonoBehaviour
 
     void SpawnHazardAt(float x, float y, float fallSpeed, int sizeIdx)
     {
-        if (!sizedHazardPools.ContainsKey(sizeIdx)) return;
+        if (rockPool == null) return;
 
-        List<GameObject> pool = sizedHazardPools[sizeIdx];
-        GameObject obj = GetInactive(pool);
+        GameObject obj = GetInactive(rockPool);
         if (obj == null) return;
 
         obj.transform.position = new Vector3(x, y, 0f);
-        // Uniform upright rotation for consistent appearance.
         obj.transform.rotation = Quaternion.identity;
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo != null)
@@ -302,15 +291,11 @@ public class SpawnDirector : MonoBehaviour
 
     void OnDestroy()
     {
-        // Clean up pooled hazards.
-        if (sizedHazardPools != null)
+        if (rockPool != null)
         {
-            foreach (var kvp in sizedHazardPools)
+            foreach (GameObject obj in rockPool)
             {
-                foreach (GameObject obj in kvp.Value)
-                {
-                    if (obj != null) Destroy(obj);
-                }
+                if (obj != null) Destroy(obj);
             }
         }
     }
