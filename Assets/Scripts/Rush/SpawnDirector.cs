@@ -66,8 +66,13 @@ public class SpawnDirector : MonoBehaviour
     {
         sizedHazardPools = new Dictionary<int, List<GameObject>>();
 
-        // Load rock prefabs.
-        rockPrefabs = Resources.LoadAll<GameObject>("Rocks");
+        // Load specific rock prefabs (uniform shapes only).
+        var loaded = new List<GameObject>();
+        GameObject r1 = Resources.Load<GameObject>("Rocks/Rock1B");
+        GameObject r5 = Resources.Load<GameObject>("Rocks/Rock5B");
+        if (r1 != null) loaded.Add(r1);
+        if (r5 != null) loaded.Add(r5);
+        rockPrefabs = loaded.ToArray();
         if (rockPrefabs == null || rockPrefabs.Length == 0)
         {
             Debug.LogWarning("[SpawnDirector] No rock prefabs in Resources/Rocks/.");
