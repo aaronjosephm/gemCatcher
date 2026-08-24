@@ -459,7 +459,7 @@ public class CatcherManager : MonoBehaviour
         // Rush Mode: catcher size never changes.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
-            smallCatcherTargetFactor = 1f;
+            smallCatcherTargetFactor = 0.5f;
             return;
         }
         smallCatcherTargetFactor = newScore >= smallCatcherScoreThreshold
