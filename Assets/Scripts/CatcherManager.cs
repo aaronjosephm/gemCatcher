@@ -253,6 +253,8 @@ public class CatcherManager : MonoBehaviour
     // Rush Mode tap controls: tap left half → move one column left,
     // tap right half → move one column right.
     private int rushCurrentColumn = 2; // Start in center column (0-indexed)
+    private float rushTargetX = float.NaN;
+    private const float RushMoveSpeed = 30f; // world units/sec for lerp
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
@@ -269,8 +271,21 @@ public class CatcherManager : MonoBehaviour
                 rushCurrentColumn = Mathf.Min(RushColumns.Count - 1, rushCurrentColumn + 1);
             }
 
-            float targetX = RushColumns.GetColumnX(rushCurrentColumn);
-            MoveCatcherToX(targetX, playFeedback: true);
+            rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
+        }
+
+        // Smooth slide toward target column.
+        if (!float.IsNaN(rushTargetX))
+        {
+            float currentX = catcherInstance.transform.position.x;
+            float newX = Mathf.MoveTowards(currentX, rushTargetX, RushMoveSpeed * Time.deltaTime);
+            MoveCatcherToX(newX, playFeedback: false);
+
+            if (Mathf.Abs(newX - rushTargetX) < 0.01f)
+            {
+                MoveCatcherToX(rushTargetX, playFeedback: true);
+                rushTargetX = float.NaN;
+            }
         }
     }
 
@@ -362,6 +377,8 @@ public class CatcherManager : MonoBehaviour
     {
         if (type == PowerUpType.WiderCatcher)
         {
+            // Wider catcher is disabled in Rush Mode (column grid system).
+            if (GameState.Mode == GameState.GameMode.Rush) return;
             widerCatcherTargetFactor = PowerUpManager.WiderCatcherWidthFactor;
         }
     }
