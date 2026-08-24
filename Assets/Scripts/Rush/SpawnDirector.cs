@@ -199,6 +199,8 @@ public class SpawnDirector : MonoBehaviour
         if (obj == null) return;
 
         obj.transform.position = new Vector3(x, y, 0f);
+        // Uniform upright rotation for consistent appearance.
+        obj.transform.rotation = Quaternion.identity;
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo != null)
         {

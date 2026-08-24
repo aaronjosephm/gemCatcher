@@ -854,10 +854,14 @@ public class ObjectPooler : MonoBehaviour
     /// </summary>
     public void SpawnRushGemAt(float x, float y, float speed)
     {
-        GameObject obj = GetRandomPooledObject(objectPool);
+        // Rush Mode: use only green gems for uniform appearance.
+        GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, "GreenVolcom");
+        if (obj == null) obj = GetRandomPooledObject(objectPool);
         if (obj == null) return;
 
         obj.transform.position = new Vector3(x, y, 0f);
+        // Uniform rotation so gems look consistent.
+        obj.transform.rotation = Quaternion.identity;
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo != null)
         {

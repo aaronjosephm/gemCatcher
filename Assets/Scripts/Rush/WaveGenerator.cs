@@ -325,13 +325,9 @@ public static class WaveGenerator
             safeMaxX = right,
         };
 
-        // Just a gem or two, no rocks.
+        // Just a gem, no rocks.
         float center = (left + right) * 0.5f;
         row.slots.Add(WaveDefinition.Slot.GemAt(center));
-        if (Random.value < 0.5f)
-        {
-            row.slots.Add(WaveDefinition.Slot.GemAt(center + Random.Range(-0.3f, 0.3f)));
-        }
 
         wave.rows.Add(row);
         return wave;

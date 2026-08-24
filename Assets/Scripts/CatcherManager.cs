@@ -203,6 +203,7 @@ public class CatcherManager : MonoBehaviour
     // Tap or drag during the placement countdown. Drag follows the finger
     // smoothly along X (no slot snapping mid-drag). Sound / haptic play once
     // when the finger lifts, not while sliding.
+    // Rush Mode: tap left/right half of screen to step in that direction.
     void HandleCatcherPlacementInput()
     {
         // In continuous mode the catcher is always movable.
@@ -215,6 +216,13 @@ public class CatcherManager : MonoBehaviour
         }
 
         if (Camera.main == null) return;
+
+        // Rush Mode: tap-to-move instead of drag.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            HandleRushTapInput();
+            return;
+        }
 
         Vector3 pointerWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         pointerWorld.z = 0f;
@@ -239,6 +247,33 @@ public class CatcherManager : MonoBehaviour
             // Final position under the finger, then one confirmation sound.
             MoveCatcherToX(pointerWorld.x, playFeedback: true);
             isDraggingCatcher = false;
+        }
+    }
+
+    // Rush Mode tap controls: tap left half of screen → move left one slot,
+    // tap right half → move right one slot. Hold to auto-repeat.
+    private float rushMoveSpeed = 8f; // world units per second while holding
+    private bool rushHolding = false;
+    void HandleRushTapInput()
+    {
+        if (catcherInstance == null) return;
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            rushHolding = true;
+        }
+        else if (Input.GetMouseButtonUp(0))
+        {
+            rushHolding = false;
+        }
+
+        if (rushHolding && Input.GetMouseButton(0))
+        {
+            float screenMid = Screen.width * 0.5f;
+            float dir = Input.mousePosition.x < screenMid ? -1f : 1f;
+            float currentX = catcherInstance.transform.position.x;
+            float newX = currentX + dir * rushMoveSpeed * Time.deltaTime;
+            MoveCatcherToX(newX, playFeedback: false);
         }
     }
 
