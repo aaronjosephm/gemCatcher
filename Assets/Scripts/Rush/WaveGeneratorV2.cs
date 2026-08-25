@@ -637,18 +637,19 @@ public static class WaveGeneratorV2
             float x = RushColumns.GetColumnX(col);
             var row = wave.rows[r];
 
-            // Don't place gem on top of a rock.
-            bool hasRock = false;
+            // Don't place gem on top of a rock or existing gem.
+            bool occupied = false;
             for (int s = 0; s < row.slots.Count; s++)
             {
-                if (row.slots[s].type == WaveDefinition.SlotType.Hazard &&
-                    Mathf.Abs(row.slots[s].x - x) < 0.1f)
+                if (Mathf.Abs(row.slots[s].x - x) < 0.1f &&
+                    (row.slots[s].type == WaveDefinition.SlotType.Hazard ||
+                     row.slots[s].type == WaveDefinition.SlotType.Gem))
                 {
-                    hasRock = true;
+                    occupied = true;
                     break;
                 }
             }
-            if (hasRock) continue;
+            if (occupied) continue;
 
             row.slots.Add(WaveDefinition.Slot.GemAt(x));
         }
