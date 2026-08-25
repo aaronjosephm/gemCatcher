@@ -229,10 +229,15 @@ public class ObjectPooler : MonoBehaviour
             };
         }
 
+        // Rush Mode needs a larger gem pool for cluster spawning.
+        int effectivePoolSize = poolSizePerPrefab;
+        if (GameState.Mode == GameState.GameMode.Rush)
+            effectivePoolSize = 20;
+
         // Initialize gem pool
         foreach (GameObject prefab in objectPrefabs)
         {
-            for (int i = 0; i < poolSizePerPrefab; i++)
+            for (int i = 0; i < effectivePoolSize; i++)
             {
                 GameObject obj = Instantiate(prefab);
                 obj.SetActive(false); // Initially hide the object

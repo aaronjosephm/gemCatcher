@@ -351,18 +351,11 @@ public static class WaveGenerator
         return wave;
     }
 
-    /// <summary>Easy wave — all columns safe, gem in center.</summary>
+    /// <summary>Easy wave — no rocks, just a vertical gem cluster in center.</summary>
     static WaveDefinition BuildRecovery(RushConfig config, RushConfig.DifficultyTier tier)
     {
         var wave = new WaveDefinition { archetypeName = "Recovery" };
-        bool[] safe = new bool[RushColumns.Count];
-        for (int c = 0; c < RushColumns.Count; c++) safe[c] = true;
-
-        var row = BuildRow(0, safe, config, tier);
-        // Override: place a gem in center column.
-        row.slots.Clear();
-        row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(2)));
-        wave.rows.Add(row);
+        // No rock rows — InsertGemBufferRows will still add a cluster.
         return wave;
     }
 
