@@ -17,6 +17,7 @@ public static class WaveGenerator
         MovingCorridor,
         ZigZag,
         Recovery,
+        Fork,
     }
 
     /// <summary>Generate a column-based wave for the current difficulty.</summary>
@@ -104,6 +105,7 @@ public static class WaveGenerator
             (Archetype.CenterBlocker,   simple * 0.7f),
             (Archetype.MovingCorridor,  complex),
             (Archetype.ZigZag,          complex),
+            (Archetype.Fork,            Mathf.Max(0.5f, complex)),
             (Archetype.Recovery,        0.3f),
         };
 
@@ -131,11 +133,15 @@ public static class WaveGenerator
             case Archetype.CenterBlocker:  wave = BuildCenterBlocker(config, tier); break;
             case Archetype.MovingCorridor: wave = BuildMovingCorridor(config, tier); break;
             case Archetype.ZigZag:         wave = BuildZigZag(config, tier); break;
+            case Archetype.Fork:           wave = BuildFork(config, tier); break;
             case Archetype.Recovery:       wave = BuildRecovery(config, tier); break;
             default:                       wave = BuildCenterOpening(config, tier); break;
         }
-        // Insert gem-only buffer rows so gems always form clusters of 3+.
-        InsertGemBufferRows(wave, config);
+
+        // Fork handles its own gem/rock placement — skip buffer rows.
+        if (arch != Archetype.Fork)
+            InsertGemBufferRows(wave, config);
+
         return wave;
     }
 
@@ -366,6 +372,78 @@ public static class WaveGenerator
             wave.rows.Add(BuildRow(r, safe, config, tier));
             goLeft = !goLeft;
         }
+        return wave;
+    }
+
+    /// <summary>
+    /// Fork: two paths separated by a center rock wall.
+    /// Path A has 3 vertical gems but ends with a rock blocking the exit (trap).
+    /// Path B is empty but safe. Player must decide: risk a life for gems, or play safe.
+    /// </summary>
+    static WaveDefinition BuildFork(RushConfig config, RushConfig.DifficultyTier tier)
+    {
+        var wave = new WaveDefinition { archetypeName = "Fork" };
+
+        // Randomly pick which side is the gem trap.
+        bool gemOnLeft = Random.value < 0.5f;
+
+        // Gem path column (inner column of that side, closer to center).
+        int gemCol = gemOnLeft ? 1 : 3;
+
+        // Safe path columns (the other side).
+        int safeCol1 = gemOnLeft ? 3 : 0;
+        int safeCol2 = gemOnLeft ? 4 : 1;
+
+        float rw = config.rockSize.worldWidth;
+
+        // Rows 0-2: Gems on one side, rocks everywhere else except safe path.
+        for (int r = 0; r < 3; r++)
+        {
+            var row = new WaveDefinition.Row { yOffset = r * config.rowSpacing };
+
+            for (int c = 0; c < RushColumns.Count; c++)
+            {
+                float x = RushColumns.GetColumnX(c);
+
+                if (c == gemCol)
+                    row.slots.Add(WaveDefinition.Slot.GemAt(x));
+                else if (c == safeCol1 || c == safeCol2)
+                {
+                    // Safe path — leave empty.
+                }
+                else
+                    row.slots.Add(WaveDefinition.Slot.Rock(x, rw, 0));
+            }
+
+            row.safeMinX = Mathf.Min(RushColumns.GetColumnX(gemCol),
+                                     RushColumns.GetColumnX(safeCol1));
+            row.safeMaxX = Mathf.Max(RushColumns.GetColumnX(gemCol),
+                                     RushColumns.GetColumnX(safeCol2));
+            wave.rows.Add(row);
+        }
+
+        // Row 3: The trap — gem path column is now BLOCKED with a rock.
+        // Safe path stays open.
+        {
+            var row = new WaveDefinition.Row { yOffset = 3 * config.rowSpacing };
+
+            for (int c = 0; c < RushColumns.Count; c++)
+            {
+                float x = RushColumns.GetColumnX(c);
+
+                if (c == safeCol1 || c == safeCol2)
+                {
+                    // Safe path still open.
+                }
+                else
+                    row.slots.Add(WaveDefinition.Slot.Rock(x, rw, 0));
+            }
+
+            row.safeMinX = RushColumns.GetColumnX(Mathf.Min(safeCol1, safeCol2));
+            row.safeMaxX = RushColumns.GetColumnX(Mathf.Max(safeCol1, safeCol2));
+            wave.rows.Add(row);
+        }
+
         return wave;
     }
 
