@@ -35,7 +35,7 @@ public class SpawnDirector : MonoBehaviour
 
     // Pre-loaded rock prefabs.
     private GameObject[] rockPrefabs;
-    private const int RockPoolSize = 10;
+    private const int RockPoolSize = 30;
 
     void Start()
     {

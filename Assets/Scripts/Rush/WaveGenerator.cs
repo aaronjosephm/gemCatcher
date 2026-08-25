@@ -188,48 +188,66 @@ public static class WaveGenerator
         switch (shape)
         {
             case ClusterShape.Vertical:
-                // 3 gems in the same column, 3 consecutive rows.
+                // 3 gems in the same column, rocks in adjacent columns.
                 for (int r = 0; r < 3; r++)
-                    rows.Add(BuildSingleGemRow(rows.Count, startCol, config));
+                    rows.Add(BuildGemRowWithRocks(rows.Count, startCol, config));
                 break;
 
             case ClusterShape.DiagonalRight:
-                // 3 gems stepping right: col, col+1, col+2.
                 for (int r = 0; r < 3; r++)
-                    rows.Add(BuildSingleGemRow(rows.Count, startCol + r, config));
+                    rows.Add(BuildGemRowWithRocks(rows.Count, startCol + r, config));
                 break;
 
             case ClusterShape.DiagonalLeft:
-                // 3 gems stepping left: col, col-1, col-2.
                 for (int r = 0; r < 3; r++)
-                    rows.Add(BuildSingleGemRow(rows.Count, startCol - r, config));
+                    rows.Add(BuildGemRowWithRocks(rows.Count, startCol - r, config));
                 break;
 
             case ClusterShape.Horizontal:
-                // 3 gems in a horizontal line, same row.
+            {
+                // 3 gems side by side, rocks in remaining columns.
                 var row = new WaveDefinition.Row { yOffset = rows.Count * config.rowSpacing };
-                float minX = RushColumns.GetColumnX(startCol);
-                float maxX = RushColumns.GetColumnX(startCol + 2);
-                for (int c = 0; c < 3; c++)
-                    row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(startCol + c)));
-                row.safeMinX = minX;
-                row.safeMaxX = maxX;
+                bool[] gemCols = new bool[RushColumns.Count];
+                for (int c = startCol; c < startCol + 3; c++) gemCols[c] = true;
+
+                for (int c = 0; c < RushColumns.Count; c++)
+                {
+                    float x = RushColumns.GetColumnX(c);
+                    if (gemCols[c])
+                        row.slots.Add(WaveDefinition.Slot.GemAt(x));
+                    else
+                        row.slots.Add(WaveDefinition.Slot.Rock(x, config.rockSize.worldWidth, 0));
+                }
+                row.safeMinX = RushColumns.GetColumnX(startCol);
+                row.safeMaxX = RushColumns.GetColumnX(startCol + 2);
                 rows.Add(row);
                 break;
+            }
         }
     }
 
-    /// <summary>Build a row with a single gem in the specified column.</summary>
-    static WaveDefinition.Row BuildSingleGemRow(int rowIndex, int column, RushConfig config)
+    /// <summary>
+    /// Build a row with a gem in the specified column and rocks in all other columns.
+    /// Creates risk/reward: the player must navigate through rocks to collect gems.
+    /// </summary>
+    static WaveDefinition.Row BuildGemRowWithRocks(int rowIndex, int gemColumn, RushConfig config)
     {
-        float x = RushColumns.GetColumnX(column);
         var row = new WaveDefinition.Row
         {
             yOffset = rowIndex * config.rowSpacing,
-            safeMinX = RushColumns.GetColumnX(0),
-            safeMaxX = RushColumns.GetColumnX(RushColumns.Count - 1),
+            safeMinX = RushColumns.GetColumnX(gemColumn),
+            safeMaxX = RushColumns.GetColumnX(gemColumn),
         };
-        row.slots.Add(WaveDefinition.Slot.GemAt(x));
+
+        for (int c = 0; c < RushColumns.Count; c++)
+        {
+            float x = RushColumns.GetColumnX(c);
+            if (c == gemColumn)
+                row.slots.Add(WaveDefinition.Slot.GemAt(x));
+            else
+                row.slots.Add(WaveDefinition.Slot.Rock(x, config.rockSize.worldWidth, 0));
+        }
+
         return row;
     }
 
