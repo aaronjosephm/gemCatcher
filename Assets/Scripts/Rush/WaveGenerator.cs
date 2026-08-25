@@ -122,17 +122,76 @@ public static class WaveGenerator
 
     static WaveDefinition BuildArchetype(Archetype arch, RushConfig config, RushConfig.DifficultyTier tier)
     {
+        WaveDefinition wave;
         switch (arch)
         {
-            case Archetype.LeftOpening:    return BuildSideOpening(config, tier, true);
-            case Archetype.RightOpening:   return BuildSideOpening(config, tier, false);
-            case Archetype.CenterOpening:  return BuildCenterOpening(config, tier);
-            case Archetype.CenterBlocker:  return BuildCenterBlocker(config, tier);
-            case Archetype.MovingCorridor: return BuildMovingCorridor(config, tier);
-            case Archetype.ZigZag:         return BuildZigZag(config, tier);
-            case Archetype.Recovery:       return BuildRecovery(config, tier);
-            default:                       return BuildCenterOpening(config, tier);
+            case Archetype.LeftOpening:    wave = BuildSideOpening(config, tier, true); break;
+            case Archetype.RightOpening:   wave = BuildSideOpening(config, tier, false); break;
+            case Archetype.CenterOpening:  wave = BuildCenterOpening(config, tier); break;
+            case Archetype.CenterBlocker:  wave = BuildCenterBlocker(config, tier); break;
+            case Archetype.MovingCorridor: wave = BuildMovingCorridor(config, tier); break;
+            case Archetype.ZigZag:         wave = BuildZigZag(config, tier); break;
+            case Archetype.Recovery:       wave = BuildRecovery(config, tier); break;
+            default:                       wave = BuildCenterOpening(config, tier); break;
         }
+        // Insert gem-only buffer rows so gems always form clusters of 3+.
+        InsertGemBufferRows(wave, config);
+        return wave;
+    }
+
+    /// <summary>
+    /// Inserts gem-only rows before and after each rock row so gems appear in
+    /// clusters (vertical + horizontal). All 5 columns get gems in buffer rows.
+    /// </summary>
+    static void InsertGemBufferRows(WaveDefinition wave, RushConfig config)
+    {
+        var expanded = new List<WaveDefinition.Row>();
+
+        for (int i = 0; i < wave.rows.Count; i++)
+        {
+            var row = wave.rows[i];
+            bool hasRock = false;
+            foreach (var slot in row.slots)
+            {
+                if (slot.type == WaveDefinition.SlotType.Hazard) { hasRock = true; break; }
+            }
+
+            if (hasRock)
+            {
+                // Add a gem-only row before the rock row.
+                expanded.Add(BuildAllGemRow(expanded.Count, config));
+            }
+
+            // Re-index yOffset based on expanded position.
+            row.yOffset = expanded.Count * config.rowSpacing;
+            expanded.Add(row);
+
+            if (hasRock)
+            {
+                // Add a gem-only row after the rock row.
+                expanded.Add(BuildAllGemRow(expanded.Count, config));
+            }
+        }
+
+        wave.rows = expanded;
+    }
+
+    /// <summary>Build a row with gems in all 5 columns (no rocks).</summary>
+    static WaveDefinition.Row BuildAllGemRow(int rowIndex, RushConfig config)
+    {
+        float left = RushColumns.GetColumnX(0);
+        float right = RushColumns.GetColumnX(RushColumns.Count - 1);
+        var row = new WaveDefinition.Row
+        {
+            yOffset = rowIndex * config.rowSpacing,
+            safeMinX = left,
+            safeMaxX = right,
+        };
+        for (int c = 0; c < RushColumns.Count; c++)
+        {
+            row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(c)));
+        }
+        return row;
     }
 
     // ------------------------------------------------------------------
@@ -142,9 +201,9 @@ public static class WaveGenerator
     // How many columns to keep safe based on safeCorridorFraction.
     static int SafeColumnCount(RushConfig.DifficultyTier tier)
     {
-        // 0.7 → 4 safe, 0.5 → 3 safe, 0.4 → 2 safe, <0.3 → 1 safe
         int safe = Mathf.RoundToInt(tier.safeCorridorFraction * RushColumns.Count);
-        return Mathf.Clamp(safe, 1, RushColumns.Count - 1);
+        // Minimum 3 safe columns so gems always form clusters.
+        return Mathf.Clamp(safe, 3, RushColumns.Count - 1);
     }
 
     /// <summary>Safe columns on one side, rocks on the other.</summary>
