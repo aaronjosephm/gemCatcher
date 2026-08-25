@@ -140,9 +140,8 @@ public static class WaveGenerator
     }
 
     /// <summary>
-    /// Inserts gem-only rows before and after each rock row so gems form
-    /// vertical and diagonal clusters. Buffer rows use the same safe columns
-    /// as the adjacent rock row (not all 5) for visual continuity.
+    /// Inserts gem clusters (vertical, diagonal, horizontal) between rock rows.
+    /// Each cluster is exactly 3 gems in a line shape.
     /// </summary>
     static void InsertGemBufferRows(WaveDefinition wave, RushConfig config)
     {
@@ -150,75 +149,87 @@ public static class WaveGenerator
 
         for (int i = 0; i < wave.rows.Count; i++)
         {
+            // Insert a gem cluster before each rock row.
+            InsertGemCluster(expanded, config);
+
             var row = wave.rows[i];
-
-            // Determine which columns are safe in this row.
-            bool hasRock = false;
-            bool[] safeColumns = new bool[RushColumns.Count];
-            for (int c = 0; c < RushColumns.Count; c++) safeColumns[c] = true; // assume safe
-            foreach (var slot in row.slots)
-            {
-                if (slot.type == WaveDefinition.SlotType.Hazard)
-                {
-                    hasRock = true;
-                    // Mark this column as unsafe.
-                    int col = NearestColumn(slot.x);
-                    if (col >= 0) safeColumns[col] = false;
-                }
-            }
-
-            if (hasRock)
-            {
-                // Buffer row BEFORE rock row: gems in the safe columns (vertical cluster).
-                expanded.Add(BuildGemRowForColumns(expanded.Count, safeColumns, config));
-            }
-
             row.yOffset = expanded.Count * config.rowSpacing;
             expanded.Add(row);
-
-            if (hasRock)
-            {
-                // Buffer row AFTER rock row: gems in the safe columns (vertical cluster).
-                expanded.Add(BuildGemRowForColumns(expanded.Count, safeColumns, config));
-            }
         }
+
+        // One more cluster after the last row.
+        InsertGemCluster(expanded, config);
 
         wave.rows = expanded;
     }
 
-    /// <summary>Find the nearest column index for a world X position.</summary>
-    static int NearestColumn(float x)
+    enum ClusterShape { Vertical, DiagonalRight, DiagonalLeft, Horizontal }
+
+    static void InsertGemCluster(List<WaveDefinition.Row> rows, RushConfig config)
     {
-        int best = 0;
-        float bestDist = float.MaxValue;
-        for (int c = 0; c < RushColumns.Count; c++)
+        // Pick a random shape.
+        ClusterShape shape = (ClusterShape)Random.Range(0, 4);
+        int startCol = Random.Range(0, RushColumns.Count);
+
+        // Adjust start column so the cluster fits within 0..4.
+        switch (shape)
         {
-            float dist = Mathf.Abs(RushColumns.GetColumnX(c) - x);
-            if (dist < bestDist) { bestDist = dist; best = c; }
+            case ClusterShape.DiagonalRight:
+                startCol = Mathf.Clamp(startCol, 0, RushColumns.Count - 3);
+                break;
+            case ClusterShape.DiagonalLeft:
+                startCol = Mathf.Clamp(startCol, 2, RushColumns.Count - 1);
+                break;
+            case ClusterShape.Horizontal:
+                startCol = Mathf.Clamp(startCol, 0, RushColumns.Count - 3);
+                break;
         }
-        return best;
+
+        switch (shape)
+        {
+            case ClusterShape.Vertical:
+                // 3 gems in the same column, 3 consecutive rows.
+                for (int r = 0; r < 3; r++)
+                    rows.Add(BuildSingleGemRow(rows.Count, startCol, config));
+                break;
+
+            case ClusterShape.DiagonalRight:
+                // 3 gems stepping right: col, col+1, col+2.
+                for (int r = 0; r < 3; r++)
+                    rows.Add(BuildSingleGemRow(rows.Count, startCol + r, config));
+                break;
+
+            case ClusterShape.DiagonalLeft:
+                // 3 gems stepping left: col, col-1, col-2.
+                for (int r = 0; r < 3; r++)
+                    rows.Add(BuildSingleGemRow(rows.Count, startCol - r, config));
+                break;
+
+            case ClusterShape.Horizontal:
+                // 3 gems in a horizontal line, same row.
+                var row = new WaveDefinition.Row { yOffset = rows.Count * config.rowSpacing };
+                float minX = RushColumns.GetColumnX(startCol);
+                float maxX = RushColumns.GetColumnX(startCol + 2);
+                for (int c = 0; c < 3; c++)
+                    row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(startCol + c)));
+                row.safeMinX = minX;
+                row.safeMaxX = maxX;
+                rows.Add(row);
+                break;
+        }
     }
 
-    /// <summary>Build a gem-only row using the specified safe columns.</summary>
-    static WaveDefinition.Row BuildGemRowForColumns(int rowIndex, bool[] safeColumns, RushConfig config)
+    /// <summary>Build a row with a single gem in the specified column.</summary>
+    static WaveDefinition.Row BuildSingleGemRow(int rowIndex, int column, RushConfig config)
     {
-        float minSafe = float.MaxValue;
-        float maxSafe = float.MinValue;
-        var row = new WaveDefinition.Row { yOffset = rowIndex * config.rowSpacing };
-
-        for (int c = 0; c < RushColumns.Count; c++)
+        float x = RushColumns.GetColumnX(column);
+        var row = new WaveDefinition.Row
         {
-            if (safeColumns[c])
-            {
-                float x = RushColumns.GetColumnX(c);
-                row.slots.Add(WaveDefinition.Slot.GemAt(x));
-                if (x < minSafe) minSafe = x;
-                if (x > maxSafe) maxSafe = x;
-            }
-        }
-
-        row.safeMinX = minSafe;
-        row.safeMaxX = maxSafe;
+            yOffset = rowIndex * config.rowSpacing,
+            safeMinX = RushColumns.GetColumnX(0),
+            safeMaxX = RushColumns.GetColumnX(RushColumns.Count - 1),
+        };
+        row.slots.Add(WaveDefinition.Slot.GemAt(x));
         return row;
     }
 
@@ -397,15 +408,6 @@ public static class WaveGenerator
 
         row.safeMinX = minSafe;
         row.safeMaxX = maxSafe;
-
-        // Place a gem in every safe column for a 1:1 gem-to-rock ratio.
-        for (int c = 0; c < RushColumns.Count; c++)
-        {
-            if (safe[c])
-            {
-                row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(c)));
-            }
-        }
 
         return row;
     }
