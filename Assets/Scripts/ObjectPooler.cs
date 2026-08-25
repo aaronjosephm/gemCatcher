@@ -718,7 +718,10 @@ public class ObjectPooler : MonoBehaviour
     /// </summary>
     public void SpawnRushGemAt(float x, float y, float speed)
     {
-        bool isHeart = UnityEngine.Random.value < 0.02f; // 2% heart, 98% green
+        // Heart gems only spawn when the player needs a life.
+        bool needsLife = RoundManager.Instance != null &&
+            RoundManager.Instance.Lives < RoundManager.EffectiveMaxLives;
+        bool isHeart = needsLife && UnityEngine.Random.value < 0.02f; // 2% heart when needed
         string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
