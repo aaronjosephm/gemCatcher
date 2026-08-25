@@ -105,7 +105,7 @@ public static class WaveGenerator
             (Archetype.CenterBlocker,   simple * 0.7f),
             (Archetype.MovingCorridor,  complex),
             (Archetype.ZigZag,          complex),
-            (Archetype.Fork,            Mathf.Max(0.5f, complex)),
+            (Archetype.Fork,            Mathf.Max(1.5f, complex * 2f)),
             (Archetype.Recovery,        0.3f),
         };
 
