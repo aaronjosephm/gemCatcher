@@ -718,7 +718,7 @@ public class ObjectPooler : MonoBehaviour
     /// </summary>
     public void SpawnRushGemAt(float x, float y, float speed)
     {
-        bool isHeart = UnityEngine.Random.value < 0.10f; // 10% heart, 90% green
+        bool isHeart = UnityEngine.Random.value < 0.02f; // 2% heart, 98% green
         string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);

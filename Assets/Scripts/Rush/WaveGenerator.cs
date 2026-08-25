@@ -312,17 +312,12 @@ public static class WaveGenerator
         row.safeMinX = minSafe;
         row.safeMaxX = maxSafe;
 
-        // Guide gem in one safe column.
-        if (Random.value < config.gemGuideChance)
+        // Place a gem in every safe column for a 1:1 gem-to-rock ratio.
+        for (int c = 0; c < RushColumns.Count; c++)
         {
-            // Pick a random safe column.
-            List<int> safeCols = new List<int>();
-            for (int c = 0; c < RushColumns.Count; c++)
-                if (safe[c]) safeCols.Add(c);
-            if (safeCols.Count > 0)
+            if (safe[c])
             {
-                int pick = safeCols[Random.Range(0, safeCols.Count)];
-                row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(pick)));
+                row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(c)));
             }
         }
 
