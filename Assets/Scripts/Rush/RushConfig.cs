@@ -59,7 +59,7 @@ public class RushConfig : ScriptableObject
 
     [Header("Safety")]
     [Tooltip("Minimum safe corridor width (world units). Must be >= player width + margin.")]
-    public float minSafeCorridorWidth = 1.2f;
+    public float minSafeCorridorWidth = 0f;
 
     [Tooltip("Player horizontal speed (world units/sec) for reachability checks.")]
     public float playerMoveSpeed = 30f;
