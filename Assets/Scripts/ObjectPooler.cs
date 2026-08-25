@@ -1039,7 +1039,7 @@ public class ObjectPooler : MonoBehaviour
         if (currentActiveGem != null && currentActiveGem.activeInHierarchy)
         {
             FallingObject inFlight = currentActiveGem.GetComponent<FallingObject>();
-            if (inFlight != null)
+            if (inFlight != null && GameState.Mode != GameState.GameMode.Rush)
             {
                 float factor = newScore >= smallGemScoreThreshold ? smallGemScaleFactor : 1f;
                 inFlight.ApplyScaleFactor(factor);
