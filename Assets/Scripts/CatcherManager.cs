@@ -269,6 +269,11 @@ public class CatcherManager : MonoBehaviour
     private const float RushHoldRepeat = 0.12f;  // seconds between moves while held
     private bool rushFirstTapHandled = false;
 
+    // Swipe detection
+    private Vector2 rushSwipeStart;
+    private bool rushSwipeTracking = false;
+    private const float RushSwipeThreshold = 80f; // pixels to qualify as swipe
+
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
@@ -278,6 +283,9 @@ public class CatcherManager : MonoBehaviour
 
         if (Input.GetMouseButtonDown(0))
         {
+            rushSwipeStart = Input.mousePosition;
+            rushSwipeTracking = true;
+
             // First tap — move one slot.
             MoveRushColumn(isLeft ? -1 : 1);
             rushHoldTimer = 0f;
@@ -285,6 +293,27 @@ public class CatcherManager : MonoBehaviour
         }
         else if (Input.GetMouseButton(0) && rushFirstTapHandled)
         {
+            // Check for swipe before processing hold.
+            if (rushSwipeTracking)
+            {
+                float dx = Input.mousePosition.x - rushSwipeStart.x;
+                if (Mathf.Abs(dx) >= RushSwipeThreshold)
+                {
+                    // Swipe detected — move all 5 columns in that direction.
+                    int dir = dx > 0 ? 1 : -1;
+                    int targetCol = dir > 0 ? RushColumns.Count - 1 : 0;
+                    if (targetCol != rushCurrentColumn)
+                    {
+                        rushCurrentColumn = targetCol;
+                        rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
+                    }
+                    rushSwipeTracking = false;
+                    rushFirstTapHandled = false; // Suppress hold after swipe.
+                    rushHoldTimer = 0f;
+                    goto smoothSlide;
+                }
+            }
+
             // Holding — after initial delay, repeat at interval.
             rushHoldTimer += Time.deltaTime;
             if (rushHoldTimer >= RushHoldDelay)
@@ -298,8 +327,10 @@ public class CatcherManager : MonoBehaviour
         {
             rushFirstTapHandled = false;
             rushHoldTimer = 0f;
+            rushSwipeTracking = false;
         }
 
+        smoothSlide:
         // Smooth slide toward target column.
         if (!float.IsNaN(rushTargetX))
         {
