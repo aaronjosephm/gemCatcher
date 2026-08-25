@@ -859,6 +859,9 @@ public class ObjectPooler : MonoBehaviour
     // FallingObject.Update's isPowerUp branch.
     bool TrySpawnPowerUp()
     {
+        // No power-ups in Rush Mode.
+        if (GameState.Mode == GameState.GameMode.Rush) return false;
+
         // Drop dead references first.
         for (int i = activePickups.Count - 1; i >= 0; i--)
         {
