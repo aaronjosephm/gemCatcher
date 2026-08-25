@@ -128,6 +128,9 @@ public class RushConfig : ScriptableObject
     public bool debugVisualization = false;
     public bool logValidation = false;
 
+    [Tooltip("When enabled, logs each candidate's score breakdown.")]
+    public bool logCandidateScores = false;
+
     // ------------------------------------------------------------------
     // Helpers
     // ------------------------------------------------------------------

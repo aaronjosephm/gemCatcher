@@ -2,12 +2,9 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// Orchestrates Rush Mode spawning. Replaces the simple timer loop in
-/// ObjectPooler with wave-based procedural generation.
-///
-/// Attach to the same GameObject as ObjectPooler, or any persistent
-/// object in the scene. Reads from <see cref="RushConfig"/> and drives
-/// <see cref="ObjectPooler"/> to spawn pooled gems and hazards.
+/// Orchestrates Rush Mode spawning using the decision-first
+/// <see cref="WaveGeneratorV2"/> pipeline. Manages wave memory,
+/// seeded generation, and debug visualization.
 /// </summary>
 public class SpawnDirector : MonoBehaviour
 {
@@ -18,13 +15,21 @@ public class SpawnDirector : MonoBehaviour
     private float roundStartTime;
     private float nextWaveSpawnY;        // world-Y where the next wave starts
     private WaveDefinition activeWave;   // wave currently being materialized
+    private DecisionPlan activePlan;     // plan for current wave
     private int activeRowIndex;          // next row to spawn in activeWave
     private float lastRowSpawnTime;
+
+    // Wave generation state
+    private WaveMemory waveMemory;
+    private int runSeed;
+    private int waveIndex;
 
     // Debug stats
     private int totalWavesGenerated;
     private int totalRejectedAttempts;
     private WaveDefinition lastSpawnedWave; // for Gizmo drawing
+    private DecisionPlan lastSpawnedPlan;   // for Gizmo overlay
+    private WaveGeneratorV2.GenerateResult lastResult; // for debug details
     private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
 
     // Pool references (grabbed from ObjectPooler at Start)
@@ -64,6 +69,14 @@ public class SpawnDirector : MonoBehaviour
         BuildRockPool();
         roundStartTime = Time.time;
         nextWaveSpawnY = ScreenPadding.WorldTop + 2f;
+
+        // Initialize wave memory and seeded generation.
+        waveMemory = new WaveMemory(6);
+        runSeed = System.Environment.TickCount;
+        waveIndex = 0;
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
     }
 
     void BuildRockPool()
@@ -125,14 +138,21 @@ public class SpawnDirector : MonoBehaviour
         // If no active wave, generate a new one.
         if (activeWave == null)
         {
-            int attempts;
-            activeWave = WaveGenerator.Generate(config, tier, GetPlayAreaLeft(), GetPlayAreaRight(), out attempts, lastWaveFinalRow);
+            var result = WaveGeneratorV2.Generate(
+                config, tier, GetPlayAreaLeft(), GetPlayAreaRight(),
+                waveMemory, lastWaveFinalRow, runSeed, waveIndex);
+
+            activeWave = result.wave;
+            activePlan = result.plan;
             activeWave.fallSpeed = tier.fallSpeed;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
             lastSpawnedWave = activeWave;
+            lastSpawnedPlan = activePlan;
+            lastResult = result;
             totalWavesGenerated++;
-            totalRejectedAttempts += Mathf.Max(0, attempts - 1);
+            totalRejectedAttempts += result.candidatesRejected;
+            waveIndex++;
 
             // Track final row for cross-wave validation.
             if (activeWave.rows.Count > 0)
@@ -142,7 +162,10 @@ public class SpawnDirector : MonoBehaviour
             {
                 Debug.Log($"[SpawnDirector] Wave #{totalWavesGenerated}: {activeWave.archetypeName}, " +
                           $"{activeWave.rows.Count} rows, speed={tier.fallSpeed:F1}, " +
-                          $"attempts={attempts}, totalRejects={totalRejectedAttempts}");
+                          $"interest={result.interestScore:F1}, candidates={result.candidatesGenerated}, " +
+                          $"rejected={result.candidatesRejected}, seed={result.plan?.seed}");
+                if (result.scoreBreakdown != null)
+                    Debug.Log($"  Score: {result.scoreBreakdown}");
             }
         }
 
@@ -264,33 +287,64 @@ public class SpawnDirector : MonoBehaviour
             float corridorWidth = row.SafeWidth;
             Gizmos.DrawCube(new Vector3(corridorCenter, y, 0f), new Vector3(corridorWidth, 0.15f, 0.1f));
 
-            // Draw hazard zones in red.
-            Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
+            // Draw slots.
             foreach (var slot in row.slots)
             {
                 if (slot.type == WaveDefinition.SlotType.Hazard)
                 {
+                    Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
                     Gizmos.DrawWireCube(new Vector3(slot.x, y, 0f), new Vector3(slot.width, 0.3f, 0.1f));
                 }
                 else if (slot.type == WaveDefinition.SlotType.Gem)
                 {
                     Gizmos.color = Color.cyan;
                     Gizmos.DrawWireSphere(new Vector3(slot.x, y, 0f), 0.12f);
-                    Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
                 }
                 else if (slot.type == WaveDefinition.SlotType.PoisonGem)
                 {
                     Gizmos.color = new Color(0.6f, 0f, 0.8f, 0.8f);
                     Gizmos.DrawWireSphere(new Vector3(slot.x, y, 0f), 0.12f);
-                    Gizmos.color = new Color(1f, 0f, 0f, 0.25f);
                 }
             }
         }
 
-        // Display stats in Scene view via label.
+        // Draw route paths if available.
+        if (lastSpawnedPlan?.routes != null)
+        {
+            foreach (var route in lastSpawnedPlan.routes.routes)
+            {
+                if (route.columns == null || route.columns.Length < 2) continue;
+
+                Gizmos.color = route.isSafe
+                    ? new Color(0f, 1f, 0f, 0.6f)
+                    : new Color(1f, 1f, 0f, 0.6f);
+
+                for (int i = 0; i < route.columns.Length - 1; i++)
+                {
+                    if (i >= lastSpawnedWave.rows.Count - 1) break;
+                    float y1 = spawnY - lastSpawnedWave.rows[i].yOffset;
+                    float y2 = spawnY - lastSpawnedWave.rows[i + 1].yOffset;
+                    float x1 = RushColumns.GetColumnX(route.columns[i]);
+                    float x2 = RushColumns.GetColumnX(route.columns[i + 1]);
+                    Gizmos.DrawLine(new Vector3(x1, y1, 0f), new Vector3(x2, y2, 0f));
+                }
+            }
+        }
+
+        // Display stats.
+        string label = $"Wave #{totalWavesGenerated}: {lastSpawnedWave.archetypeName}\n" +
+                       $"Rejects: {totalRejectedAttempts}";
+        if (lastResult != null)
+        {
+            label += $"\nInterest: {lastResult.interestScore:F1}";
+            if (lastResult.scoreBreakdown != null)
+                label += $"\n{lastResult.scoreBreakdown}";
+        }
+        if (lastSpawnedPlan != null)
+            label += $"\nSeed: {lastSpawnedPlan.seed}";
+
         UnityEditor.Handles.Label(
-            new Vector3(GetPlayAreaLeft(), spawnY + 1f, 0f),
-            $"Waves: {totalWavesGenerated}  Rejects: {totalRejectedAttempts}");
+            new Vector3(GetPlayAreaLeft(), spawnY + 1f, 0f), label);
     }
 #endif
 
