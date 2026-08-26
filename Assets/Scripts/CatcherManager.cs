@@ -266,11 +266,10 @@ public class CatcherManager : MonoBehaviour
     private float rushTargetX = float.NaN;
 
     // Tilt configuration
-    private const float TiltDeadZone = 0.05f;  // ignore tiny tilts
-    private const float TiltMaxAngle = 0.35f;  // full tilt = edge of screen
+    private const float TiltDeadZone = 0.08f;  // larger dead zone kills micro-jitter
+    private const float TiltMaxAngle = 0.30f;  // slightly less tilt needed for full range
     private float tiltCenterOffset = 0f;       // calibrated neutral position
-    private float smoothedTilt = 0f;           // low-pass filtered tilt value
-    private const float TiltSmoothSpeed = 3f;  // how fast smoothed value follows raw
+    private float smoothedRawTilt = 0f;        // EMA-filtered raw accelerometer
 
     void HandleRushTapInput()
     {
@@ -279,27 +278,28 @@ public class CatcherManager : MonoBehaviour
         // Read accelerometer X axis.
         float rawTilt = Input.acceleration.x - tiltCenterOffset;
 
-        // Apply dead zone.
+        // Exponential moving average on the RAW signal (kills sensor noise).
+        // Alpha ~0.15 at 60fps → smooths noise, still responsive.
+        const float rawSmoothAlpha = 0.15f;
+        smoothedRawTilt = smoothedRawTilt + rawSmoothAlpha * (rawTilt - smoothedRawTilt);
+
+        // Apply dead zone to the already-smoothed signal.
         float tilt;
-        if (Mathf.Abs(rawTilt) < TiltDeadZone)
+        if (Mathf.Abs(smoothedRawTilt) < TiltDeadZone)
             tilt = 0f;
         else
-            tilt = Mathf.Sign(rawTilt) * (Mathf.Abs(rawTilt) - TiltDeadZone);
+            tilt = Mathf.Sign(smoothedRawTilt) * (Mathf.Abs(smoothedRawTilt) - TiltDeadZone);
 
         // Normalize to -1..1 range.
         float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
 
-        // Low-pass filter to eliminate jitter.
-        smoothedTilt = Mathf.Lerp(smoothedTilt, normalizedTilt, TiltSmoothSpeed * Time.deltaTime);
-
-        // Map smoothed tilt to world-X position across the play area.
+        // Map directly to world-X position (no second smoothing layer = responsive).
         float playLeft = ScreenPadding.WorldLeft + 0.5f;
         float playRight = ScreenPadding.WorldRight - 0.5f;
         float center = (playLeft + playRight) * 0.5f;
         float halfRange = (playRight - playLeft) * 0.5f;
-        float targetX = center + smoothedTilt * halfRange;
+        float targetX = center + normalizedTilt * halfRange;
 
-        // Move catchy directly to the filtered position (already smooth).
         MoveCatcherToX(targetX, playFeedback: false);
     }
 
