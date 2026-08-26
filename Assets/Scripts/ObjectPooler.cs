@@ -96,7 +96,9 @@ public class ObjectPooler : MonoBehaviour
 
     // Timer for catcher placement
     private float placementTimer = 3.0f;
+    private float placementDuration = 3.0f;
     private bool isPlacementPhase = false;
+    private float blinkTimer = 0f;
 
     // True when the current placement cycle dropped a pickup instead of a gem.
     // The placement phase still runs (so the player can reposition the catcher
@@ -147,6 +149,16 @@ public class ObjectPooler : MonoBehaviour
     // GemCatcher.EndGame() when the cap is reached.
     private int gemCapForRound;
     private int gemsSpawnedThisRound;
+
+    // MasterGem (Deep Space only) — spawns once when score reaches threshold.
+    private GameObject masterGemInstance;
+    private bool masterGemSpawned;
+    private const int MasterGemScoreThreshold = 100;
+
+    /// <summary>
+    /// Experimental mode: gems spawn continuously (every 0.5s) with no
+    // ---- Rush Mode ---------------------------------------------------------
+    // (Wave-based spawning is handled entirely by SpawnDirector.)
 
     // Public events for gameplay state changes. Subscribers should unsubscribe in OnDestroy.
     public event Action GemSpawned;
@@ -217,10 +229,15 @@ public class ObjectPooler : MonoBehaviour
             };
         }
 
+        // Rush Mode needs a larger gem pool for cluster spawning.
+        int effectivePoolSize = poolSizePerPrefab;
+        if (GameState.Mode == GameState.GameMode.Rush)
+            effectivePoolSize = 20;
+
         // Initialize gem pool
         foreach (GameObject prefab in objectPrefabs)
         {
-            for (int i = 0; i < poolSizePerPrefab; i++)
+            for (int i = 0; i < effectivePoolSize; i++)
             {
                 GameObject obj = Instantiate(prefab);
                 obj.SetActive(false); // Initially hide the object
@@ -239,6 +256,7 @@ public class ObjectPooler : MonoBehaviour
 
         // Load level-specific extra gem prefabs from Resources.
         var cfg = LevelManager.CurrentConfig;
+        placementDuration = cfg.placementDuration > 0f ? cfg.placementDuration : 3f;
         if (cfg.extraGemPrefabs != null)
         {
             foreach (string path in cfg.extraGemPrefabs)
@@ -256,6 +274,30 @@ public class ObjectPooler : MonoBehaviour
                 }
             }
         }
+
+        // Load MasterGem for Deep Space level.
+        if (cfg.id == LevelManager.LevelId.Space)
+        {
+            GameObject masterPrefab = Resources.Load<GameObject>("Gems/MasterGem");
+            if (masterPrefab != null)
+            {
+                masterGemInstance = Instantiate(masterPrefab);
+                masterGemInstance.SetActive(false);
+                // Scale to match regular gems (prefab is 1x, game gems are 4x).
+                masterGemInstance.transform.localScale = new Vector3(4f, 4f, 4f);
+                // Center child meshes on the pivot so it moves like a normal gem
+                // (the prefab has children offset from center which causes orbiting).
+                foreach (Transform child in masterGemInstance.transform)
+                {
+                    child.localPosition = Vector3.zero;
+                }
+                FallingObject fo = masterGemInstance.GetComponent<FallingObject>();
+                if (fo == null) fo = masterGemInstance.AddComponent<FallingObject>();
+                fo.fallSpeed = currentFallSpeed;
+                // NOT added to objectPool — kept separate so it can't be randomly selected.
+            }
+        }
+        masterGemSpawned = false;
 
         // Initialize obstacle pool if there are obstacle prefabs
         if (obstaclePrefabs != null && obstaclePrefabs.Length > 0)
@@ -277,6 +319,13 @@ public class ObjectPooler : MonoBehaviour
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
+
+        // In Rush mode, attach SpawnDirector to handle wave-based spawning.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            SpawnDirector director = GetComponent<SpawnDirector>();
+            if (director == null) director = gameObject.AddComponent<SpawnDirector>();
+        }
     }
 
     void HandleGameOver()
@@ -311,6 +360,17 @@ public class ObjectPooler : MonoBehaviour
             p.SetActive(false);
         }
         activePickups.Clear();
+
+        // Also deactivate all pooled gems that are still in flight (Rush Mode
+        // can have multiple gems active simultaneously).
+        if (objectPool != null)
+        {
+            for (int i = 0; i < objectPool.Count; i++)
+            {
+                if (objectPool[i] != null && objectPool[i].activeInHierarchy)
+                    objectPool[i].SetActive(false);
+            }
+        }
     }
 
     void Update()
@@ -333,6 +393,14 @@ public class ObjectPooler : MonoBehaviour
             EndPlacementPhase(applySpeedup: false);
         }
 
+        // In tutorial mode, don't auto-spawn — TutorialManager drives spawns.
+        // But still run placement phase blinking for tutorial-triggered spawns.
+        if (GameState.IsTutorial)
+        {
+            UpdatePlacementBlink();
+            return;
+        }
+
         // In Daily mode, end the round once the gem cap is reached AND the last
         // gem is no longer in flight. Triggering EndGame() routes through the
         // existing OnGameOver path, so UIManager's game-over panel handles the
@@ -343,6 +411,14 @@ public class ObjectPooler : MonoBehaviour
             && !GemCatcher.IsGameOver)
         {
             GemCatcher.EndGame();
+            return;
+        }
+
+        // ---- Rush Mode: wave-based spawning via SpawnDirector ----
+        // SpawnDirector handles all gem/hazard spawning in Rush mode.
+        // ObjectPooler just skips its own spawn loop.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
             return;
         }
 
@@ -429,22 +505,45 @@ public class ObjectPooler : MonoBehaviour
 
             // Start the placement phase
             isPlacementPhase = true;
-            placementTimer = 3.0f;
+            placementTimer = placementDuration;
+            blinkTimer = 0f;
 
             PlacementPhaseStarted?.Invoke(placementTimer);
         }
 
-        // Update the placement timer
+        // Update the placement timer and gem blinking
         if (isPlacementPhase)
         {
-            placementTimer -= Time.deltaTime;
+            UpdatePlacementBlink();
+        }
+    }
 
-            PlacementTimerUpdated?.Invoke(placementTimer);
+    private void UpdatePlacementBlink()
+    {
+        if (!isPlacementPhase) return;
 
-            if (placementTimer <= 0)
+        placementTimer -= Time.deltaTime;
+
+        PlacementTimerUpdated?.Invoke(placementTimer);
+
+        // Blink the gem: starts slow, gets faster as timer runs down
+        if (currentActiveGem != null && currentActiveGem.activeInHierarchy)
+        {
+            float progress = 1f - Mathf.Clamp01(placementTimer / placementDuration);
+            // Blink interval: 0.4s at start → 0.05s at end (lerp with ease-in)
+            float blinkInterval = Mathf.Lerp(0.4f, 0.05f, progress * progress);
+
+            blinkTimer += Time.deltaTime;
+            if (blinkTimer >= blinkInterval)
             {
-                EndPlacementPhase(applySpeedup: true);
+                blinkTimer = 0f;
+                ToggleGemRenderers(currentActiveGem);
             }
+        }
+
+        if (placementTimer <= 0)
+        {
+            EndPlacementPhase(applySpeedup: true);
         }
     }
 
@@ -453,9 +552,13 @@ public class ObjectPooler : MonoBehaviour
         if (!isPlacementPhase) return;
 
         isPlacementPhase = false;
-        // Reset the pickup-only flag so the next cycle starts with a clean
-        // assumption (gem cycle by default).
         placementForPickupOnly = false;
+
+        // Ensure gem is fully visible (not mid-blink)
+        if (currentActiveGem != null && currentActiveGem.activeInHierarchy)
+        {
+            SetGemRenderersVisible(currentActiveGem, true);
+        }
 
         if (applySpeedup && currentActiveGem != null && currentActiveGem.activeInHierarchy)
         {
@@ -469,8 +572,32 @@ public class ObjectPooler : MonoBehaviour
         PlacementPhaseEnded?.Invoke();
     }
 
+    private static void ToggleGemRenderers(GameObject gem)
+    {
+        Renderer[] renderers = gem.GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = !renderers[i].enabled;
+    }
+
+    private static void SetGemRenderersVisible(GameObject gem, bool visible)
+    {
+        Renderer[] renderers = gem.GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = visible;
+    }
+
     void SpawnGem()
     {
+        // MasterGem spawn check: on Deep Space, once score reaches threshold,
+        // spawn the MasterGem instead of a normal gem. One shot only.
+        if (!masterGemSpawned && masterGemInstance != null
+            && GemCatcher.Score >= MasterGemScoreThreshold)
+        {
+            masterGemSpawned = true;
+            SpawnMasterGem();
+            return;
+        }
+
         // Roll the variant before selecting the pooled gem so the same
         // deterministic RNG stream drives variant selection in daily mode.
         SpecialGemType variant = RollSpecialType();
@@ -550,7 +677,129 @@ public class ObjectPooler : MonoBehaviour
 
             obj.SetActive(true);
             currentActiveGem = obj;
+
+            // Lightning bolt effect at spawn point
+            LightningSpawnEffect.Strike(obj.transform.position);
         }
+    }
+
+    /// <summary>
+    /// Spawns the MasterGem. Called once when the player reaches the score
+    /// threshold on Deep Space. Uses the same placement-phase flow as normal gems.
+    /// </summary>
+    void SpawnMasterGem()
+    {
+        GameObject obj = masterGemInstance;
+        if (obj == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = RngRange(minX, maxX);
+        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
+
+        FallingObject fallingObj = obj.GetComponent<FallingObject>();
+        if (fallingObj != null)
+        {
+            fallingObj.ApplyScaleFactor(1f);
+            fallingObj.ResetObject();
+            fallingObj.fallSpeed = placementPhaseFallSpeed;
+            fallingObj.horizontalSpeed = 0f;
+            fallingObj.InitializeMovement(placementPhaseFallSpeed);
+            fallingObj.ApplySpecialType(SpecialGemType.MasterGem);
+        }
+
+        obj.SetActive(true);
+        currentActiveGem = obj;
+
+        LightningSpawnEffect.Strike(obj.transform.position);
+        // Placement phase and GemSpawned are handled by the caller (Update loop).
+    }
+
+    // ---- Rush Mode helpers ------------------------------------------------
+
+    /// <summary>
+    /// Public entry point for SpawnDirector to spawn a gem at a specific
+    /// position with a specific speed. Uses the gem pool.
+    /// </summary>
+    public void SpawnRushGemAt(float x, float y, float speed)
+    {
+        // Heart gems only spawn when the player needs a life.
+        bool needsLife = RoundManager.Instance != null &&
+            RoundManager.Instance.Lives < RoundManager.EffectiveMaxLives;
+        bool isHeart = needsLife && UnityEngine.Random.value < 0.02f; // 2% heart when needed
+        string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
+
+        GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
+        if (obj == null) return; // only spawn the exact gem type requested
+
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.rotation = Quaternion.identity;
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo != null)
+        {
+            fo.ApplyScaleFactor(GetCurrentGemScaleFactor());
+            fo.ResetObject();
+            fo.verticalOnly = true;
+            fo.horizontalSpeed = 0f;
+            fo.fallSpeed = speed;
+            fo.InitializeMovement(speed);
+            fo.isRushHeart = isHeart;
+            fo.ApplySpecialType(SpecialGemType.Normal);
+
+            // Tint heart gems red so they stand out.
+            if (isHeart)
+            {
+                Renderer r = obj.GetComponent<Renderer>();
+                if (r == null) r = obj.GetComponentInChildren<Renderer>();
+                if (r != null)
+                {
+                    MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+                    r.GetPropertyBlock(mpb);
+                    mpb.SetColor("_Color", new Color(1f, 0.15f, 0.15f, 1f));
+                    mpb.SetColor("_BaseColor", new Color(1f, 0.15f, 0.15f, 1f));
+                    mpb.SetColor("_EmissionColor", new Color(1f, 0.2f, 0.2f, 1f));
+                    r.SetPropertyBlock(mpb);
+                }
+            }
+        }
+        obj.SetActive(true);
+        currentActiveGem = obj;
+    }
+
+    /// <summary>
+    /// Spawn a poison gem — looks like a gem but tinted purple. Costs a life if caught.
+    /// </summary>
+    public void SpawnRushPoisonGemAt(float x, float y, float speed)
+    {
+        GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, "GreenVolcom");
+        if (obj == null) return;
+
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.rotation = Quaternion.identity;
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo != null)
+        {
+            fo.ApplyScaleFactor(GetCurrentGemScaleFactor());
+            fo.ResetObject();
+            fo.verticalOnly = true;
+            fo.horizontalSpeed = 0f;
+            fo.fallSpeed = speed;
+            fo.InitializeMovement(speed);
+            fo.ApplySpecialType(SpecialGemType.Normal);
+            fo.isPoisonGem = true;
+
+            // Tint purple so observant players can distinguish.
+            Renderer r = obj.GetComponent<Renderer>();
+            if (r != null)
+            {
+                MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+                r.GetPropertyBlock(mpb);
+                mpb.SetColor("_BaseColor", new Color(0.6f, 0.1f, 0.8f, 1f));
+                mpb.SetColor("_EmissionColor", new Color(0.4f, 0f, 0.5f, 1f));
+                r.SetPropertyBlock(mpb);
+            }
+        }
+        obj.SetActive(true);
     }
 
     void SpawnObstacle()
@@ -575,6 +824,7 @@ public class ObjectPooler : MonoBehaviour
 
             obj.SetActive(true);
             activeObstacles.Add(obj);
+            LightningSpawnEffect.Strike(obj.transform.position);
         }
     }
 
@@ -617,6 +867,9 @@ public class ObjectPooler : MonoBehaviour
     // FallingObject.Update's isPowerUp branch.
     bool TrySpawnPowerUp()
     {
+        // No power-ups in Rush Mode.
+        if (GameState.Mode == GameState.GameMode.Rush) return false;
+
         // Drop dead references first.
         for (int i = activePickups.Count - 1; i >= 0; i--)
         {
@@ -686,6 +939,7 @@ public class ObjectPooler : MonoBehaviour
 
         pickup.SetActive(true);
         activePickups.Add(pickup);
+        LightningSpawnEffect.Strike(pickup.transform.position);
         // Track the active "gem" pointer so the cycle's catcher-placement /
         // early-termination logic still has something to watch — without
         // this, the placement phase can't tell when the power-up has been
@@ -763,6 +1017,7 @@ public class ObjectPooler : MonoBehaviour
     // smallGemScaleFactor of their prefab size.
     private float GetCurrentGemScaleFactor()
     {
+        if (GameState.Mode == GameState.GameMode.Rush) return 1f;
         return GemCatcher.Score >= smallGemScoreThreshold ? smallGemScaleFactor : 1f;
     }
 
@@ -795,7 +1050,7 @@ public class ObjectPooler : MonoBehaviour
         if (currentActiveGem != null && currentActiveGem.activeInHierarchy)
         {
             FallingObject inFlight = currentActiveGem.GetComponent<FallingObject>();
-            if (inFlight != null)
+            if (inFlight != null && GameState.Mode != GameState.GameMode.Rush)
             {
                 float factor = newScore >= smallGemScoreThreshold ? smallGemScaleFactor : 1f;
                 inFlight.ApplyScaleFactor(factor);
@@ -864,5 +1119,92 @@ public class ObjectPooler : MonoBehaviour
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= CheckDifficultyProgression;
         GemCatcher.OnGameOver -= HandleGameOver;
+    }
+
+    // ---- Tutorial API -------------------------------------------------------
+
+    /// <summary>
+    /// Force-spawn a gem of the given type for the tutorial. Bypasses normal
+    /// spawn cadence and difficulty — just drops a single gem for practice.
+    /// </summary>
+    public void TutorialSpawnGem(SpecialGemType type)
+    {
+        GameObject obj;
+        // Golden gems always use the HeartGem prefab (same as normal spawning)
+        if (type == SpecialGemType.Golden)
+        {
+            obj = GetInactivePooledObjectByPrefabName(objectPool, "HeartGem");
+            if (obj == null) obj = GetRandomPooledObject(objectPool);
+        }
+        else
+        {
+            obj = GetRandomPooledObject(objectPool);
+        }
+        if (obj == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = UnityEngine.Random.Range(minX, maxX);
+        obj.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
+
+        FallingObject fallingObj = obj.GetComponent<FallingObject>();
+        if (fallingObj != null)
+        {
+            fallingObj.ApplyScaleFactor(1f);
+            fallingObj.ResetObject();
+            fallingObj.fallSpeed = placementPhaseFallSpeed;
+            fallingObj.horizontalSpeed = UnityEngine.Random.Range(-0.5f, 0.5f);
+            fallingObj.InitializeMovement(placementPhaseFallSpeed);
+            fallingObj.ApplySpecialType(type);
+        }
+
+        obj.SetActive(true);
+        currentActiveGem = obj;
+
+        LightningSpawnEffect.Strike(obj.transform.position);
+
+        // Start placement phase
+        isPlacementPhase = true;
+        placementTimer = placementDuration;
+        blinkTimer = 0f;
+        PlacementPhaseStarted?.Invoke(placementTimer);
+    }
+
+    /// <summary>
+    /// Force-spawn a power-up of the given type for the tutorial.
+    /// </summary>
+    public void TutorialSpawnPowerUp(PowerUpType type)
+    {
+        string prefabName = PowerUpPickup.GemPrefabNameForType(type);
+        GameObject pickup = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
+        if (pickup == null) pickup = GetRandomPooledObject(objectPool);
+        if (pickup == null) return;
+
+        float maxX = Mathf.Max(0.1f, Mathf.Min(spawnXRange, ScreenPadding.WorldRight - 0.3f));
+        float minX = Mathf.Min(-0.1f, Mathf.Max(-spawnXRange, ScreenPadding.WorldLeft + 0.3f));
+        float randomX = UnityEngine.Random.Range(minX, maxX);
+        pickup.transform.position = new Vector3(randomX, ScreenPadding.WorldTop, 0f);
+
+        FallingObject fallingObj = pickup.GetComponent<FallingObject>();
+        if (fallingObj != null)
+        {
+            fallingObj.ApplyScaleFactor(1f);
+            fallingObj.ResetObject();
+            fallingObj.fallSpeed = placementPhaseFallSpeed;
+            fallingObj.horizontalSpeed = UnityEngine.Random.Range(-0.3f, 0.3f);
+            fallingObj.InitializeMovement(placementPhaseFallSpeed);
+            fallingObj.ApplyPowerUpType(type, PowerUpPickup.ColorForType(type));
+        }
+
+        pickup.SetActive(true);
+        currentActiveGem = pickup;
+
+        LightningSpawnEffect.Strike(pickup.transform.position);
+
+        // Start placement phase
+        isPlacementPhase = true;
+        placementTimer = placementDuration;
+        blinkTimer = 0f;
+        PlacementPhaseStarted?.Invoke(placementTimer);
     }
 }

@@ -182,12 +182,49 @@ public class UIManager : MonoBehaviour
 
     // If the app started/restarted and the loaded scene doesn't match the
     // player's last selected level, redirect to the correct scene immediately.
+    // Skip this check for the Tutorial scene (it's a special standalone scene).
     string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
-    string expectedScene = LevelManager.CurrentConfig.sceneName;
-    if (currentScene != expectedScene)
+    if (currentScene == "Tutorial")
     {
-      UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
-      return;
+      // Bootstrap tutorial: set white background, spawn TutorialManager, hide menu
+      GameState.IsTutorial = true;
+      Camera.main.backgroundColor = Color.white;
+      Camera.main.clearFlags = CameraClearFlags.SolidColor;
+      // Hide the background plane if present
+      GameObject bgPlane = GameObject.Find("BackgroundPlane");
+      if (bgPlane != null) bgPlane.SetActive(false);
+      GameObject midPlane = GameObject.Find("MidgroundPlane");
+      if (midPlane != null) midPlane.SetActive(false);
+      // Hide the main Plane (cave background) so it doesn't show behind white
+      GameObject mainPlane = GameObject.Find("Plane");
+      if (mainPlane != null) mainPlane.SetActive(false);
+      // Hide decorative rocks and gems from the SampleScene copy
+      foreach (string objName in new[] {
+          "Rock2", "Rock5A",
+          "Magic_Gem_9", "Magic_Gem_9 (1)",
+          "Magic_Gem_13", "Magic_Gem_13 (1)", "Magic_Gem_13 (2)",
+          "Magic_Gem_14", "Magic_Gem_14 (1)" })
+      {
+        GameObject obj = GameObject.Find(objName);
+        if (obj != null) obj.SetActive(false);
+      }
+      // Disable CaveBackgroundFit so it doesn't overwrite the white camera bg
+      CaveBackgroundFit cbf = FindObjectOfType<CaveBackgroundFit>();
+      if (cbf != null) cbf.enabled = false;
+      // Create TutorialManager
+      if (TutorialManager.Instance == null)
+      {
+        new GameObject("TutorialManager").AddComponent<TutorialManager>();
+      }
+    }
+    else
+    {
+      string expectedScene = LevelManager.CurrentConfig.sceneName;
+      if (currentScene != expectedScene)
+      {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
+        return;
+      }
     }
 
     // Initialize UI
@@ -204,6 +241,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.OnScoreChanged += UpdateScore;
     GemCatcher.OnLivesChanged += UpdateLives;
     GemCatcher.OnGameOver += HandleGameOverEvent;
+    GemCatcher.OnGameWon += HandleGameWonEvent;
     GemCatcher.OnGemCaught += HandleGemCaught;
     GemCatcher.OnGemMissed += HandleGemMissed;
     GemCatcher.OnBonusLifeAwarded += HandleBonusLifeAwarded;
@@ -872,7 +910,224 @@ public class UIManager : MonoBehaviour
 
   void HandleGameOverEvent()
   {
+    if (GameState.IsTutorial) return; // Can't die in tutorial
     GameOver();
+  }
+
+  void HandleGameWonEvent()
+  {
+    // Pause the game — player can choose to continue or quit.
+    Time.timeScale = 0f;
+
+    // Record the score for level progression.
+    LevelManager.RecordLevelScore(LevelManager.SelectedLevel, GemCatcher.Score);
+
+    StartCoroutine(ShowVictorySequence());
+  }
+
+  System.Collections.IEnumerator ShowVictorySequence()
+  {
+    // Brief dramatic pause.
+    yield return new WaitForSecondsRealtime(0.3f);
+
+    // Spawn confetti.
+    StartCoroutine(SpawnConfetti());
+
+    // Show victory panel after confetti starts.
+    yield return new WaitForSecondsRealtime(0.5f);
+    ShowVictoryPanel();
+  }
+
+  void ShowVictoryPanel()
+  {
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    // Full-screen overlay.
+    GameObject panel = new GameObject("VictoryPanel", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    panel.transform.SetParent(hudCanvas.transform, false);
+    RectTransform panelRect = panel.GetComponent<RectTransform>();
+    panelRect.anchorMin = Vector2.zero;
+    panelRect.anchorMax = Vector2.one;
+    panelRect.offsetMin = Vector2.zero;
+    panelRect.offsetMax = Vector2.zero;
+    panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.6f);
+
+    // Title
+    GameObject titleGo = new GameObject("Title", typeof(RectTransform));
+    titleGo.transform.SetParent(panel.transform, false);
+    RectTransform titleRect = titleGo.GetComponent<RectTransform>();
+    titleRect.anchorMin = new Vector2(0.5f, 0.65f);
+    titleRect.anchorMax = new Vector2(0.5f, 0.65f);
+    titleRect.pivot = new Vector2(0.5f, 0.5f);
+    titleRect.sizeDelta = new Vector2(800f, 200f);
+    TextMeshProUGUI titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+    titleTmp.text = "YOU FOUND THE\nMASTER GEM!";
+    titleTmp.fontSize = 72f;
+    titleTmp.fontStyle = FontStyles.Bold;
+    titleTmp.alignment = TextAlignmentOptions.Center;
+    titleTmp.color = new Color(1f, 0.85f, 0.35f);
+
+    // Subtitle
+    GameObject subGo = new GameObject("Subtitle", typeof(RectTransform));
+    subGo.transform.SetParent(panel.transform, false);
+    RectTransform subRect = subGo.GetComponent<RectTransform>();
+    subRect.anchorMin = new Vector2(0.5f, 0.50f);
+    subRect.anchorMax = new Vector2(0.5f, 0.50f);
+    subRect.pivot = new Vector2(0.5f, 0.5f);
+    subRect.sizeDelta = new Vector2(700f, 100f);
+    TextMeshProUGUI subTmp = subGo.AddComponent<TextMeshProUGUI>();
+    subTmp.text = "Congratulations, gem catcher!";
+    subTmp.fontSize = 40f;
+    subTmp.alignment = TextAlignmentOptions.Center;
+    subTmp.color = Color.white;
+
+    // "Keep Playing" button
+    GameObject keepBtnGo = new GameObject("KeepPlayingButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    keepBtnGo.transform.SetParent(panel.transform, false);
+    RectTransform keepRect = keepBtnGo.GetComponent<RectTransform>();
+    keepRect.anchorMin = new Vector2(0.5f, 0.36f);
+    keepRect.anchorMax = new Vector2(0.5f, 0.36f);
+    keepRect.pivot = new Vector2(0.5f, 0.5f);
+    keepRect.sizeDelta = new Vector2(400f, 100f);
+    keepBtnGo.GetComponent<Image>().color = new Color(0.20f, 0.55f, 0.35f);
+    GameObject keepTextGo = new GameObject("Text", typeof(RectTransform));
+    keepTextGo.transform.SetParent(keepBtnGo.transform, false);
+    RectTransform keepTextRect = keepTextGo.GetComponent<RectTransform>();
+    keepTextRect.anchorMin = Vector2.zero;
+    keepTextRect.anchorMax = Vector2.one;
+    keepTextRect.offsetMin = Vector2.zero;
+    keepTextRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI keepTmp = keepTextGo.AddComponent<TextMeshProUGUI>();
+    keepTmp.text = "Keep Playing";
+    keepTmp.fontSize = 44f;
+    keepTmp.fontStyle = FontStyles.Bold;
+    keepTmp.alignment = TextAlignmentOptions.Center;
+    keepTmp.color = Color.white;
+    CrystalButtonStyle.Apply(keepBtnGo, new Color(0.20f, 0.55f, 0.35f));
+    keepBtnGo.GetComponent<Button>().onClick.AddListener(() =>
+    {
+      Destroy(panel);
+      Time.timeScale = 1f;
+    });
+
+    // "Main Menu" button
+    GameObject menuBtnGo = new GameObject("MenuButton", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    menuBtnGo.transform.SetParent(panel.transform, false);
+    RectTransform menuRect = menuBtnGo.GetComponent<RectTransform>();
+    menuRect.anchorMin = new Vector2(0.5f, 0.24f);
+    menuRect.anchorMax = new Vector2(0.5f, 0.24f);
+    menuRect.pivot = new Vector2(0.5f, 0.5f);
+    menuRect.sizeDelta = new Vector2(400f, 100f);
+    menuBtnGo.GetComponent<Image>().color = new Color(0.15f, 0.45f, 0.65f);
+    GameObject menuTextGo = new GameObject("Text", typeof(RectTransform));
+    menuTextGo.transform.SetParent(menuBtnGo.transform, false);
+    RectTransform menuTextRect = menuTextGo.GetComponent<RectTransform>();
+    menuTextRect.anchorMin = Vector2.zero;
+    menuTextRect.anchorMax = Vector2.one;
+    menuTextRect.offsetMin = Vector2.zero;
+    menuTextRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI menuTmp = menuTextGo.AddComponent<TextMeshProUGUI>();
+    menuTmp.text = "Main Menu";
+    menuTmp.fontSize = 44f;
+    menuTmp.fontStyle = FontStyles.Bold;
+    menuTmp.alignment = TextAlignmentOptions.Center;
+    menuTmp.color = Color.white;
+    CrystalButtonStyle.Apply(menuBtnGo, new Color(0.15f, 0.45f, 0.65f));
+    menuBtnGo.GetComponent<Button>().onClick.AddListener(() =>
+    {
+      Destroy(panel);
+      Time.timeScale = 1f;
+      GemCatcher.ResetLives();
+      GemCatcher.ResetScore();
+      GameState.SkipMainMenuOnLoad = false;
+      SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    });
+  }
+
+  /// <summary>
+  /// Procedural confetti that rains down from the top of the screen.
+  /// Uses simple UI Images with random colors, rotations and fall speeds.
+  /// </summary>
+  System.Collections.IEnumerator SpawnConfetti()
+  {
+    EnsureHudCanvas();
+    if (hudCanvas == null) yield break;
+
+    // Create a container that sits above the victory panel.
+    GameObject container = new GameObject("Confetti", typeof(RectTransform));
+    container.transform.SetParent(hudCanvas.transform, false);
+    RectTransform cRect = container.GetComponent<RectTransform>();
+    cRect.anchorMin = Vector2.zero;
+    cRect.anchorMax = Vector2.one;
+    cRect.offsetMin = Vector2.zero;
+    cRect.offsetMax = Vector2.zero;
+
+    Color[] colors = new[]
+    {
+      new Color(1f, 0.3f, 0.3f),  // red
+      new Color(0.3f, 1f, 0.4f),  // green
+      new Color(0.3f, 0.6f, 1f),  // blue
+      new Color(1f, 0.85f, 0.2f), // gold
+      new Color(0.9f, 0.4f, 1f),  // purple
+      new Color(1f, 0.6f, 0.1f),  // orange
+      Color.white,
+    };
+
+    float duration = 8f;
+    float elapsed = 0f;
+    float spawnInterval = 0.03f;
+    float nextSpawn = 0f;
+
+    while (elapsed < duration)
+    {
+      elapsed += Time.unscaledDeltaTime;
+      nextSpawn -= Time.unscaledDeltaTime;
+      if (nextSpawn <= 0f)
+      {
+        nextSpawn = spawnInterval;
+        // Spawn a confetti piece.
+        GameObject piece = new GameObject("C", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        piece.transform.SetParent(container.transform, false);
+        RectTransform pRect = piece.GetComponent<RectTransform>();
+        float x = UnityEngine.Random.Range(-540f, 540f);
+        pRect.anchorMin = new Vector2(0.5f, 1f);
+        pRect.anchorMax = new Vector2(0.5f, 1f);
+        pRect.pivot = new Vector2(0.5f, 0.5f);
+        pRect.anchoredPosition = new Vector2(x, 50f);
+        float w = UnityEngine.Random.Range(12f, 28f);
+        float h = UnityEngine.Random.Range(8f, 20f);
+        pRect.sizeDelta = new Vector2(w, h);
+        pRect.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(0f, 360f));
+        Image img = piece.GetComponent<Image>();
+        img.color = colors[UnityEngine.Random.Range(0, colors.Length)];
+        // Animate via a coroutine.
+        StartCoroutine(AnimateConfettiPiece(pRect, UnityEngine.Random.Range(400f, 900f), UnityEngine.Random.Range(-120f, 120f)));
+      }
+      yield return null;
+    }
+
+    // Let remaining pieces finish falling.
+    yield return new WaitForSecondsRealtime(3f);
+    if (container != null) Destroy(container);
+  }
+
+  System.Collections.IEnumerator AnimateConfettiPiece(RectTransform rt, float fallSpeed, float drift)
+  {
+    float life = 4f;
+    float t = 0f;
+    float rotSpeed = UnityEngine.Random.Range(-360f, 360f);
+    while (t < life && rt != null)
+    {
+      t += Time.unscaledDeltaTime;
+      Vector2 pos = rt.anchoredPosition;
+      pos.y -= fallSpeed * Time.unscaledDeltaTime;
+      pos.x += drift * Time.unscaledDeltaTime;
+      rt.anchoredPosition = pos;
+      rt.Rotate(0f, 0f, rotSpeed * Time.unscaledDeltaTime);
+      yield return null;
+    }
+    if (rt != null) Destroy(rt.gameObject);
   }
 
   // Builds a basic dimmed-overlay game-over panel with a "Try Again" button if the developer
@@ -1140,14 +1395,8 @@ public class UIManager : MonoBehaviour
     vlg.childForceExpandHeight = false;
 
     BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
-    // Daily Challenge — second button. The label is rebuilt every time the
-    // menu is shown (NEW / STREAK X / etc.), see RefreshDailyChallengeButton.
-    dailyChallengeMenuButton = BuildStackedMenuButton(
-        stackGo.transform, "DailyChallengeButton", "Daily Challenge",
-        new Color(0.85f, 0.55f, 0.15f), OnDailyChallengeClicked);
-    dailyChallengeButtonBg = dailyChallengeMenuButton.GetComponent<Image>();
-    dailyChallengeButtonLabel = dailyChallengeMenuButton.GetComponentInChildren<TextMeshProUGUI>();
-    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Instructions", new Color(0.45f, 0.30f, 0.65f), OnHelpClicked);
+    BuildStackedMenuButton(stackGo.transform, "RushButton",        "Rush Mode",   new Color(0.80f, 0.30f, 0.20f), OnRushClicked);
+    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Tutorial",     new Color(0.45f, 0.30f, 0.65f), OnTutorialClicked);
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
@@ -1267,7 +1516,7 @@ public class UIManager : MonoBehaviour
         "<b><color=#6FD9FF><size=54>CONTROLS</size></color></b>\n" +
         "<size=44><b>Tap</b> a slot to place your catcher.\n" +
         "<b>Drag</b> left or right to slide it.\n" +
-        "Reposition freely during the countdown.</size>\n\n\n" +
+        "Reposition freely while the gem is blinking.</size>\n\n\n" +
 
         "<b><color=#7FE787><size=54>SCORING</size></color></b>\n" +
         "<size=44>Catch a gem = <color=#7FE787>+20 pts</color>\n" +
@@ -1576,15 +1825,18 @@ public class UIManager : MonoBehaviour
   {
     GameState.IsPlaying = false;
     SetGameplayHudVisible(false);
+    // Ensure the old countdown label is hidden (could linger from tutorial/scene transition)
+    if (gemSpeedupTimerText != null)
+    {
+      gemSpeedupTimerText.text = "";
+      gemSpeedupTimerText.gameObject.SetActive(false);
+      isFadingOut = false;
+    }
     FadePanel(gameOverPanel, false);
     FadePanel(helpPanel, false);
     FadePanel(dailyCooldownPanel, false);
     FadePanel(settingsPanel, false);
     FadePanel(levelSelectPanel, false);
-    // Refresh the daily button label/color in case the streak / lockout state
-    // changed since last menu visit (e.g. UTC midnight rolled over while the
-    // app was foregrounded).
-    RefreshDailyChallengeButton();
     // Refresh best score display in case it changed after a game.
     if (bestScoreMenuTmp != null)
     {
@@ -1612,15 +1864,6 @@ public class UIManager : MonoBehaviour
     SetGameplayHudVisible(true);
     GameState.IsPlaying = true;
     gameIsOver = false;
-
-    // In Daily mode show a brief "DAILY · DAY N" banner so the player knows
-    // they're in the special run. Reuses the existing banner system.
-    if (GameState.Mode == GameState.GameMode.Daily)
-    {
-      SpawnBannerNotification(
-          "DAILY \u2022 DAY " + DailyChallenge.DayNumber,
-          new Color(1f, 0.85f, 0.35f));
-    }
   }
 
   // Toggles the score/lives HUD so they don't bleed through the menu panels.
@@ -1642,18 +1885,23 @@ public class UIManager : MonoBehaviour
       SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
       return;
     }
+    GameState.Mode = GameState.GameMode.Normal;
     ShowGameplay();
   }
 
-  void OnHelpClicked()
+  void OnRushClicked()
   {
-    FadePanel(mainMenuPanel, false);
-    FadePanel(helpPanel, true);
-    if (helpPanel != null)
-    {
-      RectTransform rt = helpPanel.transform as RectTransform;
-      if (rt != null) LayoutRebuilder.ForceRebuildLayoutImmediate(rt);
-    }
+    GameState.Mode = GameState.GameMode.Rush;
+    GameState.SkipMainMenuOnLoad = true;
+    // Reload so ObjectPooler.Start() builds the hazard pool with Rush active.
+    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+  }
+
+  void OnTutorialClicked()
+  {
+    GameState.IsTutorial = true;
+    GameState.SkipMainMenuOnLoad = true;
+    SceneManager.LoadScene("Tutorial");
   }
 
   void OnHelpBackClicked()
@@ -1771,7 +2019,9 @@ public class UIManager : MonoBehaviour
 
     if (!unlocked)
     {
-      statusTmp.text = $"Score {config.unlockScore} to unlock";
+      int idx = System.Array.FindIndex(LevelManager.AllLevels, l => l.id == config.id);
+      string prevName = idx > 0 ? LevelManager.AllLevels[idx - 1].displayName : "previous level";
+      statusTmp.text = $"Score {config.unlockScore} on {prevName}";
       statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
     }
     else if (selected)
@@ -2224,42 +2474,23 @@ public class UIManager : MonoBehaviour
 
   void ShowGameOverPanel()
   {
-    bool isDaily = GameState.Mode == GameState.GameMode.Daily;
     int finalScore = GemCatcher.Score;
 
-    if (isDaily)
-    {
-      // Daily runs commit their result here. RecordCompletion advances the
-      // streak (or resets it) and persists the score for the cooldown panel.
-      DailyChallenge.RecordCompletion(finalScore);
-    }
+    // Record per-level best score for unlock progression.
+    LevelManager.RecordLevelScore(LevelManager.SelectedLevel, finalScore);
 
-    // Title swap + daily subtitle. The subtitle GameObject lives in the same
-    // panel and is just toggled on/off based on mode.
     if (gameOverTitleTmp != null)
     {
-      gameOverTitleTmp.text = isDaily ? "Daily Done!" : "Game Over";
+      gameOverTitleTmp.text = "Game Over";
     }
     if (gameOverDailySubtitleTmp != null)
     {
-      if (isDaily)
-      {
-        int streak = DailyChallenge.CurrentStreak;
-        gameOverDailySubtitleTmp.text = string.Format(
-            "Day {0}  \u2022  Streak {1}", DailyChallenge.DayNumber, streak);
-        gameOverDailySubtitleTmp.gameObject.SetActive(true);
-      }
-      else
-      {
-        gameOverDailySubtitleTmp.gameObject.SetActive(false);
-      }
+      gameOverDailySubtitleTmp.gameObject.SetActive(false);
     }
 
-    // Hide "Try Again" in daily mode — one attempt per day is the whole point
-    // of the mode. Main Menu remains as the only path off the screen.
     if (restartButton != null)
     {
-      restartButton.gameObject.SetActive(!isDaily);
+      restartButton.gameObject.SetActive(true);
     }
 
     // Populate the breakdown BEFORE fading in so layout is settled when the panel appears.
@@ -2436,10 +2667,12 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
 
-    // "Try Again" only exists for Normal mode (the button is hidden in daily
-    // game-over). Defensively force Mode back to Normal so the next round
-    // can never accidentally re-enter the daily seed.
-    GameState.Mode = GameState.GameMode.Normal;
+    // "Try Again" only exists for Normal and Rush modes (the button is hidden in daily
+    // game-over). Force Mode back to Normal only when in Daily mode so the next round
+    // can never accidentally re-enter the daily seed; otherwise preserve current mode
+    // (e.g. Rush stays Rush).
+    if (GameState.Mode == GameState.GameMode.Daily)
+        GameState.Mode = GameState.GameMode.Normal;
 
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.
@@ -2450,54 +2683,23 @@ public class UIManager : MonoBehaviour
   // Called by ObjectPooler when a new placement phase starts
   public void OnPlacementPhaseStarted(float duration)
   {
-    if (gemSpeedupTimerText == null) return;
-
-    // Reset any ongoing fade
-    isFadingOut = false;
-    fadeTimer = 0f;
-
-    // Reset color to full opacity
-    Color resetColor = originalTextColor;
-    resetColor.a = 1f;
-    gemSpeedupTimerText.color = resetColor;
-
-    // Show the timer and set initial value
-    gemSpeedupTimerText.gameObject.SetActive(true);
-    UpdateCountdownDisplay(duration);
+    // Countdown text removed — gem blinking replaces the visual cue.
+    // Keep the event subscription so other systems (catcher spin) still work.
   }
 
   // Called by ObjectPooler when the placement timer is updated
   public void OnPlacementTimerUpdated(float remainingTime)
   {
-    if (gemSpeedupTimerText != null && gemSpeedupTimerText.gameObject.activeInHierarchy && !isFadingOut)
-    {
-      UpdateCountdownDisplay(remainingTime);
-    }
+    // No-op — countdown text removed in favour of gem blinking.
   }
 
-  // Update the countdown display with the current time
-  void UpdateCountdownDisplay(float remainingTime)
-  {
-    // Round to the nearest integer for a cleaner countdown
-    int countdownValue = Mathf.CeilToInt(remainingTime);
-
-    // Display the countdown number in large text
-    gemSpeedupTimerText.text = countdownValue.ToString();
-
-    // Scale the text based on the remaining time within each second
-    float pulseScale = 1.0f + 0.2f * (1.0f - (remainingTime - Mathf.Floor(remainingTime)));
-    gemSpeedupTimerText.transform.localScale = new Vector3(pulseScale, pulseScale, 1.0f);
-  }
+  // Update the countdown display — no-op, gem blinking replaces visual cue.
+  void UpdateCountdownDisplay(float remainingTime) { }
 
   // Called by ObjectPooler when the placement phase ends
   public void OnPlacementPhaseEnded()
   {
-    // Start the fade out animation
-    if (gemSpeedupTimerText != null && gemSpeedupTimerText.gameObject.activeInHierarchy)
-    {
-      isFadingOut = true;
-      fadeTimer = 0f;
-    }
+    // No-op — countdown text removed. Gem blinking handles the visual cue.
   }
 
   // ---------------------------------------------------------------------------
@@ -2970,6 +3172,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.OnScoreChanged -= UpdateScore;
     GemCatcher.OnLivesChanged -= UpdateLives;
     GemCatcher.OnGameOver -= HandleGameOverEvent;
+    GemCatcher.OnGameWon -= HandleGameWonEvent;
     GemCatcher.OnGemCaught -= HandleGemCaught;
     GemCatcher.OnGemMissed -= HandleGemMissed;
     GemCatcher.OnBonusLifeAwarded -= HandleBonusLifeAwarded;

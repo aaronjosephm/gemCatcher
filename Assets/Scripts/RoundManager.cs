@@ -25,6 +25,11 @@ public class RoundManager : MonoBehaviour
 
     public const int STARTING_LIVES = 3;
     public const int MAX_LIVES = 10;
+    public const int RUSH_MAX_LIVES = 3;
+
+    /// <summary>Effective max lives for the current game mode.</summary>
+    public static int EffectiveMaxLives =>
+        GameState.Mode == GameState.GameMode.Rush ? RUSH_MAX_LIVES : MAX_LIVES;
 
     // ---- Singleton ---------------------------------------------------------
 
@@ -51,6 +56,9 @@ public class RoundManager : MonoBehaviour
 
     /// <summary>Fired exactly once when the player runs out of lives or EndGame is called.</summary>
     public event System.Action OnGameOver;
+
+    /// <summary>Fired when the player catches the MasterGem and wins the game.</summary>
+    public event System.Action OnGameWon;
 
     /// <summary>Fired when a gem is caught. Subscribers use this to spawn floating score pop-ups.</summary>
     public delegate void GemCaughtDelegate(int amount, Vector3 worldPosition);
@@ -97,7 +105,7 @@ public class RoundManager : MonoBehaviour
     public void AddLives(int count)
     {
         if (IsGameOver || count <= 0) return;
-        int room = Mathf.Max(0, MAX_LIVES - Lives);
+        int room = Mathf.Max(0, EffectiveMaxLives - Lives);
         int actual = Mathf.Min(count, room);
         if (actual <= 0) return;
         ChangeLives(actual);
@@ -129,6 +137,16 @@ public class RoundManager : MonoBehaviour
         if (IsGameOver) return;
         IsGameOver = true;
         OnGameOver?.Invoke();
+    }
+
+    /// <summary>
+    /// The player caught the MasterGem — show victory screen. Does NOT end
+    /// the round so the player can optionally continue playing for high score.
+    /// </summary>
+    public void WinGame()
+    {
+        if (IsGameOver) return;
+        OnGameWon?.Invoke();
     }
 
     /// <summary>Invoke the OnGemCaught event (called by CatchZone after scoring).</summary>
@@ -171,8 +189,11 @@ public class RoundManager : MonoBehaviour
 
     private void ChangeLives(int delta)
     {
+        // In tutorial mode, never let lives reach zero
+        if (GameState.IsTutorial && delta < 0) return;
+
         int previousLives = Lives;
-        Lives = Mathf.Clamp(Lives + delta, 0, MAX_LIVES);
+        Lives = Mathf.Clamp(Lives + delta, 0, EffectiveMaxLives);
         OnLivesChanged?.Invoke(Lives);
 
         if (Lives <= 0 && previousLives > 0 && !IsGameOver)

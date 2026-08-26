@@ -180,6 +180,18 @@ public class SoundManager : MonoBehaviour
         {
             if (IsMusic(soundName)) return; // music is driven by SyncGameplayMusic only
             sound.source.volume = sound.volume * SfxVolume;
+            sound.source.pitch = 1f;
+            sound.source.Play();
+        }
+    }
+
+    /// <summary>Play a sound effect at a specific pitch.</summary>
+    public void PlayWithPitch(string soundName, float pitch)
+    {
+        if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
+        {
+            sound.source.volume = sound.volume * SfxVolume;
+            sound.source.pitch = pitch;
             sound.source.Play();
         }
     }
@@ -241,7 +253,7 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver;
+        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver && !GameState.IsTutorial;
         bgm.source.volume = bgm.volume * MusicVolume;
 
         if (wantMusic)
@@ -278,7 +290,7 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        bool wantMenu = !GameState.IsPlaying && !GemCatcher.IsGameOver;
+        bool wantMenu = (!GameState.IsPlaying && !GemCatcher.IsGameOver) || GameState.IsTutorial;
         menu.source.volume = menu.volume * MusicVolume;
 
         if (wantMenu)

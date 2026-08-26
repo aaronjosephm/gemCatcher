@@ -13,10 +13,20 @@ public enum SpecialGemType
     Golden,
     /// <summary>DON'T catch — costs a life and breaks combo on contact. Falling through is the correct play.</summary>
     Bomb,
+    /// <summary>One-shot win condition gem on Deep Space. Catch it to win; miss it = instant game over.</summary>
+    MasterGem,
 }
 
 public class FallingObject : MonoBehaviour
 {
+    // ---- Static registry for active instances (avoids FindObjectsByType) ----
+    private static readonly System.Collections.Generic.List<FallingObject> s_active =
+        new System.Collections.Generic.List<FallingObject>(32);
+    public static System.Collections.Generic.List<FallingObject> ActiveInstances => s_active;
+
+    void OnEnable()  { s_active.Add(this); }
+    void OnDisable() { s_active.Remove(this); }
+
     public float fallSpeed = 4.0f;
     public float horizontalSpeed = 0.5f;
     private float initialFallSpeed; // Store the initial fall speed
@@ -68,6 +78,26 @@ public class FallingObject : MonoBehaviour
 
     public SpecialGemType specialType { get; private set; } = SpecialGemType.Normal;
 
+    // ---- Hazard state (Rush Mode) ------------------------------------------
+    // When true, this object is a rock/hazard — catching it costs a life.
+    // Set by ObjectPooler when spawning hazards in Rush Mode.
+    public bool isHazard { get; private set; } = false;
+
+    /// <summary>Mark this object as a hazard (rock). Called by ObjectPooler at spawn.</summary>
+    public void SetHazard(bool value) { isHazard = value; }
+
+    /// <summary>Poison gem — looks like a gem but costs a life when caught.</summary>
+    public bool isPoisonGem { get; set; } = false;
+
+    /// <summary>Rush Mode heart gem — awards an extra life when caught.</summary>
+    public bool isRushHeart { get; set; } = false;
+
+    /// <summary>
+    /// When true, the object falls straight down with no horizontal drift.
+    /// Set by ObjectPooler in Rush Mode.
+    /// </summary>
+    public bool verticalOnly { get; set; } = false;
+
     // ---- Power-up state ----------------------------------------------------
     // When isPowerUp is true, this falling gem is acting as a power-up pickup
     // (a normal gem prefab repainted with the power-up's theme color and
@@ -101,11 +131,18 @@ public class FallingObject : MonoBehaviour
     /// </summary>
     public Color GetBurstColor()
     {
+        // Rush heart gems always glow/burst red.
+        if (isRushHeart) return new Color(1f, 0.15f, 0.15f, 1f);
+
         if (burstColor != Color.clear) return burstColor;
 
         // Golden gems always get a rich gold glow regardless of prefab.
         if (specialType == SpecialGemType.Golden)
             return new Color(1f, 0.85f, 0.35f);
+
+        // MasterGem gets a brilliant purple-white glow.
+        if (specialType == SpecialGemType.MasterGem)
+            return new Color(0.85f, 0.55f, 1f);
 
         // Infer from gem name.
         string n = gameObject.name.ToLowerInvariant();
@@ -151,6 +188,19 @@ public class FallingObject : MonoBehaviour
         // Re-initialize components in case anything has changed
         InitializeComponents();
         ClearPowerUp();
+        isHazard = false;
+        isPoisonGem = false;
+        isRushHeart = false;
+
+        // Clear any MaterialPropertyBlock tint (heart red / poison purple).
+        Renderer rr = GetComponent<Renderer>();
+        if (rr == null) rr = GetComponentInChildren<Renderer>();
+        if (rr != null) rr.SetPropertyBlock(null);
+
+        // Ensure all renderers are visible (gem may have been recycled mid-blink)
+        Renderer[] renderers = GetComponentsInChildren<Renderer>();
+        for (int i = 0; i < renderers.Length; i++)
+            renderers[i].enabled = true;
 
         // Refresh glow halo — hide for bombs, tint for normal gems.
         UpdateGlow();
@@ -426,6 +476,15 @@ public class FallingObject : MonoBehaviour
                     trailStart = new Color(1.00f, 0.30f, 0.20f, 0.95f),
                     trailEnd = new Color(0.30f, 0.05f, 0.05f, 0.0f),
                 };
+            case SpecialGemType.MasterGem:
+                // Brilliant purple-white glow — the ultimate prize.
+                return new VariantPalette
+                {
+                    albedo = new Color(0.75f, 0.45f, 1.00f),
+                    emission = new Color(1.50f, 0.80f, 2.00f) * 1.2f,
+                    trailStart = new Color(0.90f, 0.60f, 1.00f, 0.95f),
+                    trailEnd = new Color(0.50f, 0.20f, 0.80f, 0.0f),
+                };
             default:
                 return new VariantPalette
                 {
@@ -451,19 +510,28 @@ public class FallingObject : MonoBehaviour
         initialFallSpeed = startingFallSpeed;
         fallSpeed = startingFallSpeed;
 
-        // Initialize movement direction with random horizontal component
-        // Higher probability of diagonal movement
-        float randomDirectionX = Random.Range(-1f, 1f);
-        if (Mathf.Abs(randomDirectionX) < 0.3f) // If too vertical, make it more diagonal
+        if (verticalOnly)
         {
-            randomDirectionX = Mathf.Sign(randomDirectionX) * Random.Range(0.3f, 0.8f);
+            initialHorizontalSpeed = 0f;
+            horizontalSpeed = 0f;
+            movementDirection = new Vector3(0f, -fallSpeed, 0f);
         }
+        else
+        {
+            // Initialize movement direction with random horizontal component
+            // Higher probability of diagonal movement
+            float randomDirectionX = Random.Range(-1f, 1f);
+            if (Mathf.Abs(randomDirectionX) < 0.3f) // If too vertical, make it more diagonal
+            {
+                randomDirectionX = Mathf.Sign(randomDirectionX) * Random.Range(0.3f, 0.8f);
+            }
 
-        // Calculate and store the actual horizontal speed
-        initialHorizontalSpeed = randomDirectionX * horizontalSpeed;
+            // Calculate and store the actual horizontal speed
+            initialHorizontalSpeed = randomDirectionX * horizontalSpeed;
 
-        // Set the movement direction with the initial speeds
-        movementDirection = new Vector3(initialHorizontalSpeed, -fallSpeed, 0f);
+            // Set the movement direction with the initial speeds
+            movementDirection = new Vector3(initialHorizontalSpeed, -fallSpeed, 0f);
+        }
 
 #if UNITY_EDITOR
         Debug.Log($"Gem initialized with fall speed: {fallSpeed}, horizontal speed: {initialHorizontalSpeed}");
@@ -528,10 +596,18 @@ public class FallingObject : MonoBehaviour
         {
             // Bombs are SUPPOSED to be missed — letting one fall through is the
             // correct play, so it's silently retired with no miss penalty,
-            // no combo break, no floating text.
-            if (specialType == SpecialGemType.Bomb)
+            // no combo break, no floating text. Same for hazards (rocks).
+            if (specialType == SpecialGemType.Bomb || isHazard)
             {
                 gameObject.SetActive(false);
+                return;
+            }
+
+            // MasterGem missed = instant game over.
+            if (specialType == SpecialGemType.MasterGem)
+            {
+                gameObject.SetActive(false);
+                if (RoundManager.Instance != null) RoundManager.Instance.EndGame();
                 return;
             }
 
@@ -544,6 +620,13 @@ public class FallingObject : MonoBehaviour
             if (isPowerUp)
             {
                 ClearPowerUp();
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // In Rush Mode, missing a gem is harmless — no life lost.
+            if (GameState.Mode == GameState.GameMode.Rush)
+            {
                 gameObject.SetActive(false);
                 return;
             }

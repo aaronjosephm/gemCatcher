@@ -146,6 +146,17 @@ public class CatcherManager : MonoBehaviour
         // Create initial catcher in the middle slot
         PlaceCatcherInSlot(numberOfSlots / 2);
 
+        // In Rush Mode, snap to center column and calibrate tilt.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            rushCurrentColumn = 2;
+            float centerX = RushColumns.GetColumnX(2);
+            rushTargetX = float.NaN;
+            MoveCatcherToX(centerX, playFeedback: false);
+            // Calibrate: treat current phone orientation as "center".
+            tiltCenterOffset = Input.acceleration.x;
+        }
+
         // Subscribe to score change events
         GemCatcher.OnScoreChanged += UpdateScoreDisplay;
         // Visual feedback on gameplay events.
@@ -203,15 +214,26 @@ public class CatcherManager : MonoBehaviour
     // Tap or drag during the placement countdown. Drag follows the finger
     // smoothly along X (no slot snapping mid-drag). Sound / haptic play once
     // when the finger lifts, not while sliding.
+    // Rush Mode: tap left/right half of screen to step in that direction.
     void HandleCatcherPlacementInput()
     {
-        if (!isPlacementPhase)
+        // In continuous mode the catcher is always movable.
+        bool canMove = isPlacementPhase
+                       || GameState.Mode == GameState.GameMode.Rush;
+        if (!canMove)
         {
             isDraggingCatcher = false;
             return;
         }
 
         if (Camera.main == null) return;
+
+        // Rush Mode: tap-to-move instead of drag.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            HandleRushTapInput();
+            return;
+        }
 
         Vector3 pointerWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
         pointerWorld.z = 0f;
@@ -238,6 +260,49 @@ public class CatcherManager : MonoBehaviour
             isDraggingCatcher = false;
         }
     }
+
+    // Rush Mode tilt controls: tilt phone left/right to move Catchy seamlessly.
+    private int rushCurrentColumn = 2; // For spawn reference only
+    private float rushTargetX = float.NaN;
+
+    // Tilt configuration
+    private const float TiltDeadZone = 0.05f;  // ignore tiny tilts
+    private const float TiltMaxAngle = 0.35f;  // full tilt = edge of screen
+    private float tiltCenterOffset = 0f;       // calibrated neutral position
+    private float smoothedTilt = 0f;           // low-pass filtered tilt value
+    private const float TiltSmoothSpeed = 8f;  // how fast smoothed value follows raw
+
+    void HandleRushTapInput()
+    {
+        if (catcherInstance == null) return;
+
+        // Read accelerometer X axis.
+        float rawTilt = Input.acceleration.x - tiltCenterOffset;
+
+        // Apply dead zone.
+        float tilt;
+        if (Mathf.Abs(rawTilt) < TiltDeadZone)
+            tilt = 0f;
+        else
+            tilt = Mathf.Sign(rawTilt) * (Mathf.Abs(rawTilt) - TiltDeadZone);
+
+        // Normalize to -1..1 range.
+        float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
+
+        // Low-pass filter to eliminate jitter.
+        smoothedTilt = Mathf.Lerp(smoothedTilt, normalizedTilt, TiltSmoothSpeed * Time.deltaTime);
+
+        // Map smoothed tilt to world-X position across the play area.
+        float playLeft = ScreenPadding.WorldLeft + 0.5f;
+        float playRight = ScreenPadding.WorldRight - 0.5f;
+        float center = (playLeft + playRight) * 0.5f;
+        float halfRange = (playRight - playLeft) * 0.5f;
+        float targetX = center + smoothedTilt * halfRange;
+
+        // Move catchy directly to the filtered position (already smooth).
+        MoveCatcherToX(targetX, playFeedback: false);
+    }
+
 
     // Smooth free-X placement along the catcher row. Clamped so the catcher's
     // body stays inside the safe play area.
@@ -327,6 +392,8 @@ public class CatcherManager : MonoBehaviour
     {
         if (type == PowerUpType.WiderCatcher)
         {
+            // Wider catcher is disabled in Rush Mode (column grid system).
+            if (GameState.Mode == GameState.GameMode.Rush) return;
             widerCatcherTargetFactor = PowerUpManager.WiderCatcherWidthFactor;
         }
     }
@@ -404,6 +471,12 @@ public class CatcherManager : MonoBehaviour
         // out-of-the-gate baseline); above the threshold it drops to the
         // tighter smallCatcherScaleFactor for the rest of the round (Score
         // is monotonic non-decreasing now that misses don't subtract points).
+        // Rush Mode: catcher size never changes.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            smallCatcherTargetFactor = baseCatcherScaleFactor;
+            return;
+        }
         smallCatcherTargetFactor = newScore >= smallCatcherScoreThreshold
             ? smallCatcherScaleFactor
             : baseCatcherScaleFactor;
@@ -538,6 +611,13 @@ public class CatcherManager : MonoBehaviour
         {
             catcherInstance = Instantiate(catcherPrefab, worldPosition, Quaternion.identity);
             catcherInstance.tag = "Catcher";
+
+            // Kinematic Rigidbody prevents physics forces from moving/rotating the catcher.
+            Rigidbody rb = catcherInstance.GetComponent<Rigidbody>();
+            if (rb == null) rb = catcherInstance.AddComponent<Rigidbody>();
+            rb.isKinematic = true;
+            rb.useGravity = false;
+
             ApplyGlassAppearance(catcherInstance);
             AddSparkleEffect(catcherInstance);
             // Ensure CatchZone is attached for trigger-based catch detection.

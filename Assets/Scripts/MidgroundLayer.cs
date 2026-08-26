@@ -41,8 +41,12 @@ public class MidgroundLayer : MonoBehaviour
         var existing = FindAnyObjectByType<MidgroundLayer>();
         if (existing != null)
         {
+            existing.gameObject.SetActive(false); // Hide immediately (Destroy is deferred)
             Destroy(existing.gameObject);
         }
+
+        // Don't spawn midground during tutorial (plain white background).
+        if (GameState.IsTutorial) return;
 
         var cfg = LevelManager.CurrentConfig;
         string midRes = cfg.midgroundResource;

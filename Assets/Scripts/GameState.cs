@@ -17,6 +17,7 @@ public static class GameState
   {
     Normal,
     Daily,
+    Rush,
   }
 
   /// <summary>
@@ -25,6 +26,12 @@ public static class GameState
   /// player presses Play.
   /// </summary>
   public static bool IsPlaying = false;
+
+  /// <summary>
+  /// True while the tutorial scene is running. RoundManager won't trigger game over
+  /// and ObjectPooler won't auto-spawn — TutorialManager drives spawns manually.
+  /// </summary>
+  public static bool IsTutorial = false;
 
   /// <summary>
   /// Set by "Try Again" on the game-over screen so the next scene load skips the main
@@ -47,6 +54,7 @@ public static class GameState
   private static void ResetStaticState()
   {
     IsPlaying = false;
+    IsTutorial = false;
     SkipMainMenuOnLoad = false;
     Mode = GameMode.Normal;
   }

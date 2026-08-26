@@ -58,6 +58,12 @@ public class GemCatcher : MonoBehaviour
         remove { if (RM != null) RM.OnGameOver -= value; }
     }
 
+    public static event System.Action OnGameWon
+    {
+        add { if (RM != null) RM.OnGameWon += value; }
+        remove { if (RM != null) RM.OnGameWon -= value; }
+    }
+
     public static event RoundManager.GemCaughtDelegate OnGemCaught
     {
         add { if (RM != null) RM.OnGemCaught += value; }

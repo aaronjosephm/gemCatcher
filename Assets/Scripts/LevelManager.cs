@@ -32,6 +32,7 @@ public static class LevelManager
         public float dailyMaxFallSpeed;
         public float dailyMinSpawnInterval;
         public float catcherYOffset;         // Extra downward offset for catcher position (0 = default)
+        public float placementDuration;      // Seconds the gem blinks before going solid (0 = use default 3s)
     }
 
     private static readonly LevelConfig[] levels = new[]
@@ -53,6 +54,7 @@ public static class LevelManager
             goldenChance = 0.05f,
             dailyMaxFallSpeed = 5.5f,
             dailyMinSpawnInterval = 2.0f,
+            placementDuration = 4.0f,
         },
         new LevelConfig
         {
@@ -63,7 +65,7 @@ public static class LevelManager
             midgroundResource = null,
             musicResource = "Audio/JungleMusic",
             extraGemPrefabs = new[] { "Gems/BlueGem" },
-            unlockScore = 0,
+            unlockScore = 100,
             cameraColor = new Color(0.08f, 0.15f, 0.10f, 1f),
             initialFallSpeed = 4.0f,
             initialSpawnInterval = 2.4f,
@@ -71,6 +73,7 @@ public static class LevelManager
             goldenChance = 0.06f,
             dailyMaxFallSpeed = 7.0f,
             dailyMinSpawnInterval = 1.5f,
+            placementDuration = 3.5f,
         },
         new LevelConfig
         {
@@ -81,7 +84,7 @@ public static class LevelManager
             midgroundResource = null,
             musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = new[] { "Gems/BlueGem" },
-            unlockScore = 2000,
+            unlockScore = 100,
             cameraColor = new Color(0.01f, 0.02f, 0.06f, 1f),
             initialFallSpeed = 4.5f,
             initialSpawnInterval = 2.0f,
@@ -90,6 +93,7 @@ public static class LevelManager
             dailyMaxFallSpeed = 8.0f,
             dailyMinSpawnInterval = 1.2f,
             catcherYOffset = 0f,
+            placementDuration = 3.0f,
         },
     };
 
@@ -122,17 +126,45 @@ public static class LevelManager
 
     public static LevelConfig CurrentConfig => GetConfig(SelectedLevel);
 
-    // TODO: Re-enable unlock requirements for release
-    // Set to false to require score thresholds for level unlocks
-    private const bool AllLevelsUnlocked = true;
+    // Set to true during development to bypass unlock requirements.
+    private const bool AllLevelsUnlocked = false;
 
+    /// <summary>
+    /// Returns the best score achieved on a specific level.
+    /// </summary>
+    public static int GetLevelBestScore(LevelId id)
+    {
+        return PlayerPrefs.GetInt("BestScore_" + id, 0);
+    }
+
+    /// <summary>
+    /// Records a score for the given level. Updates best if higher.
+    /// </summary>
+    public static void RecordLevelScore(LevelId id, int score)
+    {
+        int current = GetLevelBestScore(id);
+        if (score > current)
+        {
+            PlayerPrefs.SetInt("BestScore_" + id, score);
+            PlayerPrefs.Save();
+        }
+    }
+
+    /// <summary>
+    /// A level is unlocked if its unlockScore is 0, or if the preceding
+    /// level's best score meets the threshold.
+    /// </summary>
     public static bool IsUnlocked(LevelId id)
     {
         if (AllLevelsUnlocked) return true;
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
-        int best = PlayerPrefs.GetInt("HighScore", 0);
-        return best >= config.unlockScore;
+
+        // Find the preceding level's best score.
+        int idx = System.Array.FindIndex(levels, l => l.id == id);
+        if (idx <= 0) return true; // First level is always unlocked
+        LevelId precedingLevel = levels[idx - 1].id;
+        return GetLevelBestScore(precedingLevel) >= config.unlockScore;
     }
 
     /// <summary>

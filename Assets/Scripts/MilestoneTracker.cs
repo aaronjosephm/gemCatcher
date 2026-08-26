@@ -109,7 +109,8 @@ public static class MilestoneTracker
 
   private static void ApplyReward(Milestone m)
   {
-    if (m.powerUpRewards != null)
+    // No power-up rewards in Rush Mode.
+    if (m.powerUpRewards != null && GameState.Mode != GameState.GameMode.Rush)
     {
       foreach (PowerUpType type in m.powerUpRewards)
       {
