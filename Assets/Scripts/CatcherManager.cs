@@ -270,7 +270,7 @@ public class CatcherManager : MonoBehaviour
     private const float TiltMaxAngle = 0.35f;  // full tilt = edge of screen
     private float tiltCenterOffset = 0f;       // calibrated neutral position
     private float smoothedTilt = 0f;           // low-pass filtered tilt value
-    private const float TiltSmoothSpeed = 5f;  // how fast smoothed value follows raw
+    private const float TiltSmoothSpeed = 3f;  // how fast smoothed value follows raw
 
     void HandleRushTapInput()
     {
