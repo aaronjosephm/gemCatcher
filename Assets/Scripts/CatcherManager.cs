@@ -261,26 +261,22 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Rush Mode tilt controls: tilt phone left/right to move Catchy.
-    private int rushCurrentColumn = 2; // Start in center column (0-indexed)
+    // Rush Mode tilt controls: tilt phone left/right to move Catchy seamlessly.
+    private int rushCurrentColumn = 2; // For spawn reference only
     private float rushTargetX = float.NaN;
-    private const float RushMoveSpeed = 30f; // world units/sec for smooth lerp
+    private const float RushMoveSpeed = 20f; // world units/sec smoothing
 
     // Tilt configuration
     private const float TiltDeadZone = 0.05f;  // ignore tiny tilts
-    private const float TiltMaxAngle = 0.35f;  // full tilt (normalized accelerometer value)
+    private const float TiltMaxAngle = 0.35f;  // full tilt = edge of screen
     private float tiltCenterOffset = 0f;       // calibrated neutral position
 
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
-        // Read accelerometer X axis (landscape-compensated).
+        // Read accelerometer X axis.
         float rawTilt = Input.acceleration.x;
-
-        // Calibrate: on first frame, treat current tilt as neutral.
-        // (tiltCenterOffset is set in Start when Rush mode begins)
-
         float tilt = rawTilt - tiltCenterOffset;
 
         // Apply dead zone.
@@ -292,30 +288,17 @@ public class CatcherManager : MonoBehaviour
         // Normalize to -1..1 range.
         float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
 
-        // Map tilt to target column (0–4). Center = column 2.
-        // -1 → column 0, 0 → column 2, +1 → column 4
-        float targetColFloat = (normalizedTilt + 1f) * 0.5f * (RushColumns.Count - 1);
-        int targetCol = Mathf.RoundToInt(Mathf.Clamp(targetColFloat, 0, RushColumns.Count - 1));
+        // Map tilt directly to a world-X position across the full play area.
+        float playLeft = ScreenPadding.WorldLeft + 0.5f;
+        float playRight = ScreenPadding.WorldRight - 0.5f;
+        float center = (playLeft + playRight) * 0.5f;
+        float halfRange = (playRight - playLeft) * 0.5f;
+        rushTargetX = center + normalizedTilt * halfRange;
 
-        if (targetCol != rushCurrentColumn)
-        {
-            rushCurrentColumn = targetCol;
-            rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
-        }
-
-        // Smooth slide toward target column.
-        if (!float.IsNaN(rushTargetX))
-        {
-            float currentX = catcherInstance.transform.position.x;
-            float newX = Mathf.MoveTowards(currentX, rushTargetX, RushMoveSpeed * Time.deltaTime);
-            MoveCatcherToX(newX, playFeedback: false);
-
-            if (Mathf.Abs(newX - rushTargetX) < 0.01f)
-            {
-                MoveCatcherToX(rushTargetX, playFeedback: true);
-                rushTargetX = float.NaN;
-            }
-        }
+        // Smooth movement toward target position.
+        float currentX = catcherInstance.transform.position.x;
+        float newX = Mathf.Lerp(currentX, rushTargetX, RushMoveSpeed * Time.deltaTime);
+        MoveCatcherToX(newX, playFeedback: false);
     }
 
 
