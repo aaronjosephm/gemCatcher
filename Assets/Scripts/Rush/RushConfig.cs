@@ -48,7 +48,7 @@ public class RushConfig : ScriptableObject
 
     [Header("Wave Timing")]
     [Tooltip("Vertical gap (world units) between consecutive rows in a wave.")]
-    public float rowSpacing = 1.8f;
+    public float rowSpacing = 2.0f;
 
     [Tooltip("Vertical gap (world units) between waves. Breathing room.")]
     public float wavePause = 3.0f;
