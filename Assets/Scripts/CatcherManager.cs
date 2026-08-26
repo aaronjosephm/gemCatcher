@@ -279,8 +279,8 @@ public class CatcherManager : MonoBehaviour
         float rawTilt = Input.acceleration.x - tiltCenterOffset;
 
         // Exponential moving average on the RAW signal (kills sensor noise).
-        // Alpha ~0.15 at 60fps → smooths noise, still responsive.
-        const float rawSmoothAlpha = 0.15f;
+        // Alpha 0.5 → very responsive, dead zone handles remaining jitter.
+        const float rawSmoothAlpha = 0.5f;
         smoothedRawTilt = smoothedRawTilt + rawSmoothAlpha * (rawTilt - smoothedRawTilt);
 
         // Apply dead zone to the already-smoothed signal.
