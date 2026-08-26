@@ -382,6 +382,17 @@ public class ObjectPooler : MonoBehaviour
         // Freeze gem/obstacle spawning once the player runs out of lives.
         if (GemCatcher.IsGameOver) return;
 
+        // Rush Mode: tick heart gem timer.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            rushHeartGemTimer += Time.deltaTime;
+            if (rushHeartGemTimer >= RushHeartGemInterval)
+            {
+                rushHeartGemTimer = 0f;
+                rushHeartGemReady = true;
+            }
+        }
+
         bool gemInactive = currentActiveGem == null || !currentActiveGem.activeInHierarchy;
 
         // If the gem became inactive (caught or fell off-screen) mid-placement, end the phase now
@@ -721,12 +732,17 @@ public class ObjectPooler : MonoBehaviour
     /// Public entry point for SpawnDirector to spawn a gem at a specific
     /// position with a specific speed. Uses the gem pool.
     /// </summary>
+    // Heart gem timer: spawns one guaranteed every 30 seconds.
+    private float rushHeartGemTimer = 0f;
+    private const float RushHeartGemInterval = 30f;
+    private bool rushHeartGemReady = false;
+
     public void SpawnRushGemAt(float x, float y, float speed)
     {
-        // Heart gems only spawn when the player needs a life.
-        bool needsLife = RoundManager.Instance != null &&
-            RoundManager.Instance.Lives < RoundManager.EffectiveMaxLives;
-        bool isHeart = needsLife && UnityEngine.Random.value < 0.02f; // 2% heart when needed
+        // Heart gem spawns on a fixed 30-second timer.
+        bool isHeart = rushHeartGemReady;
+        if (isHeart) rushHeartGemReady = false;
+
         string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
