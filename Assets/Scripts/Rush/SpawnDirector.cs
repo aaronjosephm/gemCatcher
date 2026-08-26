@@ -31,6 +31,7 @@ public class SpawnDirector : MonoBehaviour
     private DecisionPlan lastSpawnedPlan;   // for Gizmo overlay
     private WaveGeneratorV2.GenerateResult lastResult; // for debug details
     private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
+    private float activeTierPause; // current tier's wave pause
 
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
@@ -145,6 +146,7 @@ public class SpawnDirector : MonoBehaviour
             activeWave = result.wave;
             activePlan = result.plan;
             activeWave.fallSpeed = tier.fallSpeed;
+            activeTierPause = tier.wavePauseOverride;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
             lastSpawnedWave = activeWave;
@@ -183,7 +185,8 @@ public class SpawnDirector : MonoBehaviour
         else
         {
             // Wave is fully spawned. Wait for the wave pause before generating the next.
-            float pauseTime = config.wavePause / activeWave.fallSpeed;
+            float effectivePause = activeTierPause > 0f ? activeTierPause : config.wavePause;
+            float pauseTime = effectivePause / activeWave.fallSpeed;
             if (Time.time - lastRowSpawnTime >= pauseTime)
             {
                 activeWave = null;
