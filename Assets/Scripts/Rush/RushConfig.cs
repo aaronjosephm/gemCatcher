@@ -113,11 +113,11 @@ public class RushConfig : ScriptableObject
     [Header("Difficulty Progression")]
     public DifficultyTier[] difficultyTiers = new DifficultyTier[]
     {
-        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 3, safeCorridorFraction = 0.4f,  complexPatternWeight = 0.2f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 10f,  fallSpeed = 3.0f, maxRows = 4, safeCorridorFraction = 0.35f, complexPatternWeight = 0.4f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 3.0f, maxRows = 5, safeCorridorFraction = 0.3f,  complexPatternWeight = 0.6f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 60f,  fallSpeed = 3.0f, maxRows = 5, safeCorridorFraction = 0.25f, complexPatternWeight = 0.8f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 3.0f, maxRows = 5, safeCorridorFraction = 0.2f,  complexPatternWeight = 1.0f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 0f,   fallSpeed = 2.4f, maxRows = 3, safeCorridorFraction = 0.4f,  complexPatternWeight = 0.2f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 10f,  fallSpeed = 2.4f, maxRows = 4, safeCorridorFraction = 0.35f, complexPatternWeight = 0.4f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 2.4f, maxRows = 5, safeCorridorFraction = 0.3f,  complexPatternWeight = 0.6f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 60f,  fallSpeed = 2.4f, maxRows = 5, safeCorridorFraction = 0.25f, complexPatternWeight = 0.8f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 2.4f, maxRows = 5, safeCorridorFraction = 0.2f,  complexPatternWeight = 1.0f, poisonGemChance = 0f },
     };
 
     // ------------------------------------------------------------------
