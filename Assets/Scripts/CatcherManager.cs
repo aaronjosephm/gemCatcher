@@ -264,41 +264,43 @@ public class CatcherManager : MonoBehaviour
     // Rush Mode tilt controls: tilt phone left/right to move Catchy seamlessly.
     private int rushCurrentColumn = 2; // For spawn reference only
     private float rushTargetX = float.NaN;
-    private const float RushMoveSpeed = 20f; // world units/sec smoothing
 
     // Tilt configuration
     private const float TiltDeadZone = 0.05f;  // ignore tiny tilts
     private const float TiltMaxAngle = 0.35f;  // full tilt = edge of screen
     private float tiltCenterOffset = 0f;       // calibrated neutral position
+    private float smoothedTilt = 0f;           // low-pass filtered tilt value
+    private const float TiltSmoothSpeed = 8f;  // how fast smoothed value follows raw
 
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
         // Read accelerometer X axis.
-        float rawTilt = Input.acceleration.x;
-        float tilt = rawTilt - tiltCenterOffset;
+        float rawTilt = Input.acceleration.x - tiltCenterOffset;
 
         // Apply dead zone.
-        if (Mathf.Abs(tilt) < TiltDeadZone)
+        float tilt;
+        if (Mathf.Abs(rawTilt) < TiltDeadZone)
             tilt = 0f;
         else
-            tilt = Mathf.Sign(tilt) * (Mathf.Abs(tilt) - TiltDeadZone);
+            tilt = Mathf.Sign(rawTilt) * (Mathf.Abs(rawTilt) - TiltDeadZone);
 
         // Normalize to -1..1 range.
         float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
 
-        // Map tilt directly to a world-X position across the full play area.
+        // Low-pass filter to eliminate jitter.
+        smoothedTilt = Mathf.Lerp(smoothedTilt, normalizedTilt, TiltSmoothSpeed * Time.deltaTime);
+
+        // Map smoothed tilt to world-X position across the play area.
         float playLeft = ScreenPadding.WorldLeft + 0.5f;
         float playRight = ScreenPadding.WorldRight - 0.5f;
         float center = (playLeft + playRight) * 0.5f;
         float halfRange = (playRight - playLeft) * 0.5f;
-        rushTargetX = center + normalizedTilt * halfRange;
+        float targetX = center + smoothedTilt * halfRange;
 
-        // Smooth movement toward target position.
-        float currentX = catcherInstance.transform.position.x;
-        float newX = Mathf.Lerp(currentX, rushTargetX, RushMoveSpeed * Time.deltaTime);
-        MoveCatcherToX(newX, playFeedback: false);
+        // Move catchy directly to the filtered position (already smooth).
+        MoveCatcherToX(targetX, playFeedback: false);
     }
 
 
