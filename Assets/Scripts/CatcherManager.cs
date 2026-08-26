@@ -146,13 +146,15 @@ public class CatcherManager : MonoBehaviour
         // Create initial catcher in the middle slot
         PlaceCatcherInSlot(numberOfSlots / 2);
 
-        // In Rush Mode, snap to center column immediately.
+        // In Rush Mode, snap to center column and calibrate tilt.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
             rushCurrentColumn = 2;
             float centerX = RushColumns.GetColumnX(2);
             rushTargetX = float.NaN;
             MoveCatcherToX(centerX, playFeedback: false);
+            // Calibrate: treat current phone orientation as "center".
+            tiltCenterOffset = Input.acceleration.x;
         }
 
         // Subscribe to score change events
@@ -259,78 +261,48 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Rush Mode tap/hold controls: tap left/right → move one column,
-    // hold left/right → keep moving at a repeat rate.
+    // Rush Mode tilt controls: tilt phone left/right to move Catchy.
     private int rushCurrentColumn = 2; // Start in center column (0-indexed)
     private float rushTargetX = float.NaN;
-    private const float RushMoveSpeed = 30f; // world units/sec for lerp
-    private float rushHoldTimer = 0f;
-    private const float RushHoldDelay = 0.25f;   // seconds before hold kicks in
-    private const float RushHoldRepeat = 0.12f;  // seconds between moves while held
-    private bool rushFirstTapHandled = false;
+    private const float RushMoveSpeed = 30f; // world units/sec for smooth lerp
 
-    // Swipe detection
-    private Vector2 rushSwipeStart;
-    private bool rushSwipeTracking = false;
-    private const float RushSwipeThreshold = 80f; // pixels to qualify as swipe
+    // Tilt configuration
+    private const float TiltDeadZone = 0.05f;  // ignore tiny tilts
+    private const float TiltMaxAngle = 0.35f;  // full tilt (normalized accelerometer value)
+    private float tiltCenterOffset = 0f;       // calibrated neutral position
 
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
-        float screenMid = Screen.width * 0.5f;
-        bool isLeft = Input.mousePosition.x < screenMid;
+        // Read accelerometer X axis (landscape-compensated).
+        float rawTilt = Input.acceleration.x;
 
-        if (Input.GetMouseButtonDown(0))
+        // Calibrate: on first frame, treat current tilt as neutral.
+        // (tiltCenterOffset is set in Start when Rush mode begins)
+
+        float tilt = rawTilt - tiltCenterOffset;
+
+        // Apply dead zone.
+        if (Mathf.Abs(tilt) < TiltDeadZone)
+            tilt = 0f;
+        else
+            tilt = Mathf.Sign(tilt) * (Mathf.Abs(tilt) - TiltDeadZone);
+
+        // Normalize to -1..1 range.
+        float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
+
+        // Map tilt to target column (0–4). Center = column 2.
+        // -1 → column 0, 0 → column 2, +1 → column 4
+        float targetColFloat = (normalizedTilt + 1f) * 0.5f * (RushColumns.Count - 1);
+        int targetCol = Mathf.RoundToInt(Mathf.Clamp(targetColFloat, 0, RushColumns.Count - 1));
+
+        if (targetCol != rushCurrentColumn)
         {
-            rushSwipeStart = Input.mousePosition;
-            rushSwipeTracking = true;
-
-            // First tap — move one slot.
-            MoveRushColumn(isLeft ? -1 : 1);
-            rushHoldTimer = 0f;
-            rushFirstTapHandled = true;
-        }
-        else if (Input.GetMouseButton(0) && rushFirstTapHandled)
-        {
-            // Check for swipe before processing hold.
-            if (rushSwipeTracking)
-            {
-                float dx = Input.mousePosition.x - rushSwipeStart.x;
-                if (Mathf.Abs(dx) >= RushSwipeThreshold)
-                {
-                    // Swipe detected — move all 5 columns in that direction.
-                    int dir = dx > 0 ? 1 : -1;
-                    int targetCol = dir > 0 ? RushColumns.Count - 1 : 0;
-                    if (targetCol != rushCurrentColumn)
-                    {
-                        rushCurrentColumn = targetCol;
-                        rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
-                    }
-                    rushSwipeTracking = false;
-                    rushFirstTapHandled = false; // Suppress hold after swipe.
-                    rushHoldTimer = 0f;
-                    goto smoothSlide;
-                }
-            }
-
-            // Holding — after initial delay, repeat at interval.
-            rushHoldTimer += Time.deltaTime;
-            if (rushHoldTimer >= RushHoldDelay)
-            {
-                rushHoldTimer -= RushHoldRepeat;
-                MoveRushColumn(isLeft ? -1 : 1);
-            }
+            rushCurrentColumn = targetCol;
+            rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
         }
 
-        if (Input.GetMouseButtonUp(0))
-        {
-            rushFirstTapHandled = false;
-            rushHoldTimer = 0f;
-            rushSwipeTracking = false;
-        }
-
-        smoothSlide:
         // Smooth slide toward target column.
         if (!float.IsNaN(rushTargetX))
         {
@@ -346,13 +318,6 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    void MoveRushColumn(int delta)
-    {
-        int newCol = Mathf.Clamp(rushCurrentColumn + delta, 0, RushColumns.Count - 1);
-        if (newCol == rushCurrentColumn) return;
-        rushCurrentColumn = newCol;
-        rushTargetX = RushColumns.GetColumnX(rushCurrentColumn);
-    }
 
     // Smooth free-X placement along the catcher row. Clamped so the catcher's
     // body stays inside the safe play area.
