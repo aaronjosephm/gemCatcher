@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public static class RushColumns
 {
-    public const int Count = 5;
+    public const int Count = 4;
 
     /// <summary>
     /// Get the world-X positions for all columns, evenly spaced across

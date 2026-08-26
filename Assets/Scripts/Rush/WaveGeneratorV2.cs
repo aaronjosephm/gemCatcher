@@ -193,9 +193,9 @@ public static class WaveGeneratorV2
         int rows = plan.rowCount;
 
         // Pick two distinct sides for the fork.
-        int leftCol = Random.Range(0, 2);               // 0 or 1
-        int rightCol = Random.Range(3, RushColumns.Count); // 3 or 4
-        int mergeCol = 2; // Center
+        int leftCol = 0;
+        int rightCol = RushColumns.Count - 1;
+        int mergeCol = RushColumns.Count / 2; // Center-ish
 
         // Safe route: wider, stays on one side.
         var safeRoute = new RoutePlan.Route
@@ -258,8 +258,8 @@ public static class WaveGeneratorV2
         int rows = plan.rowCount;
 
         // Safe route: wide, few gems.
-        int safeSide = Random.value < 0.5f ? 0 : 4;
-        int riskySide = 4 - safeSide;
+        int safeSide = Random.value < 0.5f ? 0 : RushColumns.Count - 1;
+        int riskySide = RushColumns.Count - 1 - safeSide;
 
         var safeRoute = new RoutePlan.Route
         {
@@ -337,7 +337,7 @@ public static class WaveGeneratorV2
         int midRow = rows / 2;
         for (int r = 0; r < rows; r++)
         {
-            route.columns[r] = 2; // Center column.
+            route.columns[r] = RushColumns.Count / 2; // Center column.
             // Width changes: wide → narrow → wide.
             float progress = Mathf.Abs(r - midRow) / (float)Mathf.Max(midRow, 1);
             route.width = Mathf.RoundToInt(Mathf.Lerp(1, SafeWidth(tier), progress));
@@ -353,7 +353,7 @@ public static class WaveGeneratorV2
         var rp = new RoutePlan();
         int rows = plan.rowCount;
 
-        int straightCol = Random.Range(1, 4); // Center-ish.
+        int straightCol = Random.Range(1, RushColumns.Count - 1); // Center-ish.
 
         var safeRoute = new RoutePlan.Route
         {
@@ -395,8 +395,8 @@ public static class WaveGeneratorV2
         var rp = new RoutePlan();
         int rows = plan.rowCount;
 
-        int leftCol = Random.Range(0, 2);
-        int rightCol = Random.Range(3, RushColumns.Count);
+        int leftCol = 0;
+        int rightCol = RushColumns.Count - 1;
 
         // Both start accessible, gate closes mid-wave.
         int gateRow = Mathf.Max(2, rows / 2);
@@ -448,7 +448,7 @@ public static class WaveGeneratorV2
 
         // Stay on one side for comfort rows, then force move.
         int comfortCol = Random.Range(0, RushColumns.Count);
-        int forceCol = (comfortCol <= 1) ? Random.Range(3, 5) : Random.Range(0, 2);
+        int forceCol = (comfortCol <= 1) ? Random.Range(RushColumns.Count - 2, RushColumns.Count) : Random.Range(0, 2);
         int switchRow = rows - 2; // Last 2 rows force movement.
 
         for (int r = 0; r < rows; r++)
@@ -500,7 +500,7 @@ public static class WaveGeneratorV2
             isSafe = true,
             rewardLevel = 1.5f,
             width = RushColumns.Count,
-            columns = new int[] { 2, 2 },
+            columns = new int[] { RushColumns.Count / 2, RushColumns.Count / 2 },
         };
         rp.routes.Add(route);
         return rp;
@@ -543,7 +543,7 @@ public static class WaveGeneratorV2
                 plan.routes.splitRow >= 0 && r >= plan.routes.splitRow)
             {
                 // Center column becomes rock (the gate).
-                int gateCol = 2;
+                int gateCol = RushColumns.Count / 2;
                 safe[gateCol] = false;
             }
 
@@ -567,7 +567,7 @@ public static class WaveGeneratorV2
             bool anySafe = false;
             for (int c = 0; c < RushColumns.Count; c++)
                 if (safe[c]) { anySafe = true; break; }
-            if (!anySafe) safe[2] = true; // Fallback center.
+            if (!anySafe) safe[RushColumns.Count / 2] = true; // Fallback center.
 
             // Place rocks in unsafe columns.
             float minSafe = float.MaxValue;
@@ -672,7 +672,7 @@ public static class WaveGeneratorV2
                 safeMinX = RushColumns.GetColumnX(0),
                 safeMaxX = RushColumns.GetColumnX(RushColumns.Count - 1),
             };
-            row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(2)));
+            row.slots.Add(WaveDefinition.Slot.GemAt(RushColumns.GetColumnX(RushColumns.Count / 2)));
             wave.rows.Add(row);
         }
 

@@ -149,8 +149,8 @@ public class CatcherManager : MonoBehaviour
         // In Rush Mode, snap to center column.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
-            rushCurrentColumn = 2;
-            float centerX = RushColumns.GetColumnX(2);
+            rushCurrentColumn = RushColumns.Count / 2;
+            float centerX = RushColumns.GetColumnX(RushColumns.Count / 2);
             MoveCatcherToX(centerX, playFeedback: false);
         }
 
@@ -445,10 +445,10 @@ public class CatcherManager : MonoBehaviour
         // out-of-the-gate baseline); above the threshold it drops to the
         // tighter smallCatcherScaleFactor for the rest of the round (Score
         // is monotonic non-decreasing now that misses don't subtract points).
-        // Rush Mode: catcher is 50% smaller than base.
+        // Rush Mode: catcher at normal size.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
-            smallCatcherTargetFactor = baseCatcherScaleFactor * 0.5f;
+            smallCatcherTargetFactor = baseCatcherScaleFactor;
             return;
         }
         smallCatcherTargetFactor = newScore >= smallCatcherScoreThreshold
