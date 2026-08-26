@@ -146,15 +146,12 @@ public class CatcherManager : MonoBehaviour
         // Create initial catcher in the middle slot
         PlaceCatcherInSlot(numberOfSlots / 2);
 
-        // In Rush Mode, snap to center column and calibrate tilt.
+        // In Rush Mode, snap to center column.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
             rushCurrentColumn = 2;
             float centerX = RushColumns.GetColumnX(2);
-            rushTargetX = float.NaN;
             MoveCatcherToX(centerX, playFeedback: false);
-            // Calibrate: treat current phone orientation as "center".
-            tiltCenterOffset = Input.acceleration.x;
         }
 
         // Subscribe to score change events
@@ -261,46 +258,23 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Rush Mode tilt controls: tilt phone left/right to move Catchy seamlessly.
+    // Rush Mode hold controls: hold left/right side of screen to move continuously.
     private int rushCurrentColumn = 2; // For spawn reference only
-    private float rushTargetX = float.NaN;
-
-    // Tilt configuration
-    private const float TiltDeadZone = 0.08f;  // larger dead zone kills micro-jitter
-    private const float TiltMaxAngle = 0.30f;  // slightly less tilt needed for full range
-    private float tiltCenterOffset = 0f;       // calibrated neutral position
-    private float smoothedRawTilt = 0f;        // EMA-filtered raw accelerometer
+    private const float RushMoveSpeed = 8f; // world units/sec
 
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
-        // Read accelerometer X axis.
-        float rawTilt = Input.acceleration.x - tiltCenterOffset;
+        if (Input.GetMouseButton(0))
+        {
+            float screenMid = Screen.width * 0.5f;
+            float dir = Input.mousePosition.x < screenMid ? -1f : 1f;
 
-        // Exponential moving average on the RAW signal (kills sensor noise).
-        // Alpha 0.5 → very responsive, dead zone handles remaining jitter.
-        const float rawSmoothAlpha = 0.5f;
-        smoothedRawTilt = smoothedRawTilt + rawSmoothAlpha * (rawTilt - smoothedRawTilt);
-
-        // Apply dead zone to the already-smoothed signal.
-        float tilt;
-        if (Mathf.Abs(smoothedRawTilt) < TiltDeadZone)
-            tilt = 0f;
-        else
-            tilt = Mathf.Sign(smoothedRawTilt) * (Mathf.Abs(smoothedRawTilt) - TiltDeadZone);
-
-        // Normalize to -1..1 range.
-        float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
-
-        // Map directly to world-X position (no second smoothing layer = responsive).
-        float playLeft = ScreenPadding.WorldLeft + 0.5f;
-        float playRight = ScreenPadding.WorldRight - 0.5f;
-        float center = (playLeft + playRight) * 0.5f;
-        float halfRange = (playRight - playLeft) * 0.5f;
-        float targetX = center + normalizedTilt * halfRange;
-
-        MoveCatcherToX(targetX, playFeedback: false);
+            float currentX = catcherInstance.transform.position.x;
+            float newX = currentX + dir * RushMoveSpeed * Time.deltaTime;
+            MoveCatcherToX(newX, playFeedback: false);
+        }
     }
 
 
