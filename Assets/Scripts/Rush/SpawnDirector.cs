@@ -393,10 +393,9 @@ public class SpawnDirector : MonoBehaviour
             return;
         }
 
-        float spawnY = ScreenPadding.WorldTop + 1.5f + config.rowSpacing * 0.5f; // Offset so it doesn't overlap gem rows.
-        // Drop in a random column.
-        int col = UnityEngine.Random.Range(0, RushColumns.Count);
-        float x = RushColumns.GetColumnX(col);
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        // Spawn between columns so it never overlaps a gem.
+        float x = GetPowerUpX();
 
         GameObject obj = Instantiate(magnetPrefab);
         obj.transform.position = new Vector3(x, spawnY, 0f);
@@ -438,7 +437,16 @@ public class SpawnDirector : MonoBehaviour
         obj.SetActive(true);
 
         if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Magnet power-up spawned at column {col}");
+            Debug.Log($"[SpawnDirector] Magnet power-up spawned at x={x:F2}");
+    }
+
+    /// <summary>Pick an X midway between two adjacent gem columns so power-ups never overlap gems.</summary>
+    float GetPowerUpX()
+    {
+        int gap = UnityEngine.Random.Range(0, RushColumns.Count - 1);
+        float left = RushColumns.GetColumnX(gap);
+        float right = RushColumns.GetColumnX(gap + 1);
+        return (left + right) * 0.5f;
     }
 
     void SpawnShieldPowerUp(float fallSpeed)
@@ -449,9 +457,8 @@ public class SpawnDirector : MonoBehaviour
             return;
         }
 
-        float spawnY = ScreenPadding.WorldTop + 1.5f + config.rowSpacing * 0.5f; // Offset so it doesn't overlap gem rows.
-        int col = UnityEngine.Random.Range(0, RushColumns.Count);
-        float x = RushColumns.GetColumnX(col);
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        float x = GetPowerUpX();
 
         GameObject obj = Instantiate(shieldPrefab);
         obj.transform.position = new Vector3(x, spawnY, 0f);
@@ -485,7 +492,7 @@ public class SpawnDirector : MonoBehaviour
         obj.SetActive(true);
 
         if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Shield power-up spawned at column {col}");
+            Debug.Log($"[SpawnDirector] Shield power-up spawned at x={x:F2}");
     }
 
     void OnDestroy()
