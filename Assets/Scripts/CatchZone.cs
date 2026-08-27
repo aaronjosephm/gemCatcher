@@ -96,9 +96,9 @@ public class CatchZone : MonoBehaviour
                 fo.gameObject.SetActive(false);
                 return;
             }
-            ApplyBombHit(catchPosition);
+            bool shielded = ApplyBombHit(catchPosition);
             fo.gameObject.SetActive(false);
-            StartInvincibility();
+            if (!shielded) StartInvincibility();
             return;
         }
 
@@ -110,9 +110,9 @@ public class CatchZone : MonoBehaviour
                 fo.gameObject.SetActive(false);
                 return;
             }
-            ApplyBombHit(catchPosition);
+            bool shielded = ApplyBombHit(catchPosition);
             fo.gameObject.SetActive(false);
-            StartInvincibility();
+            if (!shielded) StartInvincibility();
             return;
         }
 
@@ -259,14 +259,15 @@ public class CatchZone : MonoBehaviour
 
     // ---- Bomb handling -----------------------------------------------------
 
-    private void ApplyBombHit(Vector3 worldPosition)
+    /// <returns>true if the shield absorbed the hit (no damage taken).</returns>
+    private bool ApplyBombHit(Vector3 worldPosition)
     {
         RoundManager rm = RoundManager.Instance;
-        if (rm.IsGameOver) return;
+        if (rm.IsGameOver) return false;
 
         if (PowerUpManager.TryConsumeShield(worldPosition))
         {
-            return;
+            return true;
         }
 
         PowerUpManager.RevokeAllOnMiss();
@@ -275,6 +276,7 @@ public class CatchZone : MonoBehaviour
         rm.NotifyBombHit(worldPosition);
         CameraShake.Shake(0.30f, 0.45f);
         rm.DeductLife();
+        return false;
     }
 
     // ---- Catch effect -------------------------------------------------------
