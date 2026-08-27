@@ -1395,7 +1395,6 @@ public class UIManager : MonoBehaviour
     vlg.childForceExpandHeight = false;
 
     BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
-    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Tutorial",     new Color(0.45f, 0.30f, 0.65f), OnTutorialClicked);
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
