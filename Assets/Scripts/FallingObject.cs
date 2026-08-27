@@ -92,6 +92,7 @@ public class FallingObject : MonoBehaviour
     /// <summary>Rush Mode heart gem — awards an extra life when caught.</summary>
     public bool isRushHeart { get; set; } = false;
     public bool isRushRedGem { get; set; } = false;
+    public bool isRushMagnet { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -193,6 +194,7 @@ public class FallingObject : MonoBehaviour
         isPoisonGem = false;
         isRushHeart = false;
         isRushRedGem = false;
+        isRushMagnet = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
@@ -583,6 +585,22 @@ public class FallingObject : MonoBehaviour
         // Move the object
         transform.Translate(movementDirection * dt, Space.World);
 
+        // Magnet attraction: pull gems toward the catcher when magnet is active.
+        if (!isHazard && !isRushMagnet && PowerUpManager.MagnetActive)
+        {
+            GameObject catcher = CatcherManager.Instance != null ? CatcherManager.Instance.CatcherInstance : null;
+            if (catcher != null)
+            {
+                Vector3 toCatcher = catcher.transform.position - transform.position;
+                float dist = toCatcher.magnitude;
+                if (dist < PowerUpManager.MagnetRadius && dist > 0.1f)
+                {
+                    float pullStrength = (1f - dist / PowerUpManager.MagnetRadius) * 8f;
+                    transform.position += toCatcher.normalized * pullStrength * dt;
+                }
+            }
+        }
+
         // Check and enforce boundaries
         EnforceBoundaries();
 
@@ -622,6 +640,13 @@ public class FallingObject : MonoBehaviour
             if (isPowerUp)
             {
                 ClearPowerUp();
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // Magnet power-up missed — no penalty.
+            if (isRushMagnet)
+            {
                 gameObject.SetActive(false);
                 return;
             }

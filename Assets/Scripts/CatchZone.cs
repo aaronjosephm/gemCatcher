@@ -146,6 +146,17 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
+        // Rush Mode magnet power-up pickup.
+        if (fo.isRushMagnet)
+        {
+            PowerUpManager.Activate(PowerUpType.Magnet);
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.Play("MagnetOn");
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {

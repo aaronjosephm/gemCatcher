@@ -33,6 +33,11 @@ public class SpawnDirector : MonoBehaviour
     private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
     private float activeTierPause; // current tier's wave pause
 
+    // Magnet power-up drop
+    private bool magnetDropped = false;
+    private const float MagnetDropTime = 45f;
+    private GameObject magnetPrefab;
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -75,6 +80,9 @@ public class SpawnDirector : MonoBehaviour
         waveMemory = new WaveMemory(6);
         runSeed = System.Environment.TickCount;
         waveIndex = 0;
+
+        // Load magnet prefab.
+        magnetPrefab = Resources.Load<GameObject>("PowerUps/Magnet_V1_0");
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -135,6 +143,13 @@ public class SpawnDirector : MonoBehaviour
 
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
+
+        // Drop magnet power-up at 45s.
+        if (!magnetDropped && elapsed >= MagnetDropTime)
+        {
+            magnetDropped = true;
+            SpawnMagnetPowerUp(tier.fallSpeed);
+        }
 
         // If no active wave, generate a new one.
         if (activeWave == null)
@@ -352,6 +367,59 @@ public class SpawnDirector : MonoBehaviour
             new Vector3(GetPlayAreaLeft(), spawnY + 1f, 0f), label);
     }
 #endif
+
+    void SpawnMagnetPowerUp(float fallSpeed)
+    {
+        if (magnetPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Magnet prefab not loaded!");
+            return;
+        }
+
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        // Drop in a random column.
+        int col = UnityEngine.Random.Range(0, RushColumns.Count);
+        float x = RushColumns.GetColumnX(col);
+
+        GameObject obj = Instantiate(magnetPrefab);
+        obj.transform.position = new Vector3(x, spawnY, 0f);
+        obj.transform.localScale = Vector3.one * 0.8f;
+
+        // Add FallingObject if not present.
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushMagnet = true;
+        fo.rotationSpeed = new Vector3(0f, 120f, 30f);
+
+        // Add collider for catch detection.
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Blue glow via MaterialPropertyBlock on all renderers.
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        foreach (Renderer r in renderers)
+        {
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor("_BaseColor", new Color(0.3f, 0.5f, 1f));
+            mpb.SetColor("_EmissionColor", new Color(0.2f, 0.4f, 1f) * 2f);
+            r.SetPropertyBlock(mpb);
+        }
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Magnet power-up spawned at column {col}");
+    }
 
     void OnDestroy()
     {
