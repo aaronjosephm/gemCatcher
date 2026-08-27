@@ -394,10 +394,6 @@ public class SpawnDirector : MonoBehaviour
             shakeTimer = ShakeDuration;
         }
 
-        // Rumble sound.
-        if (SoundManager.Instance != null)
-            SoundManager.Instance.Play("StageUp");
-
         // Haptic feedback (mobile).
 #if UNITY_IOS || UNITY_ANDROID
         Handheld.Vibrate();
