@@ -34,8 +34,8 @@ public class SpawnDirector : MonoBehaviour
     private float activeTierPause; // current tier's wave pause
 
     // Magnet power-up drop
-    private bool magnetDropped = false;
-    private const float MagnetDropTime = 5f; // TODO: restore to 45f after testing
+    private float nextMagnetDropTime;
+    private const float MagnetDropInterval = 45f;
     private GameObject magnetPrefab;
 
     // Pool references (grabbed from ObjectPooler at Start)
@@ -83,6 +83,7 @@ public class SpawnDirector : MonoBehaviour
 
         // Load magnet prefab.
         magnetPrefab = Resources.Load<GameObject>("PowerUps/Magnet_V1_0");
+        nextMagnetDropTime = MagnetDropInterval;
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -144,10 +145,10 @@ public class SpawnDirector : MonoBehaviour
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
 
-        // Drop magnet power-up at 45s.
-        if (!magnetDropped && elapsed >= MagnetDropTime)
+        // Drop magnet power-up every 45 seconds.
+        if (elapsed >= nextMagnetDropTime)
         {
-            magnetDropped = true;
+            nextMagnetDropTime = elapsed + MagnetDropInterval;
             SpawnMagnetPowerUp(tier.fallSpeed);
         }
 
