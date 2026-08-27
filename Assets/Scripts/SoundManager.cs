@@ -454,6 +454,7 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
         RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
+        RegisterFallback("StageUp",       () => CreateSweep(60f, 30f, 1.2f, 0.50f));  // Deep rumble
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)

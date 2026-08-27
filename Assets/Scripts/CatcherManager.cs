@@ -269,10 +269,12 @@ public class CatcherManager : MonoBehaviour
     {
         if (catcherInstance == null) return;
 
+        float moveDir = 0f;
+
         if (Input.GetMouseButton(0))
         {
             float screenMid = Screen.width * 0.5f;
-            float dir = Input.mousePosition.x < screenMid ? -1f : 1f;
+            moveDir = Input.mousePosition.x < screenMid ? -1f : 1f;
 
             // Scale catchy speed proportional to current fall speed.
             float currentFallSpeed = GetCurrentRushFallSpeed();
@@ -280,9 +282,29 @@ public class CatcherManager : MonoBehaviour
             float moveSpeed = RushBaseMoveSpeed * speedRatio;
 
             float currentX = catcherInstance.transform.position.x;
-            float newX = currentX + dir * moveSpeed * Time.deltaTime;
+            float newX = currentX + moveDir * moveSpeed * Time.deltaTime;
             MoveCatcherToX(newX, playFeedback: false);
         }
+
+        // Rotate catchy based on movement direction.
+        UpdateRushRotation(moveDir);
+    }
+
+    private float rushCurrentRotation = 0f;
+    private const float RushMaxTilt = 15f;     // max rotation degrees
+    private const float RushTiltSpeed = 12f;   // how fast rotation responds
+    private const float RushTiltReturn = 8f;   // how fast it returns to upright
+
+    void UpdateRushRotation(float moveDir)
+    {
+        if (catcherInstance == null) return;
+
+        float targetRotation = -moveDir * RushMaxTilt; // Negative = lean into direction
+        float speed = Mathf.Abs(moveDir) > 0.1f ? RushTiltSpeed : RushTiltReturn;
+        rushCurrentRotation = Mathf.Lerp(rushCurrentRotation, targetRotation, speed * Time.deltaTime);
+
+        var t = catcherInstance.transform;
+        t.rotation = Quaternion.Euler(0f, 0f, rushCurrentRotation);
     }
 
     float GetCurrentRushFallSpeed()
