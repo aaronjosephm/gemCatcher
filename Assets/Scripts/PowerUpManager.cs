@@ -208,7 +208,9 @@ public class PowerUpManager : MonoBehaviour
     shieldCharges = 0;
     magnetActive = false;
     magnetTimer = 0f;
-  } ----------------------------------------------------------
+  }
+
+  // ---- Bootstrap ----------------------------------------------------------
 
   [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
   private static void EnsureInstance()
