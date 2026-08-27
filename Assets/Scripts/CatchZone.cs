@@ -21,6 +21,11 @@ public class CatchZone : MonoBehaviour
     private Renderer[] catcherRenderers;
     private float flashTimer = 0f;
 
+    // Shield grace: blocks rocks but still allows gem catching
+    private bool isShieldGrace = false;
+    private float shieldGraceTimer = 0f;
+    private const float ShieldGraceDuration = 2f;
+
     void Awake()
     {
         catcherCollider = GetComponent<BoxCollider>();
@@ -44,6 +49,14 @@ public class CatchZone : MonoBehaviour
             {
                 UpdateFlash();
             }
+        }
+
+        if (isShieldGrace)
+        {
+            shieldGraceTimer -= Time.deltaTime;
+            if (shieldGraceTimer <= 0f)
+                isShieldGrace = false;
+        }
         }
 
         // Use static registry — zero allocations, no scene scan.
@@ -91,28 +104,34 @@ public class CatchZone : MonoBehaviour
         // Hazards (rocks) hurt — same as bombs.
         if (fo.isHazard)
         {
-            if (isInvincible)
+            if (isInvincible || isShieldGrace)
             {
                 fo.gameObject.SetActive(false);
                 return;
             }
             bool shielded = ApplyBombHit(catchPosition);
             fo.gameObject.SetActive(false);
-            if (!shielded) StartInvincibility();
+            if (shielded)
+                StartShieldGrace();
+            else
+                StartInvincibility();
             return;
         }
 
         // Poison gems look like gems but cost a life (disabled in Rush Mode).
         if (fo.isPoisonGem && GameState.Mode != GameState.GameMode.Rush)
         {
-            if (isInvincible)
+            if (isInvincible || isShieldGrace)
             {
                 fo.gameObject.SetActive(false);
                 return;
             }
             bool shielded = ApplyBombHit(catchPosition);
             fo.gameObject.SetActive(false);
-            if (!shielded) StartInvincibility();
+            if (shielded)
+                StartShieldGrace();
+            else
+                StartInvincibility();
             return;
         }
 
@@ -296,6 +315,12 @@ public class CatchZone : MonoBehaviour
         flashTimer = 0f;
         if (catcherRenderers == null || catcherRenderers.Length == 0)
             catcherRenderers = GetComponentsInChildren<Renderer>(true);
+    }
+
+    private void StartShieldGrace()
+    {
+        isShieldGrace = true;
+        shieldGraceTimer = ShieldGraceDuration;
     }
 
     private void EndInvincibility()
