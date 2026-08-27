@@ -389,12 +389,12 @@ public class CatcherManager : MonoBehaviour
             Collider col = shieldBubble.GetComponent<Collider>();
             if (col != null) Destroy(col);
 
-            // Transparent golden material.
+            // Transparent golden material (unlit to avoid skin colour bleeding).
             Renderer r = shieldBubble.GetComponent<Renderer>();
             if (r != null)
             {
-                Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit")
-                    ?? Shader.Find("Standard"));
+                Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit")
+                    ?? Shader.Find("Unlit/Color"));
                 mat.SetFloat("_Surface", 1f); // Transparent
                 mat.SetFloat("_Blend", 0f);
                 mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
@@ -402,9 +402,7 @@ public class CatcherManager : MonoBehaviour
                 mat.SetFloat("_ZWrite", 0f);
                 mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
                 mat.renderQueue = 3000;
-                mat.SetColor("_BaseColor", new Color(1f, 0.84f, 0f, 0.2f));
-                mat.SetColor("_EmissionColor", new Color(1f, 0.7f, 0f, 1f) * 0.3f);
-                mat.EnableKeyword("_EMISSION");
+                mat.SetColor("_BaseColor", new Color(1f, 0.84f, 0f, 0.15f));
                 r.material = mat;
             }
         }

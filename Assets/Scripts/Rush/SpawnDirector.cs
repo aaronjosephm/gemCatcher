@@ -393,7 +393,7 @@ public class SpawnDirector : MonoBehaviour
             return;
         }
 
-        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        float spawnY = ScreenPadding.WorldTop + 1.5f + config.rowSpacing * 0.5f; // Offset so it doesn't overlap gem rows.
         // Drop in a random column.
         int col = UnityEngine.Random.Range(0, RushColumns.Count);
         float x = RushColumns.GetColumnX(col);
@@ -449,7 +449,7 @@ public class SpawnDirector : MonoBehaviour
             return;
         }
 
-        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        float spawnY = ScreenPadding.WorldTop + 1.5f + config.rowSpacing * 0.5f; // Offset so it doesn't overlap gem rows.
         int col = UnityEngine.Random.Range(0, RushColumns.Count);
         float x = RushColumns.GetColumnX(col);
 
