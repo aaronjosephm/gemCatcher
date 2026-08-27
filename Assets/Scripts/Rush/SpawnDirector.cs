@@ -490,7 +490,6 @@ public class SpawnDirector : MonoBehaviour
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Shield power-up spawned at ({x:F2}, {y:F2})");
     }
-    }
 
     void OnDestroy()
     {
