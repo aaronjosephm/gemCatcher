@@ -480,7 +480,7 @@ public class SpawnDirector : MonoBehaviour
         var glow = obj.AddComponent<GemGlowVolume>();
         glow.glowColor = new Color(1f, 0.84f, 0f, 1f);
         glow.glowAlpha = 0.9f;
-        glow.glowScale = 3.5f;
+        glow.glowRadius = 1.5f;
 
         obj.SetActive(true);
 
