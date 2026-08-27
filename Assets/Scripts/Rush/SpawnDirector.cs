@@ -394,7 +394,10 @@ public class SpawnDirector : MonoBehaviour
         fo.fallSpeed = fallSpeed;
         fo.InitializeMovement(fallSpeed);
         fo.isRushMagnet = true;
-        fo.rotationSpeed = new Vector3(0f, 120f, 30f);
+
+        // Add a simple spinner script for rotation.
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 120f, 30f);
 
         // Add collider for catch detection.
         if (obj.GetComponent<Collider>() == null)
