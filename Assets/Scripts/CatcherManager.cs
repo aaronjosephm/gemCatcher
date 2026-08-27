@@ -294,7 +294,8 @@ public class CatcherManager : MonoBehaviour
     {
         if (catcherInstance == null) return;
         Vector3 axis = catcherSpinAxis.sqrMagnitude > 0f ? catcherSpinAxis.normalized : Vector3.up;
-        catcherInstance.transform.Rotate(axis, catcherSpinSpeed * Time.deltaTime, Space.Self);
+        float speedRatio = GetCurrentRushFallSpeed() / RushBaseFallSpeed;
+        catcherInstance.transform.Rotate(axis, catcherSpinSpeed * speedRatio * Time.deltaTime, Space.Self);
     }
 
     float GetCurrentRushFallSpeed()
