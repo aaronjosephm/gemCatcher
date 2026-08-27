@@ -92,7 +92,7 @@ public class SpawnDirector : MonoBehaviour
 
         // Load shield prefab.
         shieldPrefab = Resources.Load<GameObject>("PowerUps/Shield_V2_1");
-        nextShieldDropTime = ShieldDropInterval / 2f; // Stagger from magnet
+        nextShieldDropTime = 5f; // TODO: restore to ShieldDropInterval / 2f after testing
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
