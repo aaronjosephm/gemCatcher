@@ -35,7 +35,7 @@ public class SpawnDirector : MonoBehaviour
 
     // Magnet power-up drop
     private bool magnetDropped = false;
-    private const float MagnetDropTime = 45f;
+    private const float MagnetDropTime = 5f; // TODO: restore to 45f after testing
     private GameObject magnetPrefab;
 
     // Pool references (grabbed from ObjectPooler at Start)
