@@ -57,7 +57,6 @@ public class CatchZone : MonoBehaviour
             if (shieldGraceTimer <= 0f)
                 isShieldGrace = false;
         }
-        }
 
         // Use static registry — zero allocations, no scene scan.
         var activeList = FallingObject.ActiveInstances;
