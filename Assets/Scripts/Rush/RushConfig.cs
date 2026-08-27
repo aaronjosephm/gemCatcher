@@ -117,10 +117,10 @@ public class RushConfig : ScriptableObject
     public DifficultyTier[] difficultyTiers = new DifficultyTier[]
     {
         new DifficultyTier { startTime = 0f,   fallSpeed = 2.4f, maxRows = 3, safeCorridorFraction = 0.5f,  complexPatternWeight = 0.2f, poisonGemChance = 0f, wavePauseOverride = 3.0f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 2.6f, maxRows = 3, safeCorridorFraction = 0.45f, complexPatternWeight = 0.4f, poisonGemChance = 0f, wavePauseOverride = 2.8f },
-        new DifficultyTier { startTime = 55f,  fallSpeed = 2.8f, maxRows = 4, safeCorridorFraction = 0.4f,  complexPatternWeight = 0.6f, poisonGemChance = 0f, wavePauseOverride = 2.5f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 3.0f, maxRows = 4, safeCorridorFraction = 0.35f, complexPatternWeight = 0.8f, poisonGemChance = 0f, wavePauseOverride = 2.2f },
-        new DifficultyTier { startTime = 135f, fallSpeed = 3.5f, maxRows = 5, safeCorridorFraction = 0.25f, complexPatternWeight = 1.0f, poisonGemChance = 0f, wavePauseOverride = 1.8f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 2.88f, maxRows = 3, safeCorridorFraction = 0.45f, complexPatternWeight = 0.4f, poisonGemChance = 0f, wavePauseOverride = 2.8f },
+        new DifficultyTier { startTime = 55f,  fallSpeed = 3.46f, maxRows = 4, safeCorridorFraction = 0.4f,  complexPatternWeight = 0.6f, poisonGemChance = 0f, wavePauseOverride = 2.5f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 4.15f, maxRows = 4, safeCorridorFraction = 0.35f, complexPatternWeight = 0.8f, poisonGemChance = 0f, wavePauseOverride = 2.2f },
+        new DifficultyTier { startTime = 135f, fallSpeed = 4.98f, maxRows = 5, safeCorridorFraction = 0.25f, complexPatternWeight = 1.0f, poisonGemChance = 0f, wavePauseOverride = 1.8f },
     };
 
     // ------------------------------------------------------------------

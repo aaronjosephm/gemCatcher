@@ -152,6 +152,7 @@ public class CatcherManager : MonoBehaviour
             rushCurrentColumn = RushColumns.Count / 2;
             float centerX = RushColumns.GetColumnX(RushColumns.Count / 2);
             MoveCatcherToX(centerX, playFeedback: false);
+            rushRoundStartTime = Time.time;
         }
 
         // Subscribe to score change events
@@ -260,7 +261,9 @@ public class CatcherManager : MonoBehaviour
 
     // Rush Mode hold controls: hold left/right side of screen to move continuously.
     private int rushCurrentColumn = 2; // For spawn reference only
-    private const float RushMoveSpeed = 8f; // world units/sec
+    private const float RushBaseMoveSpeed = 8f; // world units/sec at base fall speed
+    private const float RushBaseFallSpeed = 2.4f; // fall speed that corresponds to base move speed
+    private RushConfig rushConfig;
 
     void HandleRushTapInput()
     {
@@ -271,11 +274,31 @@ public class CatcherManager : MonoBehaviour
             float screenMid = Screen.width * 0.5f;
             float dir = Input.mousePosition.x < screenMid ? -1f : 1f;
 
+            // Scale catchy speed proportional to current fall speed.
+            float currentFallSpeed = GetCurrentRushFallSpeed();
+            float speedRatio = currentFallSpeed / RushBaseFallSpeed;
+            float moveSpeed = RushBaseMoveSpeed * speedRatio;
+
             float currentX = catcherInstance.transform.position.x;
-            float newX = currentX + dir * RushMoveSpeed * Time.deltaTime;
+            float newX = currentX + dir * moveSpeed * Time.deltaTime;
             MoveCatcherToX(newX, playFeedback: false);
         }
     }
+
+    float GetCurrentRushFallSpeed()
+    {
+        if (rushConfig == null)
+        {
+            var director = FindObjectOfType<SpawnDirector>();
+            if (director != null) rushConfig = director.config;
+        }
+        if (rushConfig == null) return RushBaseFallSpeed;
+
+        float elapsed = Time.time - rushRoundStartTime;
+        return rushConfig.GetTier(elapsed).fallSpeed;
+    }
+
+    private float rushRoundStartTime;
 
 
     // Smooth free-X placement along the catcher row. Clamped so the catcher's
