@@ -737,13 +737,14 @@ public class ObjectPooler : MonoBehaviour
     private const float RushHeartGemInterval = 30f;
     private bool rushHeartGemReady = false;
 
-    public void SpawnRushGemAt(float x, float y, float speed)
+    public void SpawnRushGemAt(float x, float y, float speed, float redGemChance = 0f)
     {
         // Heart gem spawns on a fixed 30-second timer.
         bool isHeart = rushHeartGemReady;
         if (isHeart) rushHeartGemReady = false;
 
-        string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
+        bool isRed = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+        string prefabName = isHeart ? "HeartGem" : (isRed ? "Magic_Gem_2" : "GreenVolcom");
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
         if (obj == null) return; // only spawn the exact gem type requested
@@ -760,6 +761,7 @@ public class ObjectPooler : MonoBehaviour
             fo.fallSpeed = speed;
             fo.InitializeMovement(speed);
             fo.isRushHeart = isHeart;
+            fo.isRushRedGem = isRed;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.

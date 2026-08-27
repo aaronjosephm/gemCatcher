@@ -91,6 +91,7 @@ public class FallingObject : MonoBehaviour
 
     /// <summary>Rush Mode heart gem — awards an extra life when caught.</summary>
     public bool isRushHeart { get; set; } = false;
+    public bool isRushRedGem { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -191,6 +192,7 @@ public class FallingObject : MonoBehaviour
         isHazard = false;
         isPoisonGem = false;
         isRushHeart = false;
+        isRushRedGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();

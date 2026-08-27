@@ -250,7 +250,9 @@ public class SpawnDirector : MonoBehaviour
     void SpawnGemAt(float x, float y, float fallSpeed)
     {
         if (pooler == null) return;
-        pooler.SpawnRushGemAt(x, y, fallSpeed);
+        float elapsed = Time.time - roundStartTime;
+        float redChance = config.GetTier(elapsed).redGemChance;
+        pooler.SpawnRushGemAt(x, y, fallSpeed, redChance);
     }
 
     void SpawnPoisonGemAt(float x, float y, float fallSpeed)

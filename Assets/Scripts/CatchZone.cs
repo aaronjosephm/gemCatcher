@@ -201,7 +201,9 @@ public class CatchZone : MonoBehaviour
         switch (variant)
         {
             case SpecialGemType.Golden:  basePoints = RoundManager.POINTS_PER_GOLDEN_CATCH; break;
-            default:                     basePoints = RoundManager.POINTS_PER_CATCH; break;
+            default:
+                basePoints = fo.isRushRedGem ? 40 : RoundManager.POINTS_PER_CATCH;
+                break;
         }
 
         // 2× SCORE power-up stacks multiplicatively with combo.
