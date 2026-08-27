@@ -318,8 +318,7 @@ public class CatcherManager : MonoBehaviour
     private float rushRoundStartTime;
 
     // ---- Magnet blue glow ---------------------------------------------------
-    private bool magnetGlowActive = false;
-    private Light magnetGlowLight;
+    private GemGlowVolume magnetGlow;
 
     void UpdateMagnetGlow()
     {
@@ -327,33 +326,22 @@ public class CatcherManager : MonoBehaviour
 
         bool shouldGlow = PowerUpManager.MagnetActive;
 
-        // Create/destroy glow light.
-        if (shouldGlow && !magnetGlowActive)
+        // Create glow component when magnet activates.
+        if (shouldGlow && magnetGlow == null)
         {
-            magnetGlowActive = true;
-            GameObject glowGo = new GameObject("MagnetGlow");
-            glowGo.transform.SetParent(catcherInstance.transform, false);
-            glowGo.transform.localPosition = Vector3.zero;
-            magnetGlowLight = glowGo.AddComponent<Light>();
-            magnetGlowLight.type = LightType.Point;
-            magnetGlowLight.color = new Color(0.3f, 0.5f, 1f);
-            magnetGlowLight.range = 3f;
-            magnetGlowLight.intensity = 2f;
+            magnetGlow = catcherInstance.AddComponent<GemGlowVolume>();
+            magnetGlow.glowColor = new Color(0.3f, 0.5f, 1f);
+            magnetGlow.glowRadius = 1.5f;
+            magnetGlow.glowAlpha = 0.85f;
         }
-        else if (!shouldGlow && magnetGlowActive)
+        else if (!shouldGlow && magnetGlow != null)
         {
-            magnetGlowActive = false;
-            if (magnetGlowLight != null)
-            {
-                Destroy(magnetGlowLight.gameObject);
-                magnetGlowLight = null;
-            }
-            // Clear any tint.
-            SetCatcherTint(Color.white);
+            Destroy(magnetGlow);
+            magnetGlow = null;
             return;
         }
 
-        if (!magnetGlowActive) return;
+        if (!shouldGlow || magnetGlow == null) return;
 
         float remaining = PowerUpManager.MagnetTimeRemaining;
 
@@ -361,41 +349,21 @@ public class CatcherManager : MonoBehaviour
         if (remaining <= 5f)
         {
             float blinkFreq;
-            if (remaining > 3f) blinkFreq = 3f;       // slow blink
-            else if (remaining > 1.5f) blinkFreq = 7f;  // medium blink
-            else blinkFreq = 14f;                        // fast blink
+            if (remaining > 3f) blinkFreq = 3f;
+            else if (remaining > 1.5f) blinkFreq = 7f;
+            else blinkFreq = 14f;
 
             float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
-            // Fade intensity as we approach 0.
             float fadeFactor = remaining / 5f;
-            Color tint = Color.Lerp(Color.white, new Color(0.3f, 0.5f, 1f), alpha * fadeFactor);
-            SetCatcherTint(tint);
-
-            if (magnetGlowLight != null)
-                magnetGlowLight.intensity = 2f * alpha * fadeFactor;
+            magnetGlow.glowAlpha = 0.85f * alpha * fadeFactor;
+            Color c = magnetGlow.glowColor;
+            c.a = magnetGlow.glowAlpha;
+            magnetGlow.RefreshColor(c);
         }
         else
         {
-            // Steady blue tint.
-            SetCatcherTint(new Color(0.5f, 0.7f, 1f));
-            if (magnetGlowLight != null)
-                magnetGlowLight.intensity = 2f;
+            magnetGlow.glowAlpha = 0.85f;
         }
-    }
-
-    void SetCatcherTint(Color color)
-    {
-        if (catcherInstance == null) return;
-        Renderer r = catcherInstance.GetComponent<Renderer>();
-        if (r == null) r = catcherInstance.GetComponentInChildren<Renderer>();
-        if (r == null) return;
-
-        MaterialPropertyBlock mpb = new MaterialPropertyBlock();
-        r.GetPropertyBlock(mpb);
-        mpb.SetColor("_Color", color);
-        mpb.SetColor("_BaseColor", color);
-        mpb.SetColor("_EmissionColor", color * 0.5f);
-        r.SetPropertyBlock(mpb);
     }
 
     // Smooth free-X placement along the catcher row. Clamped so the catcher's

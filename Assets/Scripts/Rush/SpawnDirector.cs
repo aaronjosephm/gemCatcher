@@ -383,7 +383,7 @@ public class SpawnDirector : MonoBehaviour
 
         GameObject obj = Instantiate(magnetPrefab);
         obj.transform.position = new Vector3(x, spawnY, 0f);
-        obj.transform.localScale = Vector3.one * 0.8f;
+        obj.transform.localScale = Vector3.one * 0.96f;
 
         // Add FallingObject if not present.
         FallingObject fo = obj.GetComponent<FallingObject>();
