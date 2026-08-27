@@ -256,29 +256,6 @@ public class ObjectPooler : MonoBehaviour
 
         // Load level-specific extra gem prefabs from Resources.
         var cfg = LevelManager.CurrentConfig;
-
-        // Rush Mode: pool red gems (Magic_Gem_2) from Resources.
-        if (GameState.Mode == GameState.GameMode.Rush)
-        {
-            GameObject redGemPrefab = Resources.Load<GameObject>("Gems/Magic_Gem_2");
-            if (redGemPrefab != null)
-            {
-                for (int i = 0; i < effectivePoolSize; i++)
-                {
-                    GameObject obj = Instantiate(redGemPrefab);
-                    obj.SetActive(false);
-                    FallingObject fo = obj.GetComponent<FallingObject>();
-                    if (fo == null) fo = obj.AddComponent<FallingObject>();
-                    fo.fallSpeed = currentFallSpeed;
-                    objectPool.Add(obj);
-                }
-                Debug.Log($"[ObjectPooler] Pooled {effectivePoolSize} Magic_Gem_2 (red gems) for Rush");
-            }
-            else
-            {
-                Debug.LogWarning("[ObjectPooler] Could not load Gems/Magic_Gem_2 from Resources!");
-            }
-        }
         placementDuration = cfg.placementDuration > 0f ? cfg.placementDuration : 3f;
         if (cfg.extraGemPrefabs != null)
         {
@@ -767,7 +744,7 @@ public class ObjectPooler : MonoBehaviour
         if (isHeart) rushHeartGemReady = false;
 
         bool isRed = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
-        string prefabName = isHeart ? "HeartGem" : (isRed ? "Magic_Gem_2" : "GreenVolcom");
+        string prefabName = isHeart ? "HeartGem" : (isRed ? "RedDiamond" : "GreenVolcom");
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
         if (obj == null) return; // only spawn the exact gem type requested
