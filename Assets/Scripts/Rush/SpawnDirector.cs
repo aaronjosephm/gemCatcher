@@ -455,7 +455,7 @@ public class SpawnDirector : MonoBehaviour
 
         GameObject obj = Instantiate(shieldPrefab);
         obj.transform.position = new Vector3(x, spawnY, 0f);
-        obj.transform.localScale = Vector3.one * 1.15f;
+        obj.transform.localScale = Vector3.one * 1.725f; // 50% larger than base 1.15
 
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo == null) fo = obj.AddComponent<FallingObject>();
@@ -476,16 +476,11 @@ public class SpawnDirector : MonoBehaviour
             sc.isTrigger = true;
         }
 
-        // Golden glow.
-        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
-        foreach (Renderer r in renderers)
-        {
-            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
-            r.GetPropertyBlock(mpb);
-            mpb.SetColor("_BaseColor", new Color(1f, 0.84f, 0.0f));
-            mpb.SetColor("_EmissionColor", new Color(1f, 0.7f, 0.0f) * 2f);
-            r.SetPropertyBlock(mpb);
-        }
+        // Golden glow via GemGlowVolume (same system gems use).
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = new Color(1f, 0.84f, 0f, 1f);
+        glow.glowAlpha = 0.9f;
+        glow.glowScale = 3.5f;
 
         obj.SetActive(true);
 
