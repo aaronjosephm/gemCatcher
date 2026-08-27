@@ -93,6 +93,7 @@ public class FallingObject : MonoBehaviour
     public bool isRushHeart { get; set; } = false;
     public bool isRushRedGem { get; set; } = false;
     public bool isRushMagnet { get; set; } = false;
+    public bool isRushShield { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -195,6 +196,7 @@ public class FallingObject : MonoBehaviour
         isRushHeart = false;
         isRushRedGem = false;
         isRushMagnet = false;
+        isRushShield = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
@@ -646,6 +648,13 @@ public class FallingObject : MonoBehaviour
 
             // Magnet power-up missed — no penalty.
             if (isRushMagnet)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // Shield power-up missed — no penalty.
+            if (isRushShield)
             {
                 gameObject.SetActive(false);
                 return;

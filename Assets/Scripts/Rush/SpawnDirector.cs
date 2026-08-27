@@ -38,6 +38,11 @@ public class SpawnDirector : MonoBehaviour
     private const float MagnetDropInterval = 45f;
     private GameObject magnetPrefab;
 
+    // Shield power-up drop
+    private float nextShieldDropTime;
+    private const float ShieldDropInterval = 45f;
+    private GameObject shieldPrefab;
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -84,6 +89,10 @@ public class SpawnDirector : MonoBehaviour
         // Load magnet prefab.
         magnetPrefab = Resources.Load<GameObject>("PowerUps/Magnet_V1_0");
         nextMagnetDropTime = MagnetDropInterval;
+
+        // Load shield prefab.
+        shieldPrefab = Resources.Load<GameObject>("PowerUps/Shield_V2_1");
+        nextShieldDropTime = ShieldDropInterval / 2f; // Stagger from magnet
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -150,6 +159,13 @@ public class SpawnDirector : MonoBehaviour
         {
             nextMagnetDropTime = elapsed + MagnetDropInterval;
             SpawnMagnetPowerUp(tier.fallSpeed);
+        }
+
+        // Drop shield power-up every 45 seconds (staggered from magnet).
+        if (elapsed >= nextShieldDropTime)
+        {
+            nextShieldDropTime = elapsed + ShieldDropInterval;
+            SpawnShieldPowerUp(tier.fallSpeed);
         }
 
         // If no active wave, generate a new one.
@@ -423,6 +439,58 @@ public class SpawnDirector : MonoBehaviour
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Magnet power-up spawned at column {col}");
+    }
+
+    void SpawnShieldPowerUp(float fallSpeed)
+    {
+        if (shieldPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Shield prefab not loaded!");
+            return;
+        }
+
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        int col = UnityEngine.Random.Range(0, RushColumns.Count);
+        float x = RushColumns.GetColumnX(col);
+
+        GameObject obj = Instantiate(shieldPrefab);
+        obj.transform.position = new Vector3(x, spawnY, 0f);
+        obj.transform.localScale = Vector3.one * 1.15f;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushShield = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 120f, 30f);
+
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Golden glow.
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        foreach (Renderer r in renderers)
+        {
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor("_BaseColor", new Color(1f, 0.84f, 0.0f));
+            mpb.SetColor("_EmissionColor", new Color(1f, 0.7f, 0.0f) * 2f);
+            r.SetPropertyBlock(mpb);
+        }
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Shield power-up spawned at column {col}");
     }
 
     void OnDestroy()

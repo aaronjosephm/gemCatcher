@@ -211,6 +211,7 @@ public class CatcherManager : MonoBehaviour
         UpdateCatcherSpin();
         UpdateCatcherFeedback();
         UpdateMagnetGlow();
+        UpdateShieldBubble();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -363,6 +364,76 @@ public class CatcherManager : MonoBehaviour
         else
         {
             magnetGlow.glowAlpha = 0.85f;
+        }
+    }
+
+    // ---- Shield golden bubble -----------------------------------------------
+    private GameObject shieldBubble;
+
+    void UpdateShieldBubble()
+    {
+        if (catcherInstance == null) return;
+
+        bool shouldShow = PowerUpManager.HasShield;
+
+        if (shouldShow && shieldBubble == null)
+        {
+            // Create a transparent golden sphere around catchy.
+            shieldBubble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            shieldBubble.name = "ShieldBubble";
+            shieldBubble.transform.SetParent(catcherInstance.transform, false);
+            shieldBubble.transform.localPosition = Vector3.zero;
+            shieldBubble.transform.localScale = Vector3.one * 2.5f;
+
+            // Remove collider so it doesn't interfere with catch detection.
+            Collider col = shieldBubble.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            // Transparent golden material.
+            Renderer r = shieldBubble.GetComponent<Renderer>();
+            if (r != null)
+            {
+                Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit")
+                    ?? Shader.Find("Standard"));
+                mat.SetFloat("_Surface", 1f); // Transparent
+                mat.SetFloat("_Blend", 0f);
+                mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_ZWrite", 0f);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.renderQueue = 3000;
+                mat.SetColor("_BaseColor", new Color(1f, 0.84f, 0f, 0.2f));
+                mat.SetColor("_EmissionColor", new Color(1f, 0.7f, 0f, 1f) * 0.3f);
+                mat.EnableKeyword("_EMISSION");
+                r.material = mat;
+            }
+        }
+        else if (!shouldShow && shieldBubble != null)
+        {
+            Destroy(shieldBubble);
+            shieldBubble = null;
+            return;
+        }
+
+        if (!shouldShow || shieldBubble == null) return;
+
+        // Blink in last 5 seconds.
+        float remaining = PowerUpManager.ShieldTimeRemaining;
+        Renderer sr = shieldBubble.GetComponent<Renderer>();
+        if (sr == null) return;
+
+        if (remaining <= 5f && remaining > 0f)
+        {
+            float blinkFreq;
+            if (remaining > 3f) blinkFreq = 3f;
+            else if (remaining > 1.5f) blinkFreq = 7f;
+            else blinkFreq = 14f;
+
+            float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            float fadeFactor = remaining / 5f;
+            Color c = sr.material.GetColor("_BaseColor");
+            c.a = 0.2f * alpha * fadeFactor;
+            sr.material.SetColor("_BaseColor", c);
         }
     }
 

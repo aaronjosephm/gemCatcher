@@ -67,6 +67,7 @@ public class PowerUpManager : MonoBehaviour
   public const int ExtraLifeAwardCount = 3;
   public const float MagnetDuration = 30f;
   public const float MagnetRadius = 5f;
+  public const float ShieldDuration = 30f;
 
   public static PowerUpManager Instance { get; private set; }
 
@@ -79,6 +80,7 @@ public class PowerUpManager : MonoBehaviour
   private static int shieldCharges;
   private static bool magnetActive;
   private static float magnetTimer;
+  private static float shieldTimer;
 
   // ---- Events -------------------------------------------------------------
 
@@ -107,6 +109,8 @@ public class PowerUpManager : MonoBehaviour
   public static bool MagnetActive => magnetActive;
   public static float MagnetTimeRemaining => magnetTimer;
 
+  public static float ShieldTimeRemaining => shieldTimer;
+
   // ---- API ----------------------------------------------------------------
 
   /// <summary>
@@ -127,7 +131,8 @@ public class PowerUpManager : MonoBehaviour
         break;
       case PowerUpType.Shield:
         shieldCharges = 1;
-        OnActivated?.Invoke(type, 0f);
+        shieldTimer = ShieldDuration;
+        OnActivated?.Invoke(type, ShieldDuration);
         break;
       case PowerUpType.ExtraLife:
         // Instant-effect: route through AddLives so the cap, the
@@ -208,6 +213,7 @@ public class PowerUpManager : MonoBehaviour
     shieldCharges = 0;
     magnetActive = false;
     magnetTimer = 0f;
+    shieldTimer = 0f;
   }
 
   // ---- Bootstrap ----------------------------------------------------------
@@ -232,6 +238,7 @@ public class PowerUpManager : MonoBehaviour
     shieldCharges = 0;
     magnetActive = false;
     magnetTimer = 0f;
+    shieldTimer = 0f;
     OnActivated = null;
     OnExpired = null;
     OnShieldConsumed = null;
@@ -261,6 +268,19 @@ public class PowerUpManager : MonoBehaviour
         magnetActive = false;
         magnetTimer = 0f;
         OnExpired?.Invoke(PowerUpType.Magnet);
+        if (SoundManager.Instance != null)
+          SoundManager.Instance.Play("MagnetOff");
+      }
+    }
+
+    if (shieldCharges > 0 && shieldTimer > 0f)
+    {
+      shieldTimer -= Time.deltaTime;
+      if (shieldTimer <= 0f)
+      {
+        shieldCharges = 0;
+        shieldTimer = 0f;
+        OnExpired?.Invoke(PowerUpType.Shield);
         if (SoundManager.Instance != null)
           SoundManager.Instance.Play("MagnetOff");
       }
