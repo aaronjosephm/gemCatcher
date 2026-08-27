@@ -286,25 +286,15 @@ public class CatcherManager : MonoBehaviour
             MoveCatcherToX(newX, playFeedback: false);
         }
 
-        // Rotate catchy based on movement direction.
-        UpdateRushRotation(moveDir);
+        // Rotate catchy continuously (same style as main gameplay spin).
+        UpdateRushSpin();
     }
 
-    private float rushCurrentRotation = 0f;
-    private const float RushMaxTilt = 15f;     // max rotation degrees
-    private const float RushTiltSpeed = 12f;   // how fast rotation responds
-    private const float RushTiltReturn = 8f;   // how fast it returns to upright
-
-    void UpdateRushRotation(float moveDir)
+    void UpdateRushSpin()
     {
         if (catcherInstance == null) return;
-
-        float targetRotation = -moveDir * RushMaxTilt; // Negative = lean into direction
-        float speed = Mathf.Abs(moveDir) > 0.1f ? RushTiltSpeed : RushTiltReturn;
-        rushCurrentRotation = Mathf.Lerp(rushCurrentRotation, targetRotation, speed * Time.deltaTime);
-
-        var t = catcherInstance.transform;
-        t.rotation = Quaternion.Euler(0f, 0f, rushCurrentRotation);
+        Vector3 axis = catcherSpinAxis.sqrMagnitude > 0f ? catcherSpinAxis.normalized : Vector3.up;
+        catcherInstance.transform.Rotate(axis, catcherSpinSpeed * Time.deltaTime, Space.Self);
     }
 
     float GetCurrentRushFallSpeed()

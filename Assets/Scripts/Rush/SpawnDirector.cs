@@ -36,8 +36,8 @@ public class SpawnDirector : MonoBehaviour
     // Stage transition effects
     private int currentTierIndex = -1;
     private float shakeTimer = 0f;
-    private const float ShakeDuration = 1.5f;
-    private const float ShakeIntensity = 0.15f;
+    private const float ShakeDuration = 2.0f;
+    private const float ShakeIntensity = 0.25f;
     private Vector3 cameraOriginalPos;
 
     // Pool references (grabbed from ObjectPooler at Start)

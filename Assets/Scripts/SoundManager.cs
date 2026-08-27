@@ -454,7 +454,7 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
         RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
-        RegisterFallback("StageUp",       () => CreateSweep(60f, 30f, 1.2f, 0.50f));  // Deep rumble
+        RegisterFallback("StageUp",       () => CreateRumble(1.5f, 0.85f));  // Deep layered rumble
     }
 
     private void RegisterFallback(string soundName, Func<AudioClip> generator)
@@ -543,6 +543,42 @@ public class SoundManager : MonoBehaviour
             samples[i] = volume * env * Mathf.Sin(2f * Mathf.PI * frequencies[step] * t);
         }
         AudioClip clip = AudioClip.Create($"arp_{duration:F2}", count, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        return clip;
+    }
+
+    // Layered rumble: low sweep + noise for an earthquake-like stage-up effect.
+    private static AudioClip CreateRumble(float duration, float volume)
+    {
+        int count = Mathf.Max(1, Mathf.CeilToInt(SampleRate * duration));
+        float[] samples = new float[count];
+        float phase1 = 0f, phase2 = 0f;
+        float invSR = 1f / SampleRate;
+        for (int i = 0; i < count; i++)
+        {
+            float t = (float)i / SampleRate;
+            float u = t / duration;
+
+            // Two low-frequency sweeps for body.
+            float freq1 = Mathf.Lerp(80f, 35f, u);
+            float freq2 = Mathf.Lerp(120f, 50f, u);
+            phase1 += 2f * Mathf.PI * freq1 * invSR;
+            phase2 += 2f * Mathf.PI * freq2 * invSR;
+
+            float tone = Mathf.Sin(phase1) * 0.5f + Mathf.Sin(phase2) * 0.35f;
+
+            // Filtered noise for grit.
+            float noise = (UnityEngine.Random.value * 2f - 1f) * 0.25f;
+
+            // Envelope: quick attack, sustain, then fade.
+            float env;
+            if (u < 0.05f) env = u / 0.05f;
+            else if (u < 0.6f) env = 1f;
+            else env = 1f - (u - 0.6f) / 0.4f;
+
+            samples[i] = volume * env * (tone + noise);
+        }
+        AudioClip clip = AudioClip.Create("rumble_stageup", count, 1, SampleRate, false);
         clip.SetData(samples, 0);
         return clip;
     }
