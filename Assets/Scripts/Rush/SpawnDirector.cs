@@ -37,11 +37,13 @@ public class SpawnDirector : MonoBehaviour
     private float nextMagnetDropTime;
     private const float MagnetDropInterval = 45f;
     private GameObject magnetPrefab;
+    private bool pendingMagnet;
 
     // Shield power-up drop
     private float nextShieldDropTime;
     private const float ShieldDropInterval = 45f;
     private GameObject shieldPrefab;
+    private bool pendingShield;
 
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
@@ -154,18 +156,17 @@ public class SpawnDirector : MonoBehaviour
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
 
-        // Drop magnet power-up every 45 seconds.
+        // Mark power-ups as pending when timers elapse.
+        // They'll replace the next gem slot in the wave grid.
         if (elapsed >= nextMagnetDropTime)
         {
             nextMagnetDropTime = elapsed + MagnetDropInterval;
-            SpawnMagnetPowerUp(tier.fallSpeed);
+            pendingMagnet = true;
         }
-
-        // Drop shield power-up every 45 seconds (staggered from magnet).
         if (elapsed >= nextShieldDropTime)
         {
             nextShieldDropTime = elapsed + ShieldDropInterval;
-            SpawnShieldPowerUp(tier.fallSpeed);
+            pendingShield = true;
         }
 
         // If no active wave, generate a new one.
@@ -281,6 +282,20 @@ public class SpawnDirector : MonoBehaviour
 
     void SpawnGemAt(float x, float y, float fallSpeed)
     {
+        // If a power-up is pending, replace this gem slot with it.
+        if (pendingMagnet)
+        {
+            pendingMagnet = false;
+            SpawnMagnetPowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingShield)
+        {
+            pendingShield = false;
+            SpawnShieldPowerUp(x, y, fallSpeed);
+            return;
+        }
+
         if (pooler == null) return;
         float elapsed = Time.time - roundStartTime;
         float redChance = config.GetTier(elapsed).redGemChance;
@@ -385,7 +400,7 @@ public class SpawnDirector : MonoBehaviour
     }
 #endif
 
-    void SpawnMagnetPowerUp(float fallSpeed)
+    void SpawnMagnetPowerUp(float x, float y, float fallSpeed)
     {
         if (magnetPrefab == null)
         {
@@ -393,15 +408,10 @@ public class SpawnDirector : MonoBehaviour
             return;
         }
 
-        float spawnY = ScreenPadding.WorldTop + 1.5f;
-        // Spawn between columns so it never overlaps a gem.
-        float x = GetPowerUpX();
-
         GameObject obj = Instantiate(magnetPrefab);
-        obj.transform.position = new Vector3(x, spawnY, 0f);
+        obj.transform.position = new Vector3(x, y, 0f);
         obj.transform.localScale = Vector3.one * 1.15f;
 
-        // Add FallingObject if not present.
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo == null) fo = obj.AddComponent<FallingObject>();
         fo.ResetObject();
@@ -411,11 +421,9 @@ public class SpawnDirector : MonoBehaviour
         fo.InitializeMovement(fallSpeed);
         fo.isRushMagnet = true;
 
-        // Add a simple spinner script for rotation.
         var spinner = obj.AddComponent<SimpleSpinner>();
         spinner.speed = new Vector3(0f, 120f, 30f);
 
-        // Add collider for catch detection.
         if (obj.GetComponent<Collider>() == null)
         {
             SphereCollider sc = obj.AddComponent<SphereCollider>();
@@ -437,19 +445,10 @@ public class SpawnDirector : MonoBehaviour
         obj.SetActive(true);
 
         if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Magnet power-up spawned at x={x:F2}");
+            Debug.Log($"[SpawnDirector] Magnet power-up spawned at ({x:F2}, {y:F2})");
     }
 
-    /// <summary>Pick an X midway between two adjacent gem columns so power-ups never overlap gems.</summary>
-    float GetPowerUpX()
-    {
-        int gap = UnityEngine.Random.Range(0, RushColumns.Count - 1);
-        float left = RushColumns.GetColumnX(gap);
-        float right = RushColumns.GetColumnX(gap + 1);
-        return (left + right) * 0.5f;
-    }
-
-    void SpawnShieldPowerUp(float fallSpeed)
+    void SpawnShieldPowerUp(float x, float y, float fallSpeed)
     {
         if (shieldPrefab == null)
         {
@@ -457,12 +456,9 @@ public class SpawnDirector : MonoBehaviour
             return;
         }
 
-        float spawnY = ScreenPadding.WorldTop + 1.5f;
-        float x = GetPowerUpX();
-
         GameObject obj = Instantiate(shieldPrefab);
-        obj.transform.position = new Vector3(x, spawnY, 0f);
-        obj.transform.localScale = Vector3.one * 1.725f; // 50% larger than base 1.15
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 1.725f;
 
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo == null) fo = obj.AddComponent<FallingObject>();
@@ -492,7 +488,8 @@ public class SpawnDirector : MonoBehaviour
         obj.SetActive(true);
 
         if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Shield power-up spawned at x={x:F2}");
+            Debug.Log($"[SpawnDirector] Shield power-up spawned at ({x:F2}, {y:F2})");
+    }
     }
 
     void OnDestroy()
