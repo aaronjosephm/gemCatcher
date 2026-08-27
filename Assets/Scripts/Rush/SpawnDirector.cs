@@ -33,13 +33,6 @@ public class SpawnDirector : MonoBehaviour
     private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
     private float activeTierPause; // current tier's wave pause
 
-    // Stage transition effects
-    private int currentTierIndex = -1;
-    private float shakeTimer = 0f;
-    private const float ShakeDuration = 2.0f;
-    private const float ShakeIntensity = 0.25f;
-    private Vector3 cameraOriginalPos;
-
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -82,7 +75,6 @@ public class SpawnDirector : MonoBehaviour
         waveMemory = new WaveMemory(6);
         runSeed = System.Environment.TickCount;
         waveIndex = 0;
-        currentTierIndex = 0;
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -143,17 +135,6 @@ public class SpawnDirector : MonoBehaviour
 
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
-
-        // Detect stage transitions.
-        int tierIdx = GetTierIndex(elapsed);
-        if (tierIdx > currentTierIndex && currentTierIndex >= 0)
-        {
-            TriggerStageTransition();
-        }
-        currentTierIndex = tierIdx;
-
-        // Update screen shake.
-        UpdateScreenShake();
 
         // If no active wave, generate a new one.
         if (activeWave == null)
@@ -369,61 +350,6 @@ public class SpawnDirector : MonoBehaviour
             new Vector3(GetPlayAreaLeft(), spawnY + 1f, 0f), label);
     }
 #endif
-
-    // ------------------------------------------------------------------
-    // Stage transition effects
-    // ------------------------------------------------------------------
-
-    int GetTierIndex(float elapsed)
-    {
-        if (config.difficultyTiers == null) return 0;
-        for (int i = config.difficultyTiers.Length - 1; i >= 0; i--)
-        {
-            if (elapsed >= config.difficultyTiers[i].startTime)
-                return i;
-        }
-        return 0;
-    }
-
-    void TriggerStageTransition()
-    {
-        // Screen shake.
-        if (Camera.main != null)
-        {
-            cameraOriginalPos = Camera.main.transform.position;
-            shakeTimer = ShakeDuration;
-        }
-
-        // Haptic feedback (mobile).
-#if UNITY_IOS || UNITY_ANDROID
-        Handheld.Vibrate();
-#endif
-
-        if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Stage transition! Tier {currentTierIndex} → {currentTierIndex + 1}");
-    }
-
-    void UpdateScreenShake()
-    {
-        if (shakeTimer <= 0f) return;
-
-        shakeTimer -= Time.deltaTime;
-        if (shakeTimer <= 0f)
-        {
-            // Restore camera position.
-            if (Camera.main != null)
-                Camera.main.transform.position = cameraOriginalPos;
-            return;
-        }
-
-        // Shake with decaying intensity.
-        float decay = shakeTimer / ShakeDuration;
-        float offsetX = UnityEngine.Random.Range(-ShakeIntensity, ShakeIntensity) * decay;
-        float offsetY = UnityEngine.Random.Range(-ShakeIntensity, ShakeIntensity) * decay;
-
-        if (Camera.main != null)
-            Camera.main.transform.position = cameraOriginalPos + new Vector3(offsetX, offsetY, 0f);
-    }
 
     void OnDestroy()
     {
