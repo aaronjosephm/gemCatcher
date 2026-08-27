@@ -123,11 +123,22 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
-        // Rush Mode heart gem — awards extra life, no points.
+        // Rush Mode heart gem — awards life if missing one, otherwise 100 points.
         if (fo.isRushHeart)
         {
             RoundManager rm2 = RoundManager.Instance;
-            if (rm2 != null) rm2.AddLives(1);
+            if (rm2 != null)
+            {
+                if (rm2.Lives < RoundManager.EffectiveMaxLives)
+                {
+                    rm2.AddLives(1);
+                }
+                else
+                {
+                    rm2.AddScore(100);
+                    rm2.NotifyGemCaught(100, catchPosition);
+                }
+            }
             PlayCatchEffect(fo);
             if (SoundManager.Instance != null)
                 SoundManager.Instance.PlayWithPitch("GemCaught", 1.5f);
