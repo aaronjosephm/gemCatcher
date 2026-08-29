@@ -215,12 +215,7 @@ public class PowerUpManager : MonoBehaviour
       magnetTimer = 0f;
       OnExpired?.Invoke(PowerUpType.Magnet);
     }
-    if (swapActive)
-    {
-      swapActive = false;
-      swapTimer = 0f;
-      OnExpired?.Invoke(PowerUpType.Swap);
-    }
+    // Swap is NOT revoked on miss — it runs its full duration.
   }
 
   /// <summary>

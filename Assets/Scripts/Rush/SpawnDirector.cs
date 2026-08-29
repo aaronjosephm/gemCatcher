@@ -47,9 +47,10 @@ public class SpawnDirector : MonoBehaviour
 
     // Dice (swap) power-up drop
     private float nextDiceDropTime;
-    private const float DiceDropInterval = 45f; // TODO: late-game timing
+    private const float DiceDropInterval = 90f;
     private GameObject dicePrefab;
     private bool pendingDice;
+    private bool diceEnabled; // only levels 2+
 
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
@@ -100,11 +101,12 @@ public class SpawnDirector : MonoBehaviour
 
         // Load shield prefab.
         shieldPrefab = Resources.Load<GameObject>("PowerUps/Shield_V2_1");
-        nextShieldDropTime = 5f; // TODO: restore to ShieldDropInterval / 2f after testing
+        nextShieldDropTime = 40f;
 
-        // Load dice (swap) prefab.
+        // Load dice (swap) prefab — only available on levels 2+.
+        diceEnabled = LevelManager.SelectedLevel != LevelManager.LevelId.Cave;
         dicePrefab = Resources.Load<GameObject>("PowerUps/Dice_V3_0");
-        nextDiceDropTime = 20f; // TODO: late-game timing after testing
+        nextDiceDropTime = 60f;
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -180,8 +182,15 @@ public class SpawnDirector : MonoBehaviour
         }
         if (elapsed >= nextDiceDropTime)
         {
-            nextDiceDropTime = elapsed + DiceDropInterval;
-            pendingDice = true;
+            if (diceEnabled)
+            {
+                nextDiceDropTime = elapsed + DiceDropInterval;
+                pendingDice = true;
+            }
+            else
+            {
+                nextDiceDropTime = float.MaxValue;
+            }
         }
 
         // If no active wave, generate a new one.

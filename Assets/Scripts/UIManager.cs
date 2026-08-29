@@ -714,7 +714,6 @@ public class UIManager : MonoBehaviour
     PowerUpType[] order = new[]
     {
       PowerUpType.WiderCatcher,
-      PowerUpType.Shield,
       PowerUpType.DoubleScore,
     };
     powerUpSlotRoots = new GameObject[order.Length];
@@ -777,8 +776,7 @@ public class UIManager : MonoBehaviour
     if (powerUpSlotRoots == null) return;
 
     UpdatePowerUpSlot(0, PowerUpType.WiderCatcher, PowerUpManager.WiderCatcherActive);
-    UpdatePowerUpSlot(1, PowerUpType.Shield, PowerUpManager.HasShield);
-    UpdatePowerUpSlot(2, PowerUpType.DoubleScore, PowerUpManager.DoubleScoreActive);
+    UpdatePowerUpSlot(1, PowerUpType.DoubleScore, PowerUpManager.DoubleScoreActive);
   }
 
   void UpdatePowerUpSlot(int idx, PowerUpType type, bool active)
