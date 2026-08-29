@@ -94,6 +94,7 @@ public class FallingObject : MonoBehaviour
     public bool isRushRedGem { get; set; } = false;
     public bool isRushMagnet { get; set; } = false;
     public bool isRushShield { get; set; } = false;
+    public bool isRushDice { get; set; } = false;
     public bool isRushDiamondGem { get; set; } = false;
     public bool isRushGoldenGem { get; set; } = false;
 
@@ -205,6 +206,7 @@ public class FallingObject : MonoBehaviour
         isRushRedGem = false;
         isRushMagnet = false;
         isRushShield = false;
+        isRushDice = false;
         isRushDiamondGem = false;
         isRushGoldenGem = false;
 
@@ -598,7 +600,7 @@ public class FallingObject : MonoBehaviour
         transform.Translate(movementDirection * dt, Space.World);
 
         // Magnet attraction: pull gems toward the catcher when magnet is active.
-        if (!isHazard && !isRushMagnet && PowerUpManager.MagnetActive)
+        if (!isHazard && !isRushMagnet && !isRushShield && !isRushDice && PowerUpManager.MagnetActive)
         {
             GameObject catcher = CatcherManager.Instance != null ? CatcherManager.Instance.CatcherInstance : null;
             if (catcher != null)
@@ -665,6 +667,13 @@ public class FallingObject : MonoBehaviour
 
             // Shield power-up missed — no penalty.
             if (isRushShield)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // Dice (swap) power-up missed — no penalty.
+            if (isRushDice)
             {
                 gameObject.SetActive(false);
                 return;

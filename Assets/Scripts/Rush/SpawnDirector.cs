@@ -45,6 +45,12 @@ public class SpawnDirector : MonoBehaviour
     private GameObject shieldPrefab;
     private bool pendingShield;
 
+    // Dice (swap) power-up drop
+    private float nextDiceDropTime;
+    private const float DiceDropInterval = 45f; // TODO: late-game timing
+    private GameObject dicePrefab;
+    private bool pendingDice;
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -95,6 +101,10 @@ public class SpawnDirector : MonoBehaviour
         // Load shield prefab.
         shieldPrefab = Resources.Load<GameObject>("PowerUps/Shield_V2_1");
         nextShieldDropTime = 5f; // TODO: restore to ShieldDropInterval / 2f after testing
+
+        // Load dice (swap) prefab.
+        dicePrefab = Resources.Load<GameObject>("PowerUps/Dice_V3_0");
+        nextDiceDropTime = 20f; // TODO: late-game timing after testing
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -168,6 +178,11 @@ public class SpawnDirector : MonoBehaviour
             nextShieldDropTime = elapsed + ShieldDropInterval;
             pendingShield = true;
         }
+        if (elapsed >= nextDiceDropTime)
+        {
+            nextDiceDropTime = elapsed + DiceDropInterval;
+            pendingDice = true;
+        }
 
         // If no active wave, generate a new one.
         if (activeWave == null)
@@ -230,19 +245,29 @@ public class SpawnDirector : MonoBehaviour
     void SpawnRow(WaveDefinition.Row row, float fallSpeed)
     {
         float spawnY = ScreenPadding.WorldTop + 1.5f;
+        bool swapped = PowerUpManager.SwapActive;
 
         foreach (WaveDefinition.Slot slot in row.slots)
         {
             switch (slot.type)
             {
                 case WaveDefinition.SlotType.Hazard:
-                    SpawnHazardAt(slot.x, spawnY, fallSpeed, slot.hazardSizeIndex);
+                    if (swapped)
+                        SpawnSwappedGemAt(slot.x, spawnY, fallSpeed);
+                    else
+                        SpawnHazardAt(slot.x, spawnY, fallSpeed, slot.hazardSizeIndex);
                     break;
                 case WaveDefinition.SlotType.Gem:
-                    SpawnGemAt(slot.x, spawnY, fallSpeed);
+                    if (swapped)
+                        SpawnHazardAt(slot.x, spawnY, fallSpeed, 0);
+                    else
+                        SpawnGemAt(slot.x, spawnY, fallSpeed);
                     break;
                 case WaveDefinition.SlotType.PoisonGem:
-                    SpawnPoisonGemAt(slot.x, spawnY, fallSpeed);
+                    if (swapped)
+                        SpawnHazardAt(slot.x, spawnY, fallSpeed, 0);
+                    else
+                        SpawnPoisonGemAt(slot.x, spawnY, fallSpeed);
                     break;
             }
         }
@@ -293,6 +318,12 @@ public class SpawnDirector : MonoBehaviour
         {
             pendingShield = false;
             SpawnShieldPowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingDice)
+        {
+            pendingDice = false;
+            SpawnDicePowerUp(x, y, fallSpeed);
             return;
         }
 
@@ -489,6 +520,60 @@ public class SpawnDirector : MonoBehaviour
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Shield power-up spawned at ({x:F2}, {y:F2})");
+    }
+
+    /// <summary>
+    /// Spawn a gem using the upgrade type for the current level (used during swap).
+    /// Always spawns the upgrade gem regardless of redGemChance.
+    /// </summary>
+    void SpawnSwappedGemAt(float x, float y, float fallSpeed)
+    {
+        if (pooler == null) return;
+        // Force upgrade gem by passing redGemChance=1 (100% upgrade).
+        pooler.SpawnRushGemAt(x, y, fallSpeed, 1f);
+    }
+
+    void SpawnDicePowerUp(float x, float y, float fallSpeed)
+    {
+        if (dicePrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Dice prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(dicePrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 1.15f;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushDice = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 120f, 30f);
+
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Blue glow via GemGlowVolume.
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = new Color(0.2f, 0.5f, 1f, 1f);
+        glow.glowAlpha = 0.9f;
+        glow.glowRadius = 1.5f;
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Dice (swap) power-up spawned at ({x:F2}, {y:F2})");
     }
 
     void OnDestroy()
