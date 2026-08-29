@@ -100,7 +100,7 @@ public static class LevelManager
             id = LevelId.Lava,
             displayName = "Twilight City",
             sceneName = "LavaLamp",
-            backgroundResource = null,
+            backgroundResource = "Backgrounds/TwilightBackground",
             midgroundResource = null,
             musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = null,
