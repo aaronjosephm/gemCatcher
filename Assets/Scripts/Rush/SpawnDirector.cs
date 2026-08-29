@@ -31,6 +31,19 @@ public class SpawnDirector : MonoBehaviour
     private DecisionPlan lastSpawnedPlan;   // for Gizmo overlay
     private WaveGeneratorV2.GenerateResult lastResult; // for debug details
     private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
+    private float activeTierPause; // current tier's wave pause
+
+    // Magnet power-up drop
+    private float nextMagnetDropTime;
+    private const float MagnetDropInterval = 45f;
+    private GameObject magnetPrefab;
+    private bool pendingMagnet;
+
+    // Shield power-up drop
+    private float nextShieldDropTime;
+    private const float ShieldDropInterval = 45f;
+    private GameObject shieldPrefab;
+    private bool pendingShield;
 
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
@@ -74,6 +87,14 @@ public class SpawnDirector : MonoBehaviour
         waveMemory = new WaveMemory(6);
         runSeed = System.Environment.TickCount;
         waveIndex = 0;
+
+        // Load magnet prefab.
+        magnetPrefab = Resources.Load<GameObject>("PowerUps/Magnet_V1_0");
+        nextMagnetDropTime = MagnetDropInterval;
+
+        // Load shield prefab.
+        shieldPrefab = Resources.Load<GameObject>("PowerUps/Shield_V2_1");
+        nextShieldDropTime = 5f; // TODO: restore to ShieldDropInterval / 2f after testing
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -135,6 +156,19 @@ public class SpawnDirector : MonoBehaviour
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
 
+        // Mark power-ups as pending when timers elapse.
+        // They'll replace the next gem slot in the wave grid.
+        if (elapsed >= nextMagnetDropTime)
+        {
+            nextMagnetDropTime = elapsed + MagnetDropInterval;
+            pendingMagnet = true;
+        }
+        if (elapsed >= nextShieldDropTime)
+        {
+            nextShieldDropTime = elapsed + ShieldDropInterval;
+            pendingShield = true;
+        }
+
         // If no active wave, generate a new one.
         if (activeWave == null)
         {
@@ -145,6 +179,7 @@ public class SpawnDirector : MonoBehaviour
             activeWave = result.wave;
             activePlan = result.plan;
             activeWave.fallSpeed = tier.fallSpeed;
+            activeTierPause = tier.wavePauseOverride;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
             lastSpawnedWave = activeWave;
@@ -183,7 +218,8 @@ public class SpawnDirector : MonoBehaviour
         else
         {
             // Wave is fully spawned. Wait for the wave pause before generating the next.
-            float pauseTime = config.wavePause / activeWave.fallSpeed;
+            float effectivePause = activeTierPause > 0f ? activeTierPause : config.wavePause;
+            float pauseTime = effectivePause / activeWave.fallSpeed;
             if (Time.time - lastRowSpawnTime >= pauseTime)
             {
                 activeWave = null;
@@ -246,8 +282,24 @@ public class SpawnDirector : MonoBehaviour
 
     void SpawnGemAt(float x, float y, float fallSpeed)
     {
+        // If a power-up is pending, replace this gem slot with it.
+        if (pendingMagnet)
+        {
+            pendingMagnet = false;
+            SpawnMagnetPowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingShield)
+        {
+            pendingShield = false;
+            SpawnShieldPowerUp(x, y, fallSpeed);
+            return;
+        }
+
         if (pooler == null) return;
-        pooler.SpawnRushGemAt(x, y, fallSpeed);
+        float elapsed = Time.time - roundStartTime;
+        float redChance = config.GetTier(elapsed).redGemChance;
+        pooler.SpawnRushGemAt(x, y, fallSpeed, redChance);
     }
 
     void SpawnPoisonGemAt(float x, float y, float fallSpeed)
@@ -347,6 +399,97 @@ public class SpawnDirector : MonoBehaviour
             new Vector3(GetPlayAreaLeft(), spawnY + 1f, 0f), label);
     }
 #endif
+
+    void SpawnMagnetPowerUp(float x, float y, float fallSpeed)
+    {
+        if (magnetPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Magnet prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(magnetPrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 1.15f;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushMagnet = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 120f, 30f);
+
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Blue glow via MaterialPropertyBlock on all renderers.
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        foreach (Renderer r in renderers)
+        {
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor("_BaseColor", new Color(0.3f, 0.5f, 1f));
+            mpb.SetColor("_EmissionColor", new Color(0.2f, 0.4f, 1f) * 2f);
+            r.SetPropertyBlock(mpb);
+        }
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Magnet power-up spawned at ({x:F2}, {y:F2})");
+    }
+
+    void SpawnShieldPowerUp(float x, float y, float fallSpeed)
+    {
+        if (shieldPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Shield prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(shieldPrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 1.725f;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushShield = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 120f, 30f);
+
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Golden glow via GemGlowVolume (same system gems use).
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = new Color(1f, 0.84f, 0f, 1f);
+        glow.glowAlpha = 0.9f;
+        glow.glowRadius = 1.5f;
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Shield power-up spawned at ({x:F2}, {y:F2})");
+    }
 
     void OnDestroy()
     {

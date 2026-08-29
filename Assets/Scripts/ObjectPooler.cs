@@ -244,11 +244,13 @@ public class ObjectPooler : MonoBehaviour
 
                 // Set up the falling object component
                 FallingObject fallingObj = obj.GetComponent<FallingObject>();
-                if (fallingObj != null)
+                if (fallingObj == null)
                 {
-                    // Initialize with normal speed, but it will be set to slow speed when spawned
-                    fallingObj.fallSpeed = currentFallSpeed;
+                    fallingObj = obj.AddComponent<FallingObject>();
+                    // Raw prefabs (e.g. Magic_Gem_1) need to match game gem scale.
+                    obj.transform.localScale = Vector3.one * 4f;
                 }
+                fallingObj.fallSpeed = currentFallSpeed;
 
                 objectPool.Add(obj);
             }
@@ -256,22 +258,36 @@ public class ObjectPooler : MonoBehaviour
 
         // Load level-specific extra gem prefabs from Resources.
         var cfg = LevelManager.CurrentConfig;
+        Debug.Log($"[ObjectPooler] Level={cfg.id}, Rush={GameState.Mode == GameState.GameMode.Rush}, poolSize={effectivePoolSize}");
         placementDuration = cfg.placementDuration > 0f ? cfg.placementDuration : 3f;
         if (cfg.extraGemPrefabs != null)
         {
             foreach (string path in cfg.extraGemPrefabs)
             {
                 GameObject extraPrefab = Resources.Load<GameObject>(path);
-                if (extraPrefab == null) continue;
-                for (int i = 0; i < poolSizePerPrefab; i++)
+                if (extraPrefab == null)
+                {
+                    Debug.LogWarning($"[ObjectPooler] Failed to load extra gem: {path}");
+                    continue;
+                }
+                Debug.Log($"[ObjectPooler] Loaded extra gem '{path}' → internal name '{extraPrefab.name}'");
+                for (int i = 0; i < effectivePoolSize; i++)
                 {
                     GameObject obj = Instantiate(extraPrefab);
                     obj.SetActive(false);
                     FallingObject fallingObj = obj.GetComponent<FallingObject>();
-                    if (fallingObj != null)
-                        fallingObj.fallSpeed = currentFallSpeed;
+                    if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
+                    fallingObj.fallSpeed = currentFallSpeed;
+                    // Ensure a collider exists for catch detection.
+                    if (obj.GetComponent<Collider>() == null)
+                    {
+                        SphereCollider sc = obj.AddComponent<SphereCollider>();
+                        sc.radius = 0.5f;
+                        sc.isTrigger = true;
+                    }
                     objectPool.Add(obj);
                 }
+                Debug.Log($"[ObjectPooler] Pooled {effectivePoolSize} instances of '{extraPrefab.name}'");
             }
         }
 
@@ -381,6 +397,17 @@ public class ObjectPooler : MonoBehaviour
 
         // Freeze gem/obstacle spawning once the player runs out of lives.
         if (GemCatcher.IsGameOver) return;
+
+        // Rush Mode: tick heart gem timer.
+        if (GameState.Mode == GameState.GameMode.Rush)
+        {
+            rushHeartGemTimer += Time.deltaTime;
+            if (rushHeartGemTimer >= RushHeartGemInterval)
+            {
+                rushHeartGemTimer = 0f;
+                rushHeartGemReady = true;
+            }
+        }
 
         bool gemInactive = currentActiveGem == null || !currentActiveGem.activeInHierarchy;
 
@@ -721,16 +748,50 @@ public class ObjectPooler : MonoBehaviour
     /// Public entry point for SpawnDirector to spawn a gem at a specific
     /// position with a specific speed. Uses the gem pool.
     /// </summary>
-    public void SpawnRushGemAt(float x, float y, float speed)
+    // Heart gem timer: spawns one guaranteed every 30 seconds.
+    private float rushHeartGemTimer = 0f;
+    private const float RushHeartGemInterval = 30f;
+    private bool rushHeartGemReady = false;
+
+    public void SpawnRushGemAt(float x, float y, float speed, float redGemChance = 0f)
     {
-        // Heart gems only spawn when the player needs a life.
-        bool needsLife = RoundManager.Instance != null &&
-            RoundManager.Instance.Lives < RoundManager.EffectiveMaxLives;
-        bool isHeart = needsLife && UnityEngine.Random.value < 0.02f; // 2% heart when needed
-        string prefabName = isHeart ? "HeartGem" : "GreenVolcom";
+        // Heart gem spawns on a fixed 30-second timer.
+        bool isHeart = rushHeartGemReady;
+        if (isHeart) rushHeartGemReady = false;
+
+        // Determine base/upgrade gem names and points based on level.
+        string baseGem, upgradeGem;
+        bool isDiamond = false;
+        bool isRed = false;
+        bool useUpgrade = false;
+
+        var level = LevelManager.SelectedLevel;
+        if (level == LevelManager.LevelId.Jungle)
+        {
+            // Level 2: RedDiamond (40pts) → DiamondGem (80pts)
+            baseGem = "RedDiamond";
+            upgradeGem = "Magic_Gem_1";
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isDiamond = useUpgrade;
+            isRed = !useUpgrade; // base gem in level 2 is always red
+        }
+        else
+        {
+            // Level 1 (and default): GreenVolcom (20pts) → RedDiamond (40pts)
+            baseGem = "GreenVolcom";
+            upgradeGem = "RedDiamond";
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isRed = useUpgrade;
+        }
+
+        string prefabName = isHeart ? "HeartGem" : (useUpgrade ? upgradeGem : baseGem);
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
-        if (obj == null) return; // only spawn the exact gem type requested
+        if (obj == null)
+        {
+            Debug.LogWarning($"[ObjectPooler] SpawnRushGemAt: no inactive '{prefabName}' found in pool (level={level}, redGemChance={redGemChance}, useUpgrade={useUpgrade})");
+            return;
+        }
 
         obj.transform.position = new Vector3(x, y, 0f);
         obj.transform.rotation = Quaternion.identity;
@@ -744,6 +805,8 @@ public class ObjectPooler : MonoBehaviour
             fo.fallSpeed = speed;
             fo.InitializeMovement(speed);
             fo.isRushHeart = isHeart;
+            fo.isRushRedGem = isRed;
+            fo.isRushDiamondGem = isDiamond;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
@@ -760,6 +823,16 @@ public class ObjectPooler : MonoBehaviour
                     mpb.SetColor("_EmissionColor", new Color(1f, 0.2f, 0.2f, 1f));
                     r.SetPropertyBlock(mpb);
                 }
+            }
+
+            // Add white glow to diamond gems if not already present.
+            if (isDiamond)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(1f, 1f, 1f, 1f);
+                glow.glowAlpha = 0.85f;
+                glow.glowRadius = 0.9f;
             }
         }
         obj.SetActive(true);

@@ -1395,8 +1395,6 @@ public class UIManager : MonoBehaviour
     vlg.childForceExpandHeight = false;
 
     BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
-    BuildStackedMenuButton(stackGo.transform, "RushButton",        "Rush Mode",   new Color(0.80f, 0.30f, 0.20f), OnRushClicked);
-    BuildStackedMenuButton(stackGo.transform, "HelpButton",        "Tutorial",     new Color(0.45f, 0.30f, 0.65f), OnTutorialClicked);
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
@@ -1877,19 +1875,6 @@ public class UIManager : MonoBehaviour
   private LevelManager.LevelId levelAtSceneLoad;
 
   void OnPlayClicked()
-  {
-    // If the player selected a different level from the menu, reload the
-    // scene so background/music/difficulty all update.
-    if (LevelManager.SelectedLevel != levelAtSceneLoad)
-    {
-      SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
-      return;
-    }
-    GameState.Mode = GameState.GameMode.Normal;
-    ShowGameplay();
-  }
-
-  void OnRushClicked()
   {
     GameState.Mode = GameState.GameMode.Rush;
     GameState.SkipMainMenuOnLoad = true;

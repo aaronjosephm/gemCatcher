@@ -26,6 +26,10 @@ public enum PowerUpType
   /// banner + lives-counter scale pop fire automatically.
   /// </summary>
   ExtraLife,
+  /// <summary>
+  /// Attracts gems within a radius toward the catcher for a limited time.
+  /// </summary>
+  Magnet,
 }
 
 /// <summary>
@@ -61,6 +65,9 @@ public class PowerUpManager : MonoBehaviour
   /// rather than the requested amount.
   /// </summary>
   public const int ExtraLifeAwardCount = 3;
+  public const float MagnetDuration = 30f;
+  public const float MagnetRadius = 5f;
+  public const float ShieldDuration = 30f;
 
   public static PowerUpManager Instance { get; private set; }
 
@@ -71,6 +78,9 @@ public class PowerUpManager : MonoBehaviour
   private static bool widerCatcherActive;
   private static bool doubleScoreActive;
   private static int shieldCharges;
+  private static bool magnetActive;
+  private static float magnetTimer;
+  private static float shieldTimer;
 
   // ---- Events -------------------------------------------------------------
 
@@ -96,6 +106,11 @@ public class PowerUpManager : MonoBehaviour
   public static bool HasShield => shieldCharges > 0;
   public static int ShieldCharges => shieldCharges;
 
+  public static bool MagnetActive => magnetActive;
+  public static float MagnetTimeRemaining => magnetTimer;
+
+  public static float ShieldTimeRemaining => shieldTimer;
+
   // ---- API ----------------------------------------------------------------
 
   /// <summary>
@@ -116,7 +131,8 @@ public class PowerUpManager : MonoBehaviour
         break;
       case PowerUpType.Shield:
         shieldCharges = 1;
-        OnActivated?.Invoke(type, 0f);
+        shieldTimer = ShieldDuration;
+        OnActivated?.Invoke(type, ShieldDuration);
         break;
       case PowerUpType.ExtraLife:
         // Instant-effect: route through AddLives so the cap, the
@@ -130,6 +146,11 @@ public class PowerUpManager : MonoBehaviour
         // a player at 9/10 lives sees "EXTRA LIFE +1 ♥" rather than
         // "EXTRA LIVES +3" — the banner stays accurate to what was awarded.
         GemCatcher.AddLives(ExtraLifeAwardCount);
+        break;
+      case PowerUpType.Magnet:
+        magnetActive = true;
+        magnetTimer = MagnetDuration;
+        OnActivated?.Invoke(type, MagnetDuration);
         break;
     }
   }
@@ -172,6 +193,12 @@ public class PowerUpManager : MonoBehaviour
       shieldCharges = 0;
       OnExpired?.Invoke(PowerUpType.Shield);
     }
+    if (magnetActive)
+    {
+      magnetActive = false;
+      magnetTimer = 0f;
+      OnExpired?.Invoke(PowerUpType.Magnet);
+    }
   }
 
   /// <summary>
@@ -184,6 +211,9 @@ public class PowerUpManager : MonoBehaviour
     widerCatcherActive = false;
     doubleScoreActive = false;
     shieldCharges = 0;
+    magnetActive = false;
+    magnetTimer = 0f;
+    shieldTimer = 0f;
   }
 
   // ---- Bootstrap ----------------------------------------------------------
@@ -206,6 +236,9 @@ public class PowerUpManager : MonoBehaviour
     widerCatcherActive = false;
     doubleScoreActive = false;
     shieldCharges = 0;
+    magnetActive = false;
+    magnetTimer = 0f;
+    shieldTimer = 0f;
     OnActivated = null;
     OnExpired = null;
     OnShieldConsumed = null;
@@ -223,6 +256,35 @@ public class PowerUpManager : MonoBehaviour
     DontDestroyOnLoad(gameObject);
 
     GemCatcher.OnGameOver += HandleGameOver;
+  }
+
+  void Update()
+  {
+    if (magnetActive)
+    {
+      magnetTimer -= Time.deltaTime;
+      if (magnetTimer <= 0f)
+      {
+        magnetActive = false;
+        magnetTimer = 0f;
+        OnExpired?.Invoke(PowerUpType.Magnet);
+        if (SoundManager.Instance != null)
+          SoundManager.Instance.Play("MagnetOff");
+      }
+    }
+
+    if (shieldCharges > 0 && shieldTimer > 0f)
+    {
+      shieldTimer -= Time.deltaTime;
+      if (shieldTimer <= 0f)
+      {
+        shieldCharges = 0;
+        shieldTimer = 0f;
+        OnExpired?.Invoke(PowerUpType.Shield);
+        if (SoundManager.Instance != null)
+          SoundManager.Instance.Play("MagnetOff");
+      }
+    }
   }
 
   void HandleGameOver()

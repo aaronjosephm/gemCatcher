@@ -38,8 +38,8 @@ public class RushConfig : ScriptableObject
     [Header("Rock Size")]
     public HazardSize rockSize = new HazardSize
     {
-        label = "Standard", scale = 0.15f, colliderRadius = 0.2f,
-        worldWidth = 0.3f, spawnWeight = 1f
+        label = "Standard", scale = 0.25f, colliderRadius = 0.3f,
+        worldWidth = 0.5f, spawnWeight = 1f
     };
 
     // ------------------------------------------------------------------
@@ -48,7 +48,7 @@ public class RushConfig : ScriptableObject
 
     [Header("Wave Timing")]
     [Tooltip("Vertical gap (world units) between consecutive rows in a wave.")]
-    public float rowSpacing = 1.5f;
+    public float rowSpacing = 2.0f;
 
     [Tooltip("Vertical gap (world units) between waves. Breathing room.")]
     public float wavePause = 3.0f;
@@ -108,16 +108,23 @@ public class RushConfig : ScriptableObject
         [Range(0f, 1f)]
         [Tooltip("Chance a poison gem appears in hazard rows at this tier.")]
         public float poisonGemChance = 0f;
+
+        [Tooltip("Wave pause override (world units). 0 = use global wavePause.")]
+        public float wavePauseOverride = 0f;
+
+        [Range(0f, 1f)]
+        [Tooltip("Chance a gem spawns as a red gem (Magic_Gem_2) instead of green.")]
+        public float redGemChance = 0f;
     }
 
     [Header("Difficulty Progression")]
     public DifficultyTier[] difficultyTiers = new DifficultyTier[]
     {
-        new DifficultyTier { startTime = 0f,   fallSpeed = 3.0f, maxRows = 3, safeCorridorFraction = 0.4f,  complexPatternWeight = 0.2f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 10f,  fallSpeed = 3.0f, maxRows = 4, safeCorridorFraction = 0.35f, complexPatternWeight = 0.4f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 30f,  fallSpeed = 3.0f, maxRows = 5, safeCorridorFraction = 0.3f,  complexPatternWeight = 0.6f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 60f,  fallSpeed = 3.0f, maxRows = 5, safeCorridorFraction = 0.25f, complexPatternWeight = 0.8f, poisonGemChance = 0f },
-        new DifficultyTier { startTime = 90f,  fallSpeed = 3.0f, maxRows = 5, safeCorridorFraction = 0.2f,  complexPatternWeight = 1.0f, poisonGemChance = 0f },
+        new DifficultyTier { startTime = 0f,   fallSpeed = 2.4f, maxRows = 3, safeCorridorFraction = 0.5f,  complexPatternWeight = 0.2f, poisonGemChance = 0f, wavePauseOverride = 3.0f, redGemChance = 0f },
+        new DifficultyTier { startTime = 30f,  fallSpeed = 2.88f, maxRows = 3, safeCorridorFraction = 0.45f, complexPatternWeight = 0.4f, poisonGemChance = 0f, wavePauseOverride = 2.8f, redGemChance = 0.2f },
+        new DifficultyTier { startTime = 55f,  fallSpeed = 3.46f, maxRows = 4, safeCorridorFraction = 0.4f,  complexPatternWeight = 0.6f, poisonGemChance = 0f, wavePauseOverride = 2.5f, redGemChance = 0.4f },
+        new DifficultyTier { startTime = 90f,  fallSpeed = 4.15f, maxRows = 4, safeCorridorFraction = 0.35f, complexPatternWeight = 0.8f, poisonGemChance = 0f, wavePauseOverride = 2.2f, redGemChance = 0.6f },
+        new DifficultyTier { startTime = 135f, fallSpeed = 4.98f, maxRows = 5, safeCorridorFraction = 0.25f, complexPatternWeight = 1.0f, poisonGemChance = 0f, wavePauseOverride = 1.8f, redGemChance = 1.0f },
     };
 
     // ------------------------------------------------------------------
@@ -171,6 +178,8 @@ public class RushConfig : ScriptableObject
             safeCorridorFraction   = Mathf.Lerp(a.safeCorridorFraction, b.safeCorridorFraction, t),
             complexPatternWeight   = Mathf.Lerp(a.complexPatternWeight, b.complexPatternWeight, t),
             poisonGemChance        = Mathf.Lerp(a.poisonGemChance, b.poisonGemChance, t),
+            wavePauseOverride      = Mathf.Lerp(a.wavePauseOverride, b.wavePauseOverride, t),
+            redGemChance           = Mathf.Lerp(a.redGemChance, b.redGemChance, t),
         };
     }
 }

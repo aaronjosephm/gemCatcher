@@ -21,6 +21,11 @@ public class CatchZone : MonoBehaviour
     private Renderer[] catcherRenderers;
     private float flashTimer = 0f;
 
+    // Shield grace: blocks rocks but still allows gem catching
+    private bool isShieldGrace = false;
+    private float shieldGraceTimer = 0f;
+    private const float ShieldGraceDuration = 2f;
+
     void Awake()
     {
         catcherCollider = GetComponent<BoxCollider>();
@@ -44,6 +49,13 @@ public class CatchZone : MonoBehaviour
             {
                 UpdateFlash();
             }
+        }
+
+        if (isShieldGrace)
+        {
+            shieldGraceTimer -= Time.deltaTime;
+            if (shieldGraceTimer <= 0f)
+                isShieldGrace = false;
         }
 
         // Use static registry — zero allocations, no scene scan.
@@ -91,28 +103,34 @@ public class CatchZone : MonoBehaviour
         // Hazards (rocks) hurt — same as bombs.
         if (fo.isHazard)
         {
-            if (isInvincible)
+            if (isInvincible || isShieldGrace)
             {
                 fo.gameObject.SetActive(false);
                 return;
             }
-            ApplyBombHit(catchPosition);
+            bool shielded = ApplyBombHit(catchPosition);
             fo.gameObject.SetActive(false);
-            StartInvincibility();
+            if (shielded)
+                StartShieldGrace();
+            else
+                StartInvincibility();
             return;
         }
 
         // Poison gems look like gems but cost a life (disabled in Rush Mode).
         if (fo.isPoisonGem && GameState.Mode != GameState.GameMode.Rush)
         {
-            if (isInvincible)
+            if (isInvincible || isShieldGrace)
             {
                 fo.gameObject.SetActive(false);
                 return;
             }
-            ApplyBombHit(catchPosition);
+            bool shielded = ApplyBombHit(catchPosition);
             fo.gameObject.SetActive(false);
-            StartInvincibility();
+            if (shielded)
+                StartShieldGrace();
+            else
+                StartInvincibility();
             return;
         }
 
@@ -123,14 +141,47 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
-        // Rush Mode heart gem — awards extra life, no points.
+        // Rush Mode heart gem — awards life if missing one, otherwise 100 points.
         if (fo.isRushHeart)
         {
             RoundManager rm2 = RoundManager.Instance;
-            if (rm2 != null) rm2.AddLives(1);
+            if (rm2 != null)
+            {
+                if (rm2.Lives < RoundManager.EffectiveMaxLives)
+                {
+                    rm2.AddLives(1);
+                }
+                else
+                {
+                    rm2.AddScore(100);
+                    rm2.NotifyGemCaught(100, catchPosition);
+                }
+            }
             PlayCatchEffect(fo);
             if (SoundManager.Instance != null)
                 SoundManager.Instance.PlayWithPitch("GemCaught", 1.5f);
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
+        // Rush Mode magnet power-up pickup.
+        if (fo.isRushMagnet)
+        {
+            PowerUpManager.Activate(PowerUpType.Magnet);
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.Play("MagnetOn");
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
+        // Rush Mode shield power-up pickup.
+        if (fo.isRushShield)
+        {
+            PowerUpManager.Activate(PowerUpType.Shield);
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.Play("MagnetOn");
             fo.gameObject.SetActive(false);
             return;
         }
@@ -201,7 +252,9 @@ public class CatchZone : MonoBehaviour
         switch (variant)
         {
             case SpecialGemType.Golden:  basePoints = RoundManager.POINTS_PER_GOLDEN_CATCH; break;
-            default:                     basePoints = RoundManager.POINTS_PER_CATCH; break;
+            default:
+                basePoints = fo.isRushDiamondGem ? 80 : (fo.isRushRedGem ? 40 : RoundManager.POINTS_PER_CATCH);
+                break;
         }
 
         // 2× SCORE power-up stacks multiplicatively with combo.
@@ -224,14 +277,15 @@ public class CatchZone : MonoBehaviour
 
     // ---- Bomb handling -----------------------------------------------------
 
-    private void ApplyBombHit(Vector3 worldPosition)
+    /// <returns>true if the shield absorbed the hit (no damage taken).</returns>
+    private bool ApplyBombHit(Vector3 worldPosition)
     {
         RoundManager rm = RoundManager.Instance;
-        if (rm.IsGameOver) return;
+        if (rm.IsGameOver) return false;
 
         if (PowerUpManager.TryConsumeShield(worldPosition))
         {
-            return;
+            return true;
         }
 
         PowerUpManager.RevokeAllOnMiss();
@@ -240,6 +294,7 @@ public class CatchZone : MonoBehaviour
         rm.NotifyBombHit(worldPosition);
         CameraShake.Shake(0.30f, 0.45f);
         rm.DeductLife();
+        return false;
     }
 
     // ---- Catch effect -------------------------------------------------------
@@ -259,6 +314,12 @@ public class CatchZone : MonoBehaviour
         flashTimer = 0f;
         if (catcherRenderers == null || catcherRenderers.Length == 0)
             catcherRenderers = GetComponentsInChildren<Renderer>(true);
+    }
+
+    private void StartShieldGrace()
+    {
+        isShieldGrace = true;
+        shieldGraceTimer = ShieldGraceDuration;
     }
 
     private void EndInvincibility()

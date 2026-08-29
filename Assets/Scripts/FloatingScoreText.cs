@@ -28,7 +28,7 @@ public class FloatingScoreText : MonoBehaviour
     {
         // Green for gains, red for losses. Looks fine on most backgrounds.
         Color color = amount > 0
-            ? new Color(0.40f, 1.00f, 0.45f)
+            ? new Color(1.00f, 0.84f, 0.00f)   // Golden for points
             : new Color(1.00f, 0.45f, 0.45f);
         Initialize((amount > 0 ? "+" : "") + amount.ToString(), color);
     }

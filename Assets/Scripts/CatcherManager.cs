@@ -3,8 +3,10 @@ using UnityEngine.UI;
 
 public class CatcherManager : MonoBehaviour
 {
+    public static CatcherManager Instance { get; private set; }
     public GameObject catcherPrefab; // The catcher (cube) prefab
     private GameObject catcherInstance;
+    public GameObject CatcherInstance => catcherInstance;
 
     public int numberOfSlots = 8; // Number of sections (slots) at the bottom
     public float slotHeight = 1.0f; // Height of the slot areas at the bottom
@@ -108,6 +110,7 @@ public class CatcherManager : MonoBehaviour
 
     void Start()
     {
+        Instance = this;
         // Find the object pooler and subscribe to its lifecycle events.
         objectPooler = FindObjectOfType<ObjectPooler>();
         if (objectPooler != null)
@@ -146,15 +149,13 @@ public class CatcherManager : MonoBehaviour
         // Create initial catcher in the middle slot
         PlaceCatcherInSlot(numberOfSlots / 2);
 
-        // In Rush Mode, snap to center column and calibrate tilt.
+        // In Rush Mode, snap to center column.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
-            rushCurrentColumn = 2;
-            float centerX = RushColumns.GetColumnX(2);
-            rushTargetX = float.NaN;
+            rushCurrentColumn = RushColumns.Count / 2;
+            float centerX = RushColumns.GetColumnX(RushColumns.Count / 2);
             MoveCatcherToX(centerX, playFeedback: false);
-            // Calibrate: treat current phone orientation as "center".
-            tiltCenterOffset = Input.acceleration.x;
+            rushRoundStartTime = Time.time;
         }
 
         // Subscribe to score change events
@@ -209,6 +210,8 @@ public class CatcherManager : MonoBehaviour
 
         UpdateCatcherSpin();
         UpdateCatcherFeedback();
+        UpdateMagnetGlow();
+        UpdateShieldBubble();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -261,48 +264,176 @@ public class CatcherManager : MonoBehaviour
         }
     }
 
-    // Rush Mode tilt controls: tilt phone left/right to move Catchy seamlessly.
+    // Rush Mode hold controls: hold left/right side of screen to move continuously.
     private int rushCurrentColumn = 2; // For spawn reference only
-    private float rushTargetX = float.NaN;
-
-    // Tilt configuration
-    private const float TiltDeadZone = 0.05f;  // ignore tiny tilts
-    private const float TiltMaxAngle = 0.35f;  // full tilt = edge of screen
-    private float tiltCenterOffset = 0f;       // calibrated neutral position
-    private float smoothedTilt = 0f;           // low-pass filtered tilt value
-    private const float TiltSmoothSpeed = 8f;  // how fast smoothed value follows raw
+    private const float RushBaseMoveSpeed = 8f; // world units/sec at base fall speed
+    private const float RushBaseFallSpeed = 2.4f; // fall speed that corresponds to base move speed
+    private RushConfig rushConfig;
 
     void HandleRushTapInput()
     {
         if (catcherInstance == null) return;
 
-        // Read accelerometer X axis.
-        float rawTilt = Input.acceleration.x - tiltCenterOffset;
+        float moveDir = 0f;
 
-        // Apply dead zone.
-        float tilt;
-        if (Mathf.Abs(rawTilt) < TiltDeadZone)
-            tilt = 0f;
-        else
-            tilt = Mathf.Sign(rawTilt) * (Mathf.Abs(rawTilt) - TiltDeadZone);
+        if (Input.GetMouseButton(0))
+        {
+            float screenMid = Screen.width * 0.5f;
+            moveDir = Input.mousePosition.x < screenMid ? -1f : 1f;
 
-        // Normalize to -1..1 range.
-        float normalizedTilt = Mathf.Clamp(tilt / (TiltMaxAngle - TiltDeadZone), -1f, 1f);
+            // Scale catchy speed proportional to current fall speed.
+            float currentFallSpeed = GetCurrentRushFallSpeed();
+            float speedRatio = currentFallSpeed / RushBaseFallSpeed;
+            float moveSpeed = RushBaseMoveSpeed * speedRatio;
 
-        // Low-pass filter to eliminate jitter.
-        smoothedTilt = Mathf.Lerp(smoothedTilt, normalizedTilt, TiltSmoothSpeed * Time.deltaTime);
+            float currentX = catcherInstance.transform.position.x;
+            float newX = currentX + moveDir * moveSpeed * Time.deltaTime;
+            MoveCatcherToX(newX, playFeedback: false);
+        }
 
-        // Map smoothed tilt to world-X position across the play area.
-        float playLeft = ScreenPadding.WorldLeft + 0.5f;
-        float playRight = ScreenPadding.WorldRight - 0.5f;
-        float center = (playLeft + playRight) * 0.5f;
-        float halfRange = (playRight - playLeft) * 0.5f;
-        float targetX = center + smoothedTilt * halfRange;
-
-        // Move catchy directly to the filtered position (already smooth).
-        MoveCatcherToX(targetX, playFeedback: false);
+        // Rotate catchy continuously (same style as main gameplay spin).
+        UpdateRushSpin();
     }
 
+    void UpdateRushSpin()
+    {
+        if (catcherInstance == null) return;
+        Vector3 axis = catcherSpinAxis.sqrMagnitude > 0f ? catcherSpinAxis.normalized : Vector3.up;
+        float speedRatio = GetCurrentRushFallSpeed() / RushBaseFallSpeed;
+        catcherInstance.transform.Rotate(axis, catcherSpinSpeed * speedRatio * Time.deltaTime, Space.Self);
+    }
+
+    float GetCurrentRushFallSpeed()
+    {
+        if (rushConfig == null)
+        {
+            var director = FindObjectOfType<SpawnDirector>();
+            if (director != null) rushConfig = director.config;
+        }
+        if (rushConfig == null) return RushBaseFallSpeed;
+
+        float elapsed = Time.time - rushRoundStartTime;
+        return rushConfig.GetTier(elapsed).fallSpeed;
+    }
+
+    private float rushRoundStartTime;
+
+    // ---- Magnet blue glow ---------------------------------------------------
+    private GemGlowVolume magnetGlow;
+
+    void UpdateMagnetGlow()
+    {
+        if (catcherInstance == null) return;
+
+        bool shouldGlow = PowerUpManager.MagnetActive;
+
+        // Create glow component when magnet activates.
+        if (shouldGlow && magnetGlow == null)
+        {
+            magnetGlow = catcherInstance.AddComponent<GemGlowVolume>();
+            magnetGlow.glowColor = new Color(0.3f, 0.5f, 1f);
+            magnetGlow.glowRadius = 1.5f;
+            magnetGlow.glowAlpha = 0.85f;
+        }
+        else if (!shouldGlow && magnetGlow != null)
+        {
+            Destroy(magnetGlow);
+            magnetGlow = null;
+            return;
+        }
+
+        if (!shouldGlow || magnetGlow == null) return;
+
+        float remaining = PowerUpManager.MagnetTimeRemaining;
+
+        // Blinking in last 5 seconds: slow -> medium -> fast -> fade.
+        if (remaining <= 5f)
+        {
+            float blinkFreq;
+            if (remaining > 3f) blinkFreq = 3f;
+            else if (remaining > 1.5f) blinkFreq = 7f;
+            else blinkFreq = 14f;
+
+            float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            float fadeFactor = remaining / 5f;
+            magnetGlow.glowAlpha = 0.85f * alpha * fadeFactor;
+            Color c = magnetGlow.glowColor;
+            c.a = magnetGlow.glowAlpha;
+            magnetGlow.RefreshColor(c);
+        }
+        else
+        {
+            magnetGlow.glowAlpha = 0.85f;
+        }
+    }
+
+    // ---- Shield golden bubble -----------------------------------------------
+    private GameObject shieldBubble;
+
+    void UpdateShieldBubble()
+    {
+        if (catcherInstance == null) return;
+
+        bool shouldShow = PowerUpManager.HasShield;
+
+        if (shouldShow && shieldBubble == null)
+        {
+            // Create a transparent golden sphere around catchy.
+            shieldBubble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            shieldBubble.name = "ShieldBubble";
+            shieldBubble.transform.SetParent(catcherInstance.transform, false);
+            shieldBubble.transform.localPosition = Vector3.zero;
+            shieldBubble.transform.localScale = Vector3.one * 2.5f;
+
+            // Remove collider so it doesn't interfere with catch detection.
+            Collider col = shieldBubble.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            // Transparent golden material (unlit to avoid skin colour bleeding).
+            Renderer r = shieldBubble.GetComponent<Renderer>();
+            if (r != null)
+            {
+                Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit")
+                    ?? Shader.Find("Unlit/Color"));
+                mat.SetFloat("_Surface", 1f); // Transparent
+                mat.SetFloat("_Blend", 0f);
+                mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_ZWrite", 0f);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.renderQueue = 3000;
+                mat.SetColor("_BaseColor", new Color(1f, 0.84f, 0f, 0.15f));
+                r.material = mat;
+            }
+        }
+        else if (!shouldShow && shieldBubble != null)
+        {
+            Destroy(shieldBubble);
+            shieldBubble = null;
+            return;
+        }
+
+        if (!shouldShow || shieldBubble == null) return;
+
+        // Blink in last 5 seconds.
+        float remaining = PowerUpManager.ShieldTimeRemaining;
+        Renderer sr = shieldBubble.GetComponent<Renderer>();
+        if (sr == null) return;
+
+        if (remaining <= 5f && remaining > 0f)
+        {
+            float blinkFreq;
+            if (remaining > 3f) blinkFreq = 3f;
+            else if (remaining > 1.5f) blinkFreq = 7f;
+            else blinkFreq = 14f;
+
+            float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            float fadeFactor = remaining / 5f;
+            Color c = sr.material.GetColor("_BaseColor");
+            c.a = 0.2f * alpha * fadeFactor;
+            sr.material.SetColor("_BaseColor", c);
+        }
+    }
 
     // Smooth free-X placement along the catcher row. Clamped so the catcher's
     // body stays inside the safe play area.
@@ -471,7 +602,7 @@ public class CatcherManager : MonoBehaviour
         // out-of-the-gate baseline); above the threshold it drops to the
         // tighter smallCatcherScaleFactor for the rest of the round (Score
         // is monotonic non-decreasing now that misses don't subtract points).
-        // Rush Mode: catcher size never changes.
+        // Rush Mode: catcher at normal size.
         if (GameState.Mode == GameState.GameMode.Rush)
         {
             smallCatcherTargetFactor = baseCatcherScaleFactor;
