@@ -244,10 +244,15 @@ public class ObjectPooler : MonoBehaviour
 
                 // Set up the falling object component
                 FallingObject fallingObj = obj.GetComponent<FallingObject>();
-                if (fallingObj != null)
+                if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
+                fallingObj.fallSpeed = currentFallSpeed;
+
+                // Ensure a collider for catch detection.
+                if (obj.GetComponent<Collider>() == null)
                 {
-                    // Initialize with normal speed, but it will be set to slow speed when spawned
-                    fallingObj.fallSpeed = currentFallSpeed;
+                    SphereCollider sc = obj.AddComponent<SphereCollider>();
+                    sc.radius = 0.5f;
+                    sc.isTrigger = true;
                 }
 
                 objectPool.Add(obj);
