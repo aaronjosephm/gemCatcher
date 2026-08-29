@@ -244,16 +244,20 @@ public class ObjectPooler : MonoBehaviour
 
                 // Set up the falling object component
                 FallingObject fallingObj = obj.GetComponent<FallingObject>();
-                if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
-                fallingObj.fallSpeed = currentFallSpeed;
-
-                // Ensure a collider for catch detection.
-                if (obj.GetComponent<Collider>() == null)
+                if (fallingObj == null)
                 {
-                    SphereCollider sc = obj.AddComponent<SphereCollider>();
-                    sc.radius = 0.5f;
-                    sc.isTrigger = true;
+                    fallingObj = obj.AddComponent<FallingObject>();
+                    // Raw prefabs (e.g. Magic_Gem_1) need to match game gem scale.
+                    obj.transform.localScale = Vector3.one * 4f;
+                    // Ensure a collider for catch detection.
+                    if (obj.GetComponent<Collider>() == null)
+                    {
+                        SphereCollider sc = obj.AddComponent<SphereCollider>();
+                        sc.radius = 0.5f;
+                        sc.isTrigger = true;
+                    }
                 }
+                fallingObj.fallSpeed = currentFallSpeed;
 
                 objectPool.Add(obj);
             }
