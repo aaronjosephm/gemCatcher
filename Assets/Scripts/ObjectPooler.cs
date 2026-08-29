@@ -763,10 +763,20 @@ public class ObjectPooler : MonoBehaviour
         string baseGem, upgradeGem;
         bool isDiamond = false;
         bool isRed = false;
+        bool isGolden = false;
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.Jungle)
+        if (level == LevelManager.LevelId.Space)
+        {
+            // Level 3: DiamondGem (80pts) → GoldenGem (160pts)
+            baseGem = "Magic_Gem_1";
+            upgradeGem = "Magic_Gem_24";
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isDiamond = !useUpgrade; // base gem in level 3 is the diamond
+            isGolden = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Jungle)
         {
             // Level 2: RedDiamond (40pts) → DiamondGem (80pts)
             baseGem = "RedDiamond";
@@ -807,6 +817,7 @@ public class ObjectPooler : MonoBehaviour
             fo.isRushHeart = isHeart;
             fo.isRushRedGem = isRed;
             fo.isRushDiamondGem = isDiamond;
+            fo.isRushGoldenGem = isGolden;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
@@ -831,6 +842,16 @@ public class ObjectPooler : MonoBehaviour
                 GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
                 if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
                 glow.glowColor = new Color(1f, 1f, 1f, 1f);
+                glow.glowAlpha = 0.85f;
+                glow.glowRadius = 0.9f;
+            }
+
+            // Add gold glow to golden gems (Level 3 upgrade).
+            if (isGolden)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(1f, 0.85f, 0.35f, 1f);
                 glow.glowAlpha = 0.85f;
                 glow.glowRadius = 0.9f;
             }

@@ -95,6 +95,7 @@ public class FallingObject : MonoBehaviour
     public bool isRushMagnet { get; set; } = false;
     public bool isRushShield { get; set; } = false;
     public bool isRushDiamondGem { get; set; } = false;
+    public bool isRushGoldenGem { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -140,6 +141,9 @@ public class FallingObject : MonoBehaviour
 
         // Rush diamond gems glow white.
         if (isRushDiamondGem) return new Color(1f, 1f, 1f, 1f);
+
+        // Rush golden gems (Level 3 upgrade) glow gold.
+        if (isRushGoldenGem) return new Color(1f, 0.85f, 0.35f, 1f);
 
         if (burstColor != Color.clear) return burstColor;
 
@@ -202,6 +206,7 @@ public class FallingObject : MonoBehaviour
         isRushMagnet = false;
         isRushShield = false;
         isRushDiamondGem = false;
+        isRushGoldenGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
