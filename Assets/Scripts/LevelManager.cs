@@ -98,7 +98,7 @@ public static class LevelManager
         new LevelConfig
         {
             id = LevelId.Lava,
-            displayName = "Lava Lamp",
+            displayName = "Twilight City",
             sceneName = "LavaLamp",
             backgroundResource = null,
             midgroundResource = null,
