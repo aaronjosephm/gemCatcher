@@ -263,7 +263,7 @@ public class ObjectPooler : MonoBehaviour
             {
                 GameObject extraPrefab = Resources.Load<GameObject>(path);
                 if (extraPrefab == null) continue;
-                for (int i = 0; i < poolSizePerPrefab; i++)
+                for (int i = 0; i < effectivePoolSize; i++)
                 {
                     GameObject obj = Instantiate(extraPrefab);
                     obj.SetActive(false);
@@ -743,11 +743,33 @@ public class ObjectPooler : MonoBehaviour
         bool isHeart = rushHeartGemReady;
         if (isHeart) rushHeartGemReady = false;
 
-        bool isRed = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
-        string prefabName = isHeart ? "HeartGem" : (isRed ? "RedDiamond" : "GreenVolcom");
+        // Determine base/upgrade gem names and points based on level.
+        string baseGem, upgradeGem;
+        bool isDiamond = false;
+        bool isRed = false;
+
+        var level = LevelManager.SelectedLevel;
+        if (level == LevelManager.LevelId.Jungle)
+        {
+            // Level 2: RedDiamond (40pts) → DiamondGem (80pts)
+            baseGem = "RedDiamond";
+            upgradeGem = "DiamondGem";
+            bool useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isDiamond = useUpgrade;
+            isRed = !useUpgrade; // base gem in level 2 is red
+        }
+        else
+        {
+            // Level 1 (and default): GreenVolcom (20pts) → RedDiamond (40pts)
+            baseGem = "GreenVolcom";
+            upgradeGem = "RedDiamond";
+            isRed = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+        }
+
+        string prefabName = isHeart ? "HeartGem" : (isDiamond ? upgradeGem : (isRed ? upgradeGem : baseGem));
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
-        if (obj == null) return; // only spawn the exact gem type requested
+        if (obj == null) return;
 
         obj.transform.position = new Vector3(x, y, 0f);
         obj.transform.rotation = Quaternion.identity;
@@ -762,6 +784,7 @@ public class ObjectPooler : MonoBehaviour
             fo.InitializeMovement(speed);
             fo.isRushHeart = isHeart;
             fo.isRushRedGem = isRed;
+            fo.isRushDiamondGem = isDiamond;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
@@ -778,6 +801,16 @@ public class ObjectPooler : MonoBehaviour
                     mpb.SetColor("_EmissionColor", new Color(1f, 0.2f, 0.2f, 1f));
                     r.SetPropertyBlock(mpb);
                 }
+            }
+
+            // Add white glow to diamond gems if not already present.
+            if (isDiamond)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(1f, 1f, 1f, 1f);
+                glow.glowAlpha = 0.85f;
+                glow.glowRadius = 0.9f;
             }
         }
         obj.SetActive(true);

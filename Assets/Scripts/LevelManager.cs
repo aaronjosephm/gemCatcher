@@ -64,7 +64,7 @@ public static class LevelManager
             backgroundResource = "Backgrounds/WaterfallBackground",
             midgroundResource = null,
             musicResource = "Audio/JungleMusic",
-            extraGemPrefabs = new[] { "Gems/BlueGem" },
+            extraGemPrefabs = new[] { "Gems/BlueGem", "Gems/DiamondGem" },
             unlockScore = 100,
             cameraColor = new Color(0.08f, 0.15f, 0.10f, 1f),
             initialFallSpeed = 4.0f,

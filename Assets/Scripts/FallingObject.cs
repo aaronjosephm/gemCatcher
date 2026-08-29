@@ -94,6 +94,7 @@ public class FallingObject : MonoBehaviour
     public bool isRushRedGem { get; set; } = false;
     public bool isRushMagnet { get; set; } = false;
     public bool isRushShield { get; set; } = false;
+    public bool isRushDiamondGem { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -136,6 +137,9 @@ public class FallingObject : MonoBehaviour
     {
         // Rush heart gems always glow/burst red.
         if (isRushHeart) return new Color(1f, 0.15f, 0.15f, 1f);
+
+        // Rush diamond gems glow white.
+        if (isRushDiamondGem) return new Color(1f, 1f, 1f, 1f);
 
         if (burstColor != Color.clear) return burstColor;
 
@@ -197,6 +201,7 @@ public class FallingObject : MonoBehaviour
         isRushRedGem = false;
         isRushMagnet = false;
         isRushShield = false;
+        isRushDiamondGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
