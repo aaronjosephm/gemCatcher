@@ -29,6 +29,7 @@ public static class PowerUpPickup
       case PowerUpType.Shield:       return new Color(1.00f, 0.85f, 0.35f); // warm yellow
       case PowerUpType.DoubleScore:  return new Color(0.45f, 1.00f, 0.55f); // bright green
       case PowerUpType.ExtraLife:    return new Color(1.00f, 0.30f, 0.90f); // hot magenta
+      case PowerUpType.Swap:         return new Color(0.20f, 0.50f, 1.00f); // blue
       default:                       return Color.white;
     }
   }
@@ -46,6 +47,7 @@ public static class PowerUpPickup
       // receive. Not shown in the in-game HUD slot list (ExtraLife has no
       // slot — it's instant-effect) so this is dev-facing only.
       case PowerUpType.ExtraLife:    return "+" + PowerUpManager.ExtraLifeAwardCount + " \u2665";
+      case PowerUpType.Swap:         return "SWAP";
       default:                       return "";
     }
   }

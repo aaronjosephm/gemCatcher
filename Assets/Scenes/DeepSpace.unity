@@ -150,6 +150,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   objectPrefabs:
   - {fileID: 6587692883590679567, guid: 90d2eccf4fba3d342a3533b5283f8b24, type: 3}
+  - {fileID: 980392101495265587, guid: 75acd0f812cf57242a0791e97a2f8e80, type: 3}
   - {fileID: 4572665907359631719, guid: 770b237df0ec144e3937d76ccbacdeda, type: 3}
   - {fileID: 6983632911920141796, guid: ce6c35195043c4f40a6ac5a4037e28fd, type: 3}
   - {fileID: 2582483583652474516, guid: f8d5d9352f40c4eb8bd49571eef58b77, type: 3}
@@ -174,7 +175,6 @@ MonoBehaviour:
   difficultyLevels: []
   dailyMaxFallSpeed: 5.5
   dailyMinSpawnInterval: 2
-  continuousSpawnMode: 1
 --- !u!4 &189072282
 Transform:
   m_ObjectHideFlags: 0
@@ -1001,7 +1001,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 3
+  m_text: 
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}

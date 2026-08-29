@@ -30,6 +30,11 @@ public enum PowerUpType
   /// Attracts gems within a radius toward the catcher for a limited time.
   /// </summary>
   Magnet,
+  /// <summary>
+  /// Swaps rocks and gems for a short duration. Rocks become upgrade gems,
+  /// gems become hazards — a huge point boost window.
+  /// </summary>
+  Swap,
 }
 
 /// <summary>
@@ -68,6 +73,7 @@ public class PowerUpManager : MonoBehaviour
   public const float MagnetDuration = 30f;
   public const float MagnetRadius = 5f;
   public const float ShieldDuration = 30f;
+  public const float SwapDuration = 10f;
 
   public static PowerUpManager Instance { get; private set; }
 
@@ -81,6 +87,8 @@ public class PowerUpManager : MonoBehaviour
   private static bool magnetActive;
   private static float magnetTimer;
   private static float shieldTimer;
+  private static bool swapActive;
+  private static float swapTimer;
 
   // ---- Events -------------------------------------------------------------
 
@@ -110,6 +118,9 @@ public class PowerUpManager : MonoBehaviour
   public static float MagnetTimeRemaining => magnetTimer;
 
   public static float ShieldTimeRemaining => shieldTimer;
+
+  public static bool SwapActive => swapActive;
+  public static float SwapTimeRemaining => swapTimer;
 
   // ---- API ----------------------------------------------------------------
 
@@ -151,6 +162,11 @@ public class PowerUpManager : MonoBehaviour
         magnetActive = true;
         magnetTimer = MagnetDuration;
         OnActivated?.Invoke(type, MagnetDuration);
+        break;
+      case PowerUpType.Swap:
+        swapActive = true;
+        swapTimer = SwapDuration;
+        OnActivated?.Invoke(type, SwapDuration);
         break;
     }
   }
@@ -199,6 +215,7 @@ public class PowerUpManager : MonoBehaviour
       magnetTimer = 0f;
       OnExpired?.Invoke(PowerUpType.Magnet);
     }
+    // Swap is NOT revoked on miss — it runs its full duration.
   }
 
   /// <summary>
@@ -214,6 +231,8 @@ public class PowerUpManager : MonoBehaviour
     magnetActive = false;
     magnetTimer = 0f;
     shieldTimer = 0f;
+    swapActive = false;
+    swapTimer = 0f;
   }
 
   // ---- Bootstrap ----------------------------------------------------------
@@ -239,6 +258,8 @@ public class PowerUpManager : MonoBehaviour
     magnetActive = false;
     magnetTimer = 0f;
     shieldTimer = 0f;
+    swapActive = false;
+    swapTimer = 0f;
     OnActivated = null;
     OnExpired = null;
     OnShieldConsumed = null;
@@ -281,6 +302,19 @@ public class PowerUpManager : MonoBehaviour
         shieldCharges = 0;
         shieldTimer = 0f;
         OnExpired?.Invoke(PowerUpType.Shield);
+        if (SoundManager.Instance != null)
+          SoundManager.Instance.Play("MagnetOff");
+      }
+    }
+
+    if (swapActive)
+    {
+      swapTimer -= Time.deltaTime;
+      if (swapTimer <= 0f)
+      {
+        swapActive = false;
+        swapTimer = 0f;
+        OnExpired?.Invoke(PowerUpType.Swap);
         if (SoundManager.Instance != null)
           SoundManager.Instance.Play("MagnetOff");
       }

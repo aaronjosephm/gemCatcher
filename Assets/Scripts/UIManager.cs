@@ -41,6 +41,8 @@ public class UIManager : MonoBehaviour
   public float gameOverDelay = 1.0f;
 
   private int highScore = 0;
+  private int highScoreAtRoundStart = 0;
+  private long totalPoints = 0;
   private bool gameIsOver = false;
   private bool isFadingOut = false;
   private float fadeTimer = 0f;
@@ -116,6 +118,8 @@ public class UIManager : MonoBehaviour
   private Image dailyChallengeButtonBg;
   private TextMeshProUGUI bestScoreMenuTmp;
   private GameObject bestScoreMenuGo;
+  private TextMeshProUGUI totalPointsMenuTmp;
+  private GameObject totalPointsMenuGo;
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -129,6 +133,7 @@ public class UIManager : MonoBehaviour
   // Daily-mode flavor for the shared game-over panel — title swap and a
   // subtitle that shows "Day N · Streak X". Cached at panel-build time.
   private TextMeshProUGUI gameOverTitleTmp;
+  private GameObject gameOverNewHighScoreGo;
   private TextMeshProUGUI gameOverDailySubtitleTmp;
 
   // ---- Power-up HUD ------------------------------------------------------
@@ -174,6 +179,30 @@ public class UIManager : MonoBehaviour
   {
     if (Instance != null && Instance != this) return;
     Instance = this;
+
+    // Redirect to the correct scene immediately if we're on the wrong one.
+    // This runs before the first frame renders, avoiding a flash of the wrong
+    // level's visuals (e.g. DeepSpace rocks when loading Jungle Falls).
+    string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+    if (currentScene != "Tutorial")
+    {
+      string expectedScene = LevelManager.CurrentConfig.sceneName;
+      if (currentScene != expectedScene)
+      {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
+        return;
+      }
+    }
+
+    // Load high score early so the menu panel can display it.
+    highScore = PlayerPrefs.GetInt(HighScoreKey(), 0);
+    totalPoints = long.Parse(PlayerPrefs.GetString("TotalPoints", "0"));
+
+    // Build the menu overlay early so it's visible on the very first frame,
+    // avoiding a flash of the bare scene on level 2/3 relaunch.
+    EnsureHudCanvas();
+    EnsureMainMenuPanel();
+    if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
   }
 
   void Start()
@@ -219,12 +248,7 @@ public class UIManager : MonoBehaviour
     }
     else
     {
-      string expectedScene = LevelManager.CurrentConfig.sceneName;
-      if (currentScene != expectedScene)
-      {
-        UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
-        return;
-      }
+      // Scene redirect now happens in Awake(); no need to check here.
     }
 
     // Initialize UI
@@ -233,8 +257,9 @@ public class UIManager : MonoBehaviour
       gameOverPanel.SetActive(false);
     }
 
-    // Load high score from PlayerPrefs
-    highScore = PlayerPrefs.GetInt("HighScore", 0);
+    // Load high score from PlayerPrefs (per-level)
+    highScore = PlayerPrefs.GetInt(HighScoreKey(), 0);
+    totalPoints = long.Parse(PlayerPrefs.GetString("TotalPoints", "0"));
     UpdateHighScoreText();
 
     // Subscribe to score change events
@@ -401,7 +426,7 @@ public class UIManager : MonoBehaviour
     if (newScore > highScore)
     {
       highScore = newScore;
-      PlayerPrefs.SetInt("HighScore", highScore);
+      PlayerPrefs.SetInt(HighScoreKey(), highScore);
       UpdateHighScoreText();
     }
   }
@@ -696,7 +721,6 @@ public class UIManager : MonoBehaviour
     PowerUpType[] order = new[]
     {
       PowerUpType.WiderCatcher,
-      PowerUpType.Shield,
       PowerUpType.DoubleScore,
     };
     powerUpSlotRoots = new GameObject[order.Length];
@@ -759,8 +783,7 @@ public class UIManager : MonoBehaviour
     if (powerUpSlotRoots == null) return;
 
     UpdatePowerUpSlot(0, PowerUpType.WiderCatcher, PowerUpManager.WiderCatcherActive);
-    UpdatePowerUpSlot(1, PowerUpType.Shield, PowerUpManager.HasShield);
-    UpdatePowerUpSlot(2, PowerUpType.DoubleScore, PowerUpManager.DoubleScoreActive);
+    UpdatePowerUpSlot(1, PowerUpType.DoubleScore, PowerUpManager.DoubleScoreActive);
   }
 
   void UpdatePowerUpSlot(int idx, PowerUpType type, bool active)
@@ -883,6 +906,7 @@ public class UIManager : MonoBehaviour
       case PowerUpType.WiderCatcher: banner = "WIDER CATCHER!"; break;
       case PowerUpType.Shield: banner = "SHIELD UP!"; break;
       case PowerUpType.DoubleScore: banner = "DOUBLE SCORE!"; break;
+      case PowerUpType.Swap: banner = "PROBABILITY FLIPPED!"; break;
       default: return;
     }
     SpawnBannerNotification(banner, color);
@@ -895,7 +919,12 @@ public class UIManager : MonoBehaviour
 
   void HandlePowerUpExpired(PowerUpType type)
   {
-    // No banner on expire — the HUD slot fading away is feedback enough, and
+    // Swap gets an expiry banner since the gameplay change is dramatic.
+    if (type == PowerUpType.Swap)
+    {
+      SpawnBannerNotification("PROBABILITY FLIPPED BACK", new Color(0.2f, 0.5f, 1f));
+    }
+    // No banner on other expires — the HUD slot fading away is feedback enough, and
     // expiry can fire several at once (game-over) which would stack banners.
     RefreshPowerUpHud();
   }
@@ -1172,16 +1201,15 @@ public class UIManager : MonoBehaviour
     safeAreaGo.AddComponent<SafeAreaFitter>();
     Transform contentParent = safeAreaGo.transform;
 
-    // Title — anchored to the top of the safe area so it's always above the
-    // breakdown AND below the Dynamic Island / camera lens.
+    // Title — centered on screen.
     GameObject titleGo = new GameObject("Title", typeof(RectTransform));
     titleGo.transform.SetParent(contentParent, false);
     RectTransform titleRect = titleGo.GetComponent<RectTransform>();
-    titleRect.anchorMin = new Vector2(0.5f, 1f);
-    titleRect.anchorMax = new Vector2(0.5f, 1f);
-    titleRect.pivot = new Vector2(0.5f, 1f);
-    titleRect.anchoredPosition = new Vector2(0f, -30f);
-    titleRect.sizeDelta = new Vector2(800f, 130f);
+    titleRect.anchorMin = new Vector2(0.5f, 0.85f);
+    titleRect.anchorMax = new Vector2(0.5f, 0.85f);
+    titleRect.pivot = new Vector2(0.5f, 0.5f);
+    titleRect.anchoredPosition = Vector2.zero;
+    titleRect.sizeDelta = new Vector2(900f, 130f);
     TextMeshProUGUI title = titleGo.AddComponent<TextMeshProUGUI>();
     title.text = "Game Over";
     title.fontSize = 110f;
@@ -1189,6 +1217,25 @@ public class UIManager : MonoBehaviour
     title.alignment = TextAlignmentOptions.Center;
     title.color = Color.white;
     gameOverTitleTmp = title;
+
+    // "NEW HIGH SCORE!" subtitle — shown below title only when a record is set.
+    GameObject newHsGo = new GameObject("NewHighScore", typeof(RectTransform));
+    newHsGo.transform.SetParent(contentParent, false);
+    RectTransform newHsRect = newHsGo.GetComponent<RectTransform>();
+    newHsRect.anchorMin = new Vector2(0.5f, 0.85f);
+    newHsRect.anchorMax = new Vector2(0.5f, 0.85f);
+    newHsRect.pivot = new Vector2(0.5f, 0.5f);
+    newHsRect.anchoredPosition = new Vector2(0f, -80f);
+    newHsRect.sizeDelta = new Vector2(800f, 60f);
+    TextMeshProUGUI newHsTmp = newHsGo.AddComponent<TextMeshProUGUI>();
+    newHsTmp.text = "NEW HIGH SCORE!";
+    newHsTmp.fontSize = 48f;
+    newHsTmp.fontStyle = FontStyles.Bold;
+    newHsTmp.alignment = TextAlignmentOptions.Center;
+    newHsTmp.color = new Color(1f, 0.85f, 0.35f);
+    newHsTmp.enableWordWrapping = false;
+    gameOverNewHighScoreGo = newHsGo;
+    newHsGo.SetActive(false);
 
     // Daily-mode subtitle — empty / hidden when ShowGameOverPanel runs in
     // Normal mode. Sits between the title and "Final Score" line. Stretches
@@ -1212,51 +1259,48 @@ public class UIManager : MonoBehaviour
     gameOverDailySubtitleTmp.enableWordWrapping = false;
     dailySubGo.SetActive(false);
 
-    // Headline "Final Score: X" — one line, anchored just below the title.
+    // Headline "Final Score: X" — centered below title.
     GameObject scoreGo = new GameObject("FinalScore", typeof(RectTransform));
     scoreGo.transform.SetParent(contentParent, false);
     RectTransform scoreRect = scoreGo.GetComponent<RectTransform>();
-    scoreRect.anchorMin = new Vector2(0.5f, 1f);
-    scoreRect.anchorMax = new Vector2(0.5f, 1f);
-    scoreRect.pivot = new Vector2(0.5f, 1f);
-    scoreRect.anchoredPosition = new Vector2(0f, -180f);
-    scoreRect.sizeDelta = new Vector2(900f, 90f);
+    scoreRect.anchorMin = new Vector2(0.5f, 0.85f);
+    scoreRect.anchorMax = new Vector2(0.5f, 0.85f);
+    scoreRect.pivot = new Vector2(0.5f, 0.5f);
+    scoreRect.anchoredPosition = new Vector2(0f, -150f);
+    scoreRect.sizeDelta = new Vector2(900f, 80f);
     autoFinalScoreText = scoreGo.AddComponent<TextMeshProUGUI>();
     autoFinalScoreText.text = "Final Score: 0";
-    autoFinalScoreText.fontSize = 64f;
+    autoFinalScoreText.fontSize = 58f;
     autoFinalScoreText.fontStyle = FontStyles.Bold;
     autoFinalScoreText.alignment = TextAlignmentOptions.Center;
     autoFinalScoreText.color = Color.white;
 
-    // "Gems Caught:" subhead.
+    // "Gems Caught" subhead.
     GameObject labelGo = new GameObject("GemsCaughtLabel", typeof(RectTransform));
     labelGo.transform.SetParent(contentParent, false);
     RectTransform labelRect = labelGo.GetComponent<RectTransform>();
-    labelRect.anchorMin = new Vector2(0.5f, 1f);
-    labelRect.anchorMax = new Vector2(0.5f, 1f);
-    labelRect.pivot = new Vector2(0.5f, 1f);
-    labelRect.anchoredPosition = new Vector2(0f, -290f);
-    labelRect.sizeDelta = new Vector2(900f, 60f);
+    labelRect.anchorMin = new Vector2(0.5f, 0.85f);
+    labelRect.anchorMax = new Vector2(0.5f, 0.85f);
+    labelRect.pivot = new Vector2(0.5f, 0.5f);
+    labelRect.anchoredPosition = new Vector2(0f, -220f);
+    labelRect.sizeDelta = new Vector2(900f, 50f);
     TextMeshProUGUI gemsCaughtLabel = labelGo.AddComponent<TextMeshProUGUI>();
     gemsCaughtLabel.text = "Gems Caught";
-    gemsCaughtLabel.fontSize = 44f;
+    gemsCaughtLabel.fontSize = 40f;
     gemsCaughtLabel.fontStyle = FontStyles.Bold;
     gemsCaughtLabel.alignment = TextAlignmentOptions.Center;
     gemsCaughtLabel.color = new Color(0.85f, 0.85f, 0.85f);
 
-    // Vertical icon list — one row per gem type. Stretches between the subhead at top
-    // and the retry button at the bottom; rows are stacked by VerticalLayoutGroup.
+    // Vertical icon list — one row per gem type, centered below "Gems Caught".
     GameObject iconsGo = new GameObject("GemIconsContainer",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     iconsGo.transform.SetParent(contentParent, false);
     autoGemIconsContainer = iconsGo.GetComponent<RectTransform>();
-    autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0f);
-    autoGemIconsContainer.anchorMax = new Vector2(0.5f, 1f);
+    autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0.85f);
+    autoGemIconsContainer.anchorMax = new Vector2(0.5f, 0.85f);
     autoGemIconsContainer.pivot = new Vector2(0.5f, 1f);
-    // Reserve ~360 px at the top (title + final score + label + gap) and ~300 px at
-    // the bottom for the stacked Try Again + Main Menu buttons.
-    autoGemIconsContainer.offsetMin = new Vector2(-380f, 300f);
-    autoGemIconsContainer.offsetMax = new Vector2(380f, -360f);
+    autoGemIconsContainer.anchoredPosition = new Vector2(0f, -250f);
+    autoGemIconsContainer.sizeDelta = new Vector2(760f, 200f);
     VerticalLayoutGroup vlg = iconsGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.UpperCenter;
     vlg.spacing = 12f;
@@ -1398,27 +1442,50 @@ public class UIManager : MonoBehaviour
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
-    // Best score — below buttons, anchored to bottom.
+    // High Score — per-level, below buttons.
     {
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.5f, 0.08f);
-      bestRect.anchorMax = new Vector2(0.5f, 0.08f);
+      bestRect.anchorMin = new Vector2(0.5f, 0.12f);
+      bestRect.anchorMax = new Vector2(0.5f, 0.12f);
       bestRect.pivot = new Vector2(0.5f, 0.5f);
       bestRect.anchoredPosition = Vector2.zero;
-      bestRect.sizeDelta = new Vector2(600f, 80f);
+      bestRect.sizeDelta = new Vector2(600f, 60f);
       TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
-      best.text = "BEST  " + highScore;
+      best.text = "High Score  " + highScore;
       best.fontStyle = FontStyles.Bold;
       best.alignment = TextAlignmentOptions.Center;
       best.color = new Color(1f, 0.85f, 0.35f);
-      best.characterSpacing = 8f;
-      best.fontSize = 52f;
+      best.characterSpacing = 4f;
+      best.fontSize = 42f;
       best.enableWordWrapping = false;
       bestScoreMenuTmp = best;
       bestScoreMenuGo = bestGo;
       bestGo.SetActive(highScore > 0);
+    }
+
+    // Total Points — lifetime currency across all levels.
+    {
+      GameObject totalGo = new GameObject("TotalPoints", typeof(RectTransform));
+      totalGo.transform.SetParent(contentParent, false);
+      RectTransform totalRect = totalGo.GetComponent<RectTransform>();
+      totalRect.anchorMin = new Vector2(0.5f, 0.05f);
+      totalRect.anchorMax = new Vector2(0.5f, 0.05f);
+      totalRect.pivot = new Vector2(0.5f, 0.5f);
+      totalRect.anchoredPosition = Vector2.zero;
+      totalRect.sizeDelta = new Vector2(600f, 50f);
+      TextMeshProUGUI totalTmp = totalGo.AddComponent<TextMeshProUGUI>();
+      totalTmp.text = "Total Points  " + totalPoints.ToString("N0");
+      totalTmp.fontStyle = FontStyles.Bold;
+      totalTmp.alignment = TextAlignmentOptions.Center;
+      totalTmp.color = new Color(0.7f, 0.85f, 1f);
+      totalTmp.characterSpacing = 4f;
+      totalTmp.fontSize = 36f;
+      totalTmp.enableWordWrapping = false;
+      totalPointsMenuTmp = totalTmp;
+      totalPointsMenuGo = totalGo;
+      totalGo.SetActive(totalPoints > 0);
     }
 
     mainMenuPanel = panel;
@@ -1838,8 +1905,13 @@ public class UIManager : MonoBehaviour
     // Refresh best score display in case it changed after a game.
     if (bestScoreMenuTmp != null)
     {
-      bestScoreMenuTmp.text = "BEST  " + highScore;
+      bestScoreMenuTmp.text = "High Score  " + highScore;
       bestScoreMenuGo.SetActive(highScore > 0);
+    }
+    if (totalPointsMenuTmp != null)
+    {
+      totalPointsMenuTmp.text = "Total Points  " + totalPoints.ToString("N0");
+      totalPointsMenuGo.SetActive(totalPoints > 0);
     }
     FadePanel(mainMenuPanel, true, 0.25f);
 
@@ -1862,6 +1934,7 @@ public class UIManager : MonoBehaviour
     SetGameplayHudVisible(true);
     GameState.IsPlaying = true;
     gameIsOver = false;
+    highScoreAtRoundStart = highScore;
   }
 
   // Toggles the score/lives HUD so they don't bleed through the menu panels.
@@ -2418,6 +2491,11 @@ public class UIManager : MonoBehaviour
     return go;
   }
 
+  static string HighScoreKey()
+  {
+    return "HighScore_" + LevelManager.SelectedLevel.ToString();
+  }
+
   void UpdateHighScoreText()
   {
     if (highScoreText != null)
@@ -2461,12 +2539,25 @@ public class UIManager : MonoBehaviour
   {
     int finalScore = GemCatcher.Score;
 
+    // Check for new high score on this level.
+    bool isNewHighScore = finalScore > highScoreAtRoundStart && finalScore > 0;
+
+    // Accumulate total points (lifetime currency).
+    totalPoints += finalScore;
+    PlayerPrefs.SetString("TotalPoints", totalPoints.ToString());
+    PlayerPrefs.Save();
+
     // Record per-level best score for unlock progression.
     LevelManager.RecordLevelScore(LevelManager.SelectedLevel, finalScore);
 
     if (gameOverTitleTmp != null)
     {
       gameOverTitleTmp.text = "Game Over";
+      gameOverTitleTmp.color = Color.white;
+    }
+    if (gameOverNewHighScoreGo != null)
+    {
+      gameOverNewHighScoreGo.SetActive(isNewHighScore);
     }
     if (gameOverDailySubtitleTmp != null)
     {

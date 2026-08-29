@@ -212,6 +212,7 @@ public class CatcherManager : MonoBehaviour
         UpdateCatcherFeedback();
         UpdateMagnetGlow();
         UpdateShieldBubble();
+        UpdateSwapBubble();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -429,6 +430,70 @@ public class CatcherManager : MonoBehaviour
 
             float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
             float fadeFactor = remaining / 5f;
+            Color c = sr.material.GetColor("_BaseColor");
+            c.a = 0.2f * alpha * fadeFactor;
+            sr.material.SetColor("_BaseColor", c);
+        }
+    }
+
+    private GameObject swapBubble;
+
+    void UpdateSwapBubble()
+    {
+        if (catcherInstance == null) return;
+
+        bool shouldShow = PowerUpManager.SwapActive;
+
+        if (shouldShow && swapBubble == null)
+        {
+            swapBubble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            swapBubble.name = "SwapBubble";
+            swapBubble.transform.SetParent(catcherInstance.transform, false);
+            swapBubble.transform.localPosition = Vector3.zero;
+            swapBubble.transform.localScale = Vector3.one * 2.5f;
+
+            Collider col = swapBubble.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            Renderer r = swapBubble.GetComponent<Renderer>();
+            if (r != null)
+            {
+                Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit")
+                    ?? Shader.Find("Unlit/Color"));
+                mat.SetFloat("_Surface", 1f);
+                mat.SetFloat("_Blend", 0f);
+                mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                mat.SetFloat("_ZWrite", 0f);
+                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+                mat.renderQueue = 3000;
+                mat.SetColor("_BaseColor", new Color(0.2f, 0.5f, 1f, 0.15f));
+                r.material = mat;
+            }
+        }
+        else if (!shouldShow && swapBubble != null)
+        {
+            Destroy(swapBubble);
+            swapBubble = null;
+            return;
+        }
+
+        if (!shouldShow || swapBubble == null) return;
+
+        // Blink in last 3 seconds.
+        float remaining = PowerUpManager.SwapTimeRemaining;
+        Renderer sr = swapBubble.GetComponent<Renderer>();
+        if (sr == null) return;
+
+        if (remaining <= 3f && remaining > 0f)
+        {
+            float blinkFreq;
+            if (remaining > 2f) blinkFreq = 3f;
+            else if (remaining > 1f) blinkFreq = 7f;
+            else blinkFreq = 14f;
+
+            float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            float fadeFactor = remaining / 3f;
             Color c = sr.material.GetColor("_BaseColor");
             c.a = 0.2f * alpha * fadeFactor;
             sr.material.SetColor("_BaseColor", c);

@@ -94,7 +94,9 @@ public class FallingObject : MonoBehaviour
     public bool isRushRedGem { get; set; } = false;
     public bool isRushMagnet { get; set; } = false;
     public bool isRushShield { get; set; } = false;
+    public bool isRushDice { get; set; } = false;
     public bool isRushDiamondGem { get; set; } = false;
+    public bool isRushGoldenGem { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -140,6 +142,9 @@ public class FallingObject : MonoBehaviour
 
         // Rush diamond gems glow white.
         if (isRushDiamondGem) return new Color(1f, 1f, 1f, 1f);
+
+        // Rush golden gems (Level 3 upgrade) glow gold.
+        if (isRushGoldenGem) return new Color(1f, 0.85f, 0.35f, 1f);
 
         if (burstColor != Color.clear) return burstColor;
 
@@ -201,7 +206,9 @@ public class FallingObject : MonoBehaviour
         isRushRedGem = false;
         isRushMagnet = false;
         isRushShield = false;
+        isRushDice = false;
         isRushDiamondGem = false;
+        isRushGoldenGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
@@ -593,7 +600,7 @@ public class FallingObject : MonoBehaviour
         transform.Translate(movementDirection * dt, Space.World);
 
         // Magnet attraction: pull gems toward the catcher when magnet is active.
-        if (!isHazard && !isRushMagnet && PowerUpManager.MagnetActive)
+        if (!isHazard && !isRushMagnet && !isRushShield && !isRushDice && PowerUpManager.MagnetActive)
         {
             GameObject catcher = CatcherManager.Instance != null ? CatcherManager.Instance.CatcherInstance : null;
             if (catcher != null)
@@ -660,6 +667,13 @@ public class FallingObject : MonoBehaviour
 
             // Shield power-up missed — no penalty.
             if (isRushShield)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // Dice (swap) power-up missed — no penalty.
+            if (isRushDice)
             {
                 gameObject.SetActive(false);
                 return;
