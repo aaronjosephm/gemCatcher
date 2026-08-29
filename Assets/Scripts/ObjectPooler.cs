@@ -754,7 +754,7 @@ public class ObjectPooler : MonoBehaviour
         {
             // Level 2: RedDiamond (40pts) → DiamondGem (80pts)
             baseGem = "RedDiamond";
-            upgradeGem = "DiamondGem";
+            upgradeGem = "Magic_Gem_1";
             useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
             isDiamond = useUpgrade;
             isRed = !useUpgrade; // base gem in level 2 is always red
