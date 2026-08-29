@@ -268,8 +268,15 @@ public class ObjectPooler : MonoBehaviour
                     GameObject obj = Instantiate(extraPrefab);
                     obj.SetActive(false);
                     FallingObject fallingObj = obj.GetComponent<FallingObject>();
-                    if (fallingObj != null)
-                        fallingObj.fallSpeed = currentFallSpeed;
+                    if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
+                    fallingObj.fallSpeed = currentFallSpeed;
+                    // Ensure a collider exists for catch detection.
+                    if (obj.GetComponent<Collider>() == null)
+                    {
+                        SphereCollider sc = obj.AddComponent<SphereCollider>();
+                        sc.radius = 0.5f;
+                        sc.isTrigger = true;
+                    }
                     objectPool.Add(obj);
                 }
             }
