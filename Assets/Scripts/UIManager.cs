@@ -175,6 +175,20 @@ public class UIManager : MonoBehaviour
     if (Instance != null && Instance != this) return;
     Instance = this;
 
+    // Redirect to the correct scene immediately if we're on the wrong one.
+    // This runs before the first frame renders, avoiding a flash of the wrong
+    // level's visuals (e.g. DeepSpace rocks when loading Jungle Falls).
+    string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+    if (currentScene != "Tutorial")
+    {
+      string expectedScene = LevelManager.CurrentConfig.sceneName;
+      if (currentScene != expectedScene)
+      {
+        UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
+        return;
+      }
+    }
+
     // Load high score early so the menu panel can display it.
     highScore = PlayerPrefs.GetInt("HighScore", 0);
 
@@ -228,12 +242,7 @@ public class UIManager : MonoBehaviour
     }
     else
     {
-      string expectedScene = LevelManager.CurrentConfig.sceneName;
-      if (currentScene != expectedScene)
-      {
-        UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
-        return;
-      }
+      // Scene redirect now happens in Awake(); no need to check here.
     }
 
     // Initialize UI
