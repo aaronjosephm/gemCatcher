@@ -174,6 +174,15 @@ public class UIManager : MonoBehaviour
   {
     if (Instance != null && Instance != this) return;
     Instance = this;
+
+    // Load high score early so the menu panel can display it.
+    highScore = PlayerPrefs.GetInt("HighScore", 0);
+
+    // Build the menu overlay early so it's visible on the very first frame,
+    // avoiding a flash of the bare scene on level 2/3 relaunch.
+    EnsureHudCanvas();
+    EnsureMainMenuPanel();
+    if (mainMenuPanel != null) mainMenuPanel.SetActive(true);
   }
 
   void Start()
