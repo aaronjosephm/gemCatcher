@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space }
+    public enum LevelId { Cave, Jungle, Space, Lava }
 
     [System.Serializable]
     public struct LevelConfig
@@ -94,6 +94,26 @@ public static class LevelManager
             dailyMinSpawnInterval = 1.2f,
             catcherYOffset = 0f,
             placementDuration = 3.0f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Lava,
+            displayName = "Lava Lamp",
+            sceneName = "LavaLamp",
+            backgroundResource = null,
+            midgroundResource = null,
+            musicResource = "Audio/SpaceMusic",
+            extraGemPrefabs = null,
+            unlockScore = 100,
+            cameraColor = new Color(0.02f, 0.01f, 0.04f, 1f),
+            initialFallSpeed = 5.0f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.18f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 9.0f,
+            dailyMinSpawnInterval = 1.0f,
+            catcherYOffset = 0f,
+            placementDuration = 2.5f,
         },
     };
 

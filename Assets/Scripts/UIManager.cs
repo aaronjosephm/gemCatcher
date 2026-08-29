@@ -249,6 +249,27 @@ public class UIManager : MonoBehaviour
     else
     {
       // Scene redirect now happens in Awake(); no need to check here.
+
+      // Spawn lava lamp background for Level 4
+      if (LevelManager.SelectedLevel == LevelManager.LevelId.Lava)
+      {
+        // Hide cave background elements from the copied scene
+        foreach (string objName in new[] {
+            "Plane", "BackgroundPlane", "MidgroundPlane",
+            "Rock2", "Rock5A",
+            "Magic_Gem_9", "Magic_Gem_9 (1)",
+            "Magic_Gem_13", "Magic_Gem_13 (1)", "Magic_Gem_13 (2)",
+            "Magic_Gem_14", "Magic_Gem_14 (1)" })
+        {
+          GameObject obj = GameObject.Find(objName);
+          if (obj != null) obj.SetActive(false);
+        }
+        CaveBackgroundFit cbf = FindObjectOfType<CaveBackgroundFit>();
+        if (cbf != null) cbf.enabled = false;
+
+        // Spawn the procedural lava lamp background
+        new GameObject("LavaLampBG").AddComponent<LavaLampBackground>();
+      }
     }
 
     // Initialize UI
@@ -2108,7 +2129,8 @@ public class UIManager : MonoBehaviour
     diffTmp.color = new Color(1f, 0.85f, 0.35f);
     diffTmp.text = config.id == LevelManager.LevelId.Cave ? "Easy"
                  : config.id == LevelManager.LevelId.Jungle ? "Hard"
-                 : "Expert";
+                 : config.id == LevelManager.LevelId.Space ? "Expert"
+                 : "Brutal";
 
     // Button interaction
     if (unlocked && !selected)

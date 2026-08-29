@@ -17,4 +17,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/Tutorial.unity
     guid: 1ae4e766508c4924999b2999ea3199b4
+  - enabled: 1
+    path: Assets/Scenes/LavaLamp.unity
+    guid: 79a473eed730440b887e908cd97d8071
   m_configObjects: {}
