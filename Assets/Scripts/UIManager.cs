@@ -133,6 +133,7 @@ public class UIManager : MonoBehaviour
   // Daily-mode flavor for the shared game-over panel — title swap and a
   // subtitle that shows "Day N · Streak X". Cached at panel-build time.
   private TextMeshProUGUI gameOverTitleTmp;
+  private GameObject gameOverNewHighScoreGo;
   private TextMeshProUGUI gameOverDailySubtitleTmp;
 
   // ---- Power-up HUD ------------------------------------------------------
@@ -1211,13 +1212,30 @@ public class UIManager : MonoBehaviour
     titleRect.sizeDelta = new Vector2(900f, 130f);
     TextMeshProUGUI title = titleGo.AddComponent<TextMeshProUGUI>();
     title.text = "Game Over";
-    title.enableAutoSizing = true;
-    title.fontSizeMin = 50f;
-    title.fontSizeMax = 110f;
+    title.fontSize = 110f;
     title.fontStyle = FontStyles.Bold;
     title.alignment = TextAlignmentOptions.Center;
     title.color = Color.white;
     gameOverTitleTmp = title;
+
+    // "NEW HIGH SCORE!" subtitle — shown below title only when a record is set.
+    GameObject newHsGo = new GameObject("NewHighScore", typeof(RectTransform));
+    newHsGo.transform.SetParent(contentParent, false);
+    RectTransform newHsRect = newHsGo.GetComponent<RectTransform>();
+    newHsRect.anchorMin = new Vector2(0.5f, 0.5f);
+    newHsRect.anchorMax = new Vector2(0.5f, 0.5f);
+    newHsRect.pivot = new Vector2(0.5f, 0.5f);
+    newHsRect.anchoredPosition = new Vector2(0f, -80f);
+    newHsRect.sizeDelta = new Vector2(800f, 60f);
+    TextMeshProUGUI newHsTmp = newHsGo.AddComponent<TextMeshProUGUI>();
+    newHsTmp.text = "NEW HIGH SCORE!";
+    newHsTmp.fontSize = 48f;
+    newHsTmp.fontStyle = FontStyles.Bold;
+    newHsTmp.alignment = TextAlignmentOptions.Center;
+    newHsTmp.color = new Color(1f, 0.85f, 0.35f);
+    newHsTmp.enableWordWrapping = false;
+    gameOverNewHighScoreGo = newHsGo;
+    newHsGo.SetActive(false);
 
     // Daily-mode subtitle — empty / hidden when ShowGameOverPanel runs in
     // Normal mode. Sits between the title and "Final Score" line. Stretches
@@ -2537,8 +2555,12 @@ public class UIManager : MonoBehaviour
 
     if (gameOverTitleTmp != null)
     {
-      gameOverTitleTmp.text = isNewHighScore ? "NEW HIGH SCORE!" : "Game Over";
-      gameOverTitleTmp.color = isNewHighScore ? new Color(1f, 0.85f, 0.35f) : Color.white;
+      gameOverTitleTmp.text = "Game Over";
+      gameOverTitleTmp.color = Color.white;
+    }
+    if (gameOverNewHighScoreGo != null)
+    {
+      gameOverNewHighScoreGo.SetActive(isNewHighScore);
     }
     if (gameOverDailySubtitleTmp != null)
     {
