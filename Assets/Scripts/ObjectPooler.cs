@@ -256,13 +256,19 @@ public class ObjectPooler : MonoBehaviour
 
         // Load level-specific extra gem prefabs from Resources.
         var cfg = LevelManager.CurrentConfig;
+        Debug.Log($"[ObjectPooler] Level={cfg.id}, Rush={GameState.Mode == GameState.GameMode.Rush}, poolSize={effectivePoolSize}");
         placementDuration = cfg.placementDuration > 0f ? cfg.placementDuration : 3f;
         if (cfg.extraGemPrefabs != null)
         {
             foreach (string path in cfg.extraGemPrefabs)
             {
                 GameObject extraPrefab = Resources.Load<GameObject>(path);
-                if (extraPrefab == null) continue;
+                if (extraPrefab == null)
+                {
+                    Debug.LogWarning($"[ObjectPooler] Failed to load extra gem: {path}");
+                    continue;
+                }
+                Debug.Log($"[ObjectPooler] Loaded extra gem '{path}' → internal name '{extraPrefab.name}'");
                 for (int i = 0; i < effectivePoolSize; i++)
                 {
                     GameObject obj = Instantiate(extraPrefab);
@@ -279,6 +285,7 @@ public class ObjectPooler : MonoBehaviour
                     }
                     objectPool.Add(obj);
                 }
+                Debug.Log($"[ObjectPooler] Pooled {effectivePoolSize} instances of '{extraPrefab.name}'");
             }
         }
 
@@ -778,7 +785,11 @@ public class ObjectPooler : MonoBehaviour
         string prefabName = isHeart ? "HeartGem" : (useUpgrade ? upgradeGem : baseGem);
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
-        if (obj == null) return;
+        if (obj == null)
+        {
+            Debug.LogWarning($"[ObjectPooler] SpawnRushGemAt: no inactive '{prefabName}' found in pool (level={level}, redGemChance={redGemChance}, useUpgrade={useUpgrade})");
+            return;
+        }
 
         obj.transform.position = new Vector3(x, y, 0f);
         obj.transform.rotation = Quaternion.identity;
