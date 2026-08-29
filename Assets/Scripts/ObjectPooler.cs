@@ -747,6 +747,7 @@ public class ObjectPooler : MonoBehaviour
         string baseGem, upgradeGem;
         bool isDiamond = false;
         bool isRed = false;
+        bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
         if (level == LevelManager.LevelId.Jungle)
@@ -754,19 +755,20 @@ public class ObjectPooler : MonoBehaviour
             // Level 2: RedDiamond (40pts) → DiamondGem (80pts)
             baseGem = "RedDiamond";
             upgradeGem = "DiamondGem";
-            bool useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
             isDiamond = useUpgrade;
-            isRed = !useUpgrade; // base gem in level 2 is red
+            isRed = !useUpgrade; // base gem in level 2 is always red
         }
         else
         {
             // Level 1 (and default): GreenVolcom (20pts) → RedDiamond (40pts)
             baseGem = "GreenVolcom";
             upgradeGem = "RedDiamond";
-            isRed = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isRed = useUpgrade;
         }
 
-        string prefabName = isHeart ? "HeartGem" : (isDiamond ? upgradeGem : (isRed ? upgradeGem : baseGem));
+        string prefabName = isHeart ? "HeartGem" : (useUpgrade ? upgradeGem : baseGem);
 
         GameObject obj = GetInactivePooledObjectByPrefabName(objectPool, prefabName);
         if (obj == null) return;
