@@ -41,6 +41,7 @@ public class UIManager : MonoBehaviour
   public float gameOverDelay = 1.0f;
 
   private int highScore = 0;
+  private int highScoreAtRoundStart = 0;
   private long totalPoints = 0;
   private bool gameIsOver = false;
   private bool isFadingOut = false;
@@ -1917,6 +1918,7 @@ public class UIManager : MonoBehaviour
     SetGameplayHudVisible(true);
     GameState.IsPlaying = true;
     gameIsOver = false;
+    highScoreAtRoundStart = highScore;
   }
 
   // Toggles the score/lives HUD so they don't bleed through the menu panels.
@@ -2522,12 +2524,7 @@ public class UIManager : MonoBehaviour
     int finalScore = GemCatcher.Score;
 
     // Check for new high score on this level.
-    bool isNewHighScore = finalScore > highScore && finalScore > 0;
-    if (isNewHighScore)
-    {
-      highScore = finalScore;
-      PlayerPrefs.SetInt(HighScoreKey(), highScore);
-    }
+    bool isNewHighScore = finalScore > highScoreAtRoundStart && finalScore > 0;
 
     // Accumulate total points (lifetime currency).
     totalPoints += finalScore;
