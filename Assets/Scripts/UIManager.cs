@@ -901,6 +901,7 @@ public class UIManager : MonoBehaviour
       case PowerUpType.WiderCatcher: banner = "WIDER CATCHER!"; break;
       case PowerUpType.Shield: banner = "SHIELD UP!"; break;
       case PowerUpType.DoubleScore: banner = "DOUBLE SCORE!"; break;
+      case PowerUpType.Swap: banner = "PROBABILITY FLIPPED!"; break;
       default: return;
     }
     SpawnBannerNotification(banner, color);
@@ -913,7 +914,12 @@ public class UIManager : MonoBehaviour
 
   void HandlePowerUpExpired(PowerUpType type)
   {
-    // No banner on expire — the HUD slot fading away is feedback enough, and
+    // Swap gets an expiry banner since the gameplay change is dramatic.
+    if (type == PowerUpType.Swap)
+    {
+      SpawnBannerNotification("PROBABILITY FLIPPED BACK", new Color(0.2f, 0.5f, 1f));
+    }
+    // No banner on other expires — the HUD slot fading away is feedback enough, and
     // expiry can fire several at once (game-over) which would stack banners.
     RefreshPowerUpHud();
   }
