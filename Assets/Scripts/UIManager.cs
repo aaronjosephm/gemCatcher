@@ -1200,19 +1200,20 @@ public class UIManager : MonoBehaviour
     safeAreaGo.AddComponent<SafeAreaFitter>();
     Transform contentParent = safeAreaGo.transform;
 
-    // Title — anchored to the top of the safe area so it's always above the
-    // breakdown AND below the Dynamic Island / camera lens.
+    // Title — centered on screen.
     GameObject titleGo = new GameObject("Title", typeof(RectTransform));
     titleGo.transform.SetParent(contentParent, false);
     RectTransform titleRect = titleGo.GetComponent<RectTransform>();
-    titleRect.anchorMin = new Vector2(0.5f, 1f);
-    titleRect.anchorMax = new Vector2(0.5f, 1f);
-    titleRect.pivot = new Vector2(0.5f, 1f);
-    titleRect.anchoredPosition = new Vector2(0f, -30f);
-    titleRect.sizeDelta = new Vector2(800f, 130f);
+    titleRect.anchorMin = new Vector2(0.5f, 0.5f);
+    titleRect.anchorMax = new Vector2(0.5f, 0.5f);
+    titleRect.pivot = new Vector2(0.5f, 0.5f);
+    titleRect.anchoredPosition = Vector2.zero;
+    titleRect.sizeDelta = new Vector2(900f, 130f);
     TextMeshProUGUI title = titleGo.AddComponent<TextMeshProUGUI>();
     title.text = "Game Over";
-    title.fontSize = 110f;
+    title.enableAutoSizing = true;
+    title.fontSizeMin = 50f;
+    title.fontSizeMax = 110f;
     title.fontStyle = FontStyles.Bold;
     title.alignment = TextAlignmentOptions.Center;
     title.color = Color.white;
