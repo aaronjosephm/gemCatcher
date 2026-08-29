@@ -1205,8 +1205,8 @@ public class UIManager : MonoBehaviour
     GameObject titleGo = new GameObject("Title", typeof(RectTransform));
     titleGo.transform.SetParent(contentParent, false);
     RectTransform titleRect = titleGo.GetComponent<RectTransform>();
-    titleRect.anchorMin = new Vector2(0.5f, 0.75f);
-    titleRect.anchorMax = new Vector2(0.5f, 0.75f);
+    titleRect.anchorMin = new Vector2(0.5f, 0.85f);
+    titleRect.anchorMax = new Vector2(0.5f, 0.85f);
     titleRect.pivot = new Vector2(0.5f, 0.5f);
     titleRect.anchoredPosition = Vector2.zero;
     titleRect.sizeDelta = new Vector2(900f, 130f);
@@ -1222,8 +1222,8 @@ public class UIManager : MonoBehaviour
     GameObject newHsGo = new GameObject("NewHighScore", typeof(RectTransform));
     newHsGo.transform.SetParent(contentParent, false);
     RectTransform newHsRect = newHsGo.GetComponent<RectTransform>();
-    newHsRect.anchorMin = new Vector2(0.5f, 0.75f);
-    newHsRect.anchorMax = new Vector2(0.5f, 0.75f);
+    newHsRect.anchorMin = new Vector2(0.5f, 0.85f);
+    newHsRect.anchorMax = new Vector2(0.5f, 0.85f);
     newHsRect.pivot = new Vector2(0.5f, 0.5f);
     newHsRect.anchoredPosition = new Vector2(0f, -80f);
     newHsRect.sizeDelta = new Vector2(800f, 60f);
@@ -1263,8 +1263,8 @@ public class UIManager : MonoBehaviour
     GameObject scoreGo = new GameObject("FinalScore", typeof(RectTransform));
     scoreGo.transform.SetParent(contentParent, false);
     RectTransform scoreRect = scoreGo.GetComponent<RectTransform>();
-    scoreRect.anchorMin = new Vector2(0.5f, 0.75f);
-    scoreRect.anchorMax = new Vector2(0.5f, 0.75f);
+    scoreRect.anchorMin = new Vector2(0.5f, 0.85f);
+    scoreRect.anchorMax = new Vector2(0.5f, 0.85f);
     scoreRect.pivot = new Vector2(0.5f, 0.5f);
     scoreRect.anchoredPosition = new Vector2(0f, -150f);
     scoreRect.sizeDelta = new Vector2(900f, 80f);
@@ -1279,8 +1279,8 @@ public class UIManager : MonoBehaviour
     GameObject labelGo = new GameObject("GemsCaughtLabel", typeof(RectTransform));
     labelGo.transform.SetParent(contentParent, false);
     RectTransform labelRect = labelGo.GetComponent<RectTransform>();
-    labelRect.anchorMin = new Vector2(0.5f, 0.75f);
-    labelRect.anchorMax = new Vector2(0.5f, 0.75f);
+    labelRect.anchorMin = new Vector2(0.5f, 0.85f);
+    labelRect.anchorMax = new Vector2(0.5f, 0.85f);
     labelRect.pivot = new Vector2(0.5f, 0.5f);
     labelRect.anchoredPosition = new Vector2(0f, -220f);
     labelRect.sizeDelta = new Vector2(900f, 50f);
@@ -1296,8 +1296,8 @@ public class UIManager : MonoBehaviour
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     iconsGo.transform.SetParent(contentParent, false);
     autoGemIconsContainer = iconsGo.GetComponent<RectTransform>();
-    autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0.75f);
-    autoGemIconsContainer.anchorMax = new Vector2(0.5f, 0.75f);
+    autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0.85f);
+    autoGemIconsContainer.anchorMax = new Vector2(0.5f, 0.85f);
     autoGemIconsContainer.pivot = new Vector2(0.5f, 1f);
     autoGemIconsContainer.anchoredPosition = new Vector2(0f, -250f);
     autoGemIconsContainer.sizeDelta = new Vector2(760f, 200f);
