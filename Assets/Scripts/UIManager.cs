@@ -41,6 +41,7 @@ public class UIManager : MonoBehaviour
   public float gameOverDelay = 1.0f;
 
   private int highScore = 0;
+  private long totalPoints = 0;
   private bool gameIsOver = false;
   private bool isFadingOut = false;
   private float fadeTimer = 0f;
@@ -116,6 +117,8 @@ public class UIManager : MonoBehaviour
   private Image dailyChallengeButtonBg;
   private TextMeshProUGUI bestScoreMenuTmp;
   private GameObject bestScoreMenuGo;
+  private TextMeshProUGUI totalPointsMenuTmp;
+  private GameObject totalPointsMenuGo;
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -190,7 +193,8 @@ public class UIManager : MonoBehaviour
     }
 
     // Load high score early so the menu panel can display it.
-    highScore = PlayerPrefs.GetInt("HighScore", 0);
+    highScore = PlayerPrefs.GetInt(HighScoreKey(), 0);
+    totalPoints = long.Parse(PlayerPrefs.GetString("TotalPoints", "0"));
 
     // Build the menu overlay early so it's visible on the very first frame,
     // avoiding a flash of the bare scene on level 2/3 relaunch.
@@ -251,8 +255,9 @@ public class UIManager : MonoBehaviour
       gameOverPanel.SetActive(false);
     }
 
-    // Load high score from PlayerPrefs
-    highScore = PlayerPrefs.GetInt("HighScore", 0);
+    // Load high score from PlayerPrefs (per-level)
+    highScore = PlayerPrefs.GetInt(HighScoreKey(), 0);
+    totalPoints = long.Parse(PlayerPrefs.GetString("TotalPoints", "0"));
     UpdateHighScoreText();
 
     // Subscribe to score change events
@@ -419,7 +424,7 @@ public class UIManager : MonoBehaviour
     if (newScore > highScore)
     {
       highScore = newScore;
-      PlayerPrefs.SetInt("HighScore", highScore);
+      PlayerPrefs.SetInt(HighScoreKey(), highScore);
       UpdateHighScoreText();
     }
   }
@@ -1420,27 +1425,50 @@ public class UIManager : MonoBehaviour
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
-    // Best score — below buttons, anchored to bottom.
+    // High Score — per-level, below buttons.
     {
       GameObject bestGo = new GameObject("BestScore", typeof(RectTransform));
       bestGo.transform.SetParent(contentParent, false);
       RectTransform bestRect = bestGo.GetComponent<RectTransform>();
-      bestRect.anchorMin = new Vector2(0.5f, 0.08f);
-      bestRect.anchorMax = new Vector2(0.5f, 0.08f);
+      bestRect.anchorMin = new Vector2(0.5f, 0.12f);
+      bestRect.anchorMax = new Vector2(0.5f, 0.12f);
       bestRect.pivot = new Vector2(0.5f, 0.5f);
       bestRect.anchoredPosition = Vector2.zero;
-      bestRect.sizeDelta = new Vector2(600f, 80f);
+      bestRect.sizeDelta = new Vector2(600f, 60f);
       TextMeshProUGUI best = bestGo.AddComponent<TextMeshProUGUI>();
-      best.text = "BEST  " + highScore;
+      best.text = "High Score  " + highScore;
       best.fontStyle = FontStyles.Bold;
       best.alignment = TextAlignmentOptions.Center;
       best.color = new Color(1f, 0.85f, 0.35f);
-      best.characterSpacing = 8f;
-      best.fontSize = 52f;
+      best.characterSpacing = 4f;
+      best.fontSize = 42f;
       best.enableWordWrapping = false;
       bestScoreMenuTmp = best;
       bestScoreMenuGo = bestGo;
       bestGo.SetActive(highScore > 0);
+    }
+
+    // Total Points — lifetime currency across all levels.
+    {
+      GameObject totalGo = new GameObject("TotalPoints", typeof(RectTransform));
+      totalGo.transform.SetParent(contentParent, false);
+      RectTransform totalRect = totalGo.GetComponent<RectTransform>();
+      totalRect.anchorMin = new Vector2(0.5f, 0.05f);
+      totalRect.anchorMax = new Vector2(0.5f, 0.05f);
+      totalRect.pivot = new Vector2(0.5f, 0.5f);
+      totalRect.anchoredPosition = Vector2.zero;
+      totalRect.sizeDelta = new Vector2(600f, 50f);
+      TextMeshProUGUI totalTmp = totalGo.AddComponent<TextMeshProUGUI>();
+      totalTmp.text = "Total Points  " + totalPoints.ToString("N0");
+      totalTmp.fontStyle = FontStyles.Bold;
+      totalTmp.alignment = TextAlignmentOptions.Center;
+      totalTmp.color = new Color(0.7f, 0.85f, 1f);
+      totalTmp.characterSpacing = 4f;
+      totalTmp.fontSize = 36f;
+      totalTmp.enableWordWrapping = false;
+      totalPointsMenuTmp = totalTmp;
+      totalPointsMenuGo = totalGo;
+      totalGo.SetActive(totalPoints > 0);
     }
 
     mainMenuPanel = panel;
@@ -1860,8 +1888,13 @@ public class UIManager : MonoBehaviour
     // Refresh best score display in case it changed after a game.
     if (bestScoreMenuTmp != null)
     {
-      bestScoreMenuTmp.text = "BEST  " + highScore;
+      bestScoreMenuTmp.text = "High Score  " + highScore;
       bestScoreMenuGo.SetActive(highScore > 0);
+    }
+    if (totalPointsMenuTmp != null)
+    {
+      totalPointsMenuTmp.text = "Total Points  " + totalPoints.ToString("N0");
+      totalPointsMenuGo.SetActive(totalPoints > 0);
     }
     FadePanel(mainMenuPanel, true, 0.25f);
 
@@ -2440,6 +2473,11 @@ public class UIManager : MonoBehaviour
     return go;
   }
 
+  static string HighScoreKey()
+  {
+    return "HighScore_" + LevelManager.SelectedLevel.ToString();
+  }
+
   void UpdateHighScoreText()
   {
     if (highScoreText != null)
@@ -2483,12 +2521,26 @@ public class UIManager : MonoBehaviour
   {
     int finalScore = GemCatcher.Score;
 
+    // Check for new high score on this level.
+    bool isNewHighScore = finalScore > highScore && finalScore > 0;
+    if (isNewHighScore)
+    {
+      highScore = finalScore;
+      PlayerPrefs.SetInt(HighScoreKey(), highScore);
+    }
+
+    // Accumulate total points (lifetime currency).
+    totalPoints += finalScore;
+    PlayerPrefs.SetString("TotalPoints", totalPoints.ToString());
+    PlayerPrefs.Save();
+
     // Record per-level best score for unlock progression.
     LevelManager.RecordLevelScore(LevelManager.SelectedLevel, finalScore);
 
     if (gameOverTitleTmp != null)
     {
-      gameOverTitleTmp.text = "Game Over";
+      gameOverTitleTmp.text = isNewHighScore ? "NEW HIGH SCORE!" : "Game Over";
+      gameOverTitleTmp.color = isNewHighScore ? new Color(1f, 0.85f, 0.35f) : Color.white;
     }
     if (gameOverDailySubtitleTmp != null)
     {
