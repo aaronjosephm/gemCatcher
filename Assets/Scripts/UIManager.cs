@@ -1259,51 +1259,48 @@ public class UIManager : MonoBehaviour
     gameOverDailySubtitleTmp.enableWordWrapping = false;
     dailySubGo.SetActive(false);
 
-    // Headline "Final Score: X" — one line, anchored just below the title.
+    // Headline "Final Score: X" — centered below title.
     GameObject scoreGo = new GameObject("FinalScore", typeof(RectTransform));
     scoreGo.transform.SetParent(contentParent, false);
     RectTransform scoreRect = scoreGo.GetComponent<RectTransform>();
-    scoreRect.anchorMin = new Vector2(0.5f, 1f);
-    scoreRect.anchorMax = new Vector2(0.5f, 1f);
-    scoreRect.pivot = new Vector2(0.5f, 1f);
-    scoreRect.anchoredPosition = new Vector2(0f, -180f);
-    scoreRect.sizeDelta = new Vector2(900f, 90f);
+    scoreRect.anchorMin = new Vector2(0.5f, 0.5f);
+    scoreRect.anchorMax = new Vector2(0.5f, 0.5f);
+    scoreRect.pivot = new Vector2(0.5f, 0.5f);
+    scoreRect.anchoredPosition = new Vector2(0f, -150f);
+    scoreRect.sizeDelta = new Vector2(900f, 80f);
     autoFinalScoreText = scoreGo.AddComponent<TextMeshProUGUI>();
     autoFinalScoreText.text = "Final Score: 0";
-    autoFinalScoreText.fontSize = 64f;
+    autoFinalScoreText.fontSize = 58f;
     autoFinalScoreText.fontStyle = FontStyles.Bold;
     autoFinalScoreText.alignment = TextAlignmentOptions.Center;
     autoFinalScoreText.color = Color.white;
 
-    // "Gems Caught:" subhead.
+    // "Gems Caught" subhead.
     GameObject labelGo = new GameObject("GemsCaughtLabel", typeof(RectTransform));
     labelGo.transform.SetParent(contentParent, false);
     RectTransform labelRect = labelGo.GetComponent<RectTransform>();
-    labelRect.anchorMin = new Vector2(0.5f, 1f);
-    labelRect.anchorMax = new Vector2(0.5f, 1f);
-    labelRect.pivot = new Vector2(0.5f, 1f);
-    labelRect.anchoredPosition = new Vector2(0f, -290f);
-    labelRect.sizeDelta = new Vector2(900f, 60f);
+    labelRect.anchorMin = new Vector2(0.5f, 0.5f);
+    labelRect.anchorMax = new Vector2(0.5f, 0.5f);
+    labelRect.pivot = new Vector2(0.5f, 0.5f);
+    labelRect.anchoredPosition = new Vector2(0f, -220f);
+    labelRect.sizeDelta = new Vector2(900f, 50f);
     TextMeshProUGUI gemsCaughtLabel = labelGo.AddComponent<TextMeshProUGUI>();
     gemsCaughtLabel.text = "Gems Caught";
-    gemsCaughtLabel.fontSize = 44f;
+    gemsCaughtLabel.fontSize = 40f;
     gemsCaughtLabel.fontStyle = FontStyles.Bold;
     gemsCaughtLabel.alignment = TextAlignmentOptions.Center;
     gemsCaughtLabel.color = new Color(0.85f, 0.85f, 0.85f);
 
-    // Vertical icon list — one row per gem type. Stretches between the subhead at top
-    // and the retry button at the bottom; rows are stacked by VerticalLayoutGroup.
+    // Vertical icon list — one row per gem type, centered below "Gems Caught".
     GameObject iconsGo = new GameObject("GemIconsContainer",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     iconsGo.transform.SetParent(contentParent, false);
     autoGemIconsContainer = iconsGo.GetComponent<RectTransform>();
-    autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0f);
-    autoGemIconsContainer.anchorMax = new Vector2(0.5f, 1f);
+    autoGemIconsContainer.anchorMin = new Vector2(0.5f, 0.5f);
+    autoGemIconsContainer.anchorMax = new Vector2(0.5f, 0.5f);
     autoGemIconsContainer.pivot = new Vector2(0.5f, 1f);
-    // Reserve ~360 px at the top (title + final score + label + gap) and ~300 px at
-    // the bottom for the stacked Try Again + Main Menu buttons.
-    autoGemIconsContainer.offsetMin = new Vector2(-380f, 300f);
-    autoGemIconsContainer.offsetMax = new Vector2(380f, -360f);
+    autoGemIconsContainer.anchoredPosition = new Vector2(0f, -250f);
+    autoGemIconsContainer.sizeDelta = new Vector2(760f, 200f);
     VerticalLayoutGroup vlg = iconsGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.UpperCenter;
     vlg.spacing = 12f;
