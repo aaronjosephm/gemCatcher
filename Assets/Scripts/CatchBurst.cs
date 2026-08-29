@@ -9,7 +9,24 @@ using UnityEngine;
 /// </summary>
 public static class CatchBurst
 {
+  /// <summary>Spawn a burst scaled to the gem's point value (20/40/80/160).</summary>
+  public static void Spawn(Vector3 worldPosition, Color color, int points)
+  {
+    // Scale intensity: 20pts = baseline, 160pts = 4× bigger burst.
+    float t = Mathf.Clamp01((points - 20f) / 140f); // 0 at 20, 1 at 160
+    int burstCount = Mathf.RoundToInt(Mathf.Lerp(28f, 80f, t));
+    float size = Mathf.Lerp(0.18f, 0.35f, t);
+    float speed = Mathf.Lerp(4.5f, 7f, t);
+    SpawnInternal(worldPosition, color, burstCount, size, speed);
+  }
+
   public static void Spawn(Vector3 worldPosition, Color color)
+  {
+    SpawnInternal(worldPosition, color, 28, 0.18f, 4.5f);
+  }
+
+  private static void SpawnInternal(Vector3 worldPosition, Color color,
+      int burstCount, float size, float speed)
   {
     GameObject go = new GameObject("CatchBurst");
     go.transform.position = worldPosition;
@@ -22,8 +39,8 @@ public static class CatchBurst
     main.duration = 0.6f;
     main.loop = false;
     main.startLifetime = 0.55f;
-    main.startSpeed = 4.5f;
-    main.startSize = 0.18f;
+    main.startSpeed = speed;
+    main.startSize = size;
     main.startColor = color;
     main.maxParticles = 60;
     main.simulationSpace = ParticleSystemSimulationSpace.World;
@@ -33,7 +50,7 @@ public static class CatchBurst
 
     var emission = ps.emission;
     emission.rateOverTime = 0f;
-    emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 28) });
+    emission.SetBursts(new[] { new ParticleSystem.Burst(0f, (short)burstCount) });
 
     var shape = ps.shape;
     shape.shapeType = ParticleSystemShapeType.Sphere;
