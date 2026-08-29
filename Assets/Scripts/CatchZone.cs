@@ -283,7 +283,7 @@ public class CatchZone : MonoBehaviour
         string gemName = fo.gameObject.name.Replace("(Clone)", "").Trim();
         rm.RecordCatch(gemName);
 
-        PlayCatchEffect(fo, basePoints);
+        PlayCatchEffect(fo);
     }
 
     // ---- Bomb handling -----------------------------------------------------
@@ -310,13 +310,10 @@ public class CatchZone : MonoBehaviour
 
     // ---- Catch effect -------------------------------------------------------
 
-    private void PlayCatchEffect(FallingObject fo, int points = 0)
+    private void PlayCatchEffect(FallingObject fo)
     {
         Color burstColor = fo.GetBurstColor();
-        if (points > 0)
-            CatchBurst.Spawn(fo.transform.position, burstColor, points);
-        else
-            CatchBurst.Spawn(fo.transform.position, burstColor);
+        CatchBurst.Spawn(fo.transform.position, burstColor);
     }
 
     // ---- Invincibility --------------------------------------------------------
