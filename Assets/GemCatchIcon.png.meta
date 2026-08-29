@@ -1,9 +1,13 @@
 fileFormatVersion: 2
+<<<<<<<< HEAD:Assets/GemCatchIcon.png.meta
 guid: ef53e52c65db4405389dcce8d08de1ea
+========
+guid: 0572f38cfb5f41c42a59031b97a7b609
+>>>>>>>> origin/main:Assets/Toony_Items_Pack/Textures/Hue_Palette_V1_0.png.meta
 TextureImporter:
   internalIDToNameTable: []
   externalObjects: {}
-  serializedVersion: 13
+  serializedVersion: 12
   mipmaps:
     mipMapMode: 0
     enableMipMap: 1
@@ -20,12 +24,11 @@ TextureImporter:
     externalNormalMap: 0
     heightScale: 0.25
     normalMapFilter: 0
-    flipGreenChannel: 0
   isReadable: 0
   streamingMipmaps: 0
   streamingMipmapsPriority: 0
   vTOnly: 0
-  ignoreMipmapLimit: 0
+  ignoreMasterTextureLimit: 0
   grayScaleToAlpha: 0
   generateCubemap: 6
   cubemapConvolution: 0
@@ -64,10 +67,9 @@ TextureImporter:
   textureFormatSet: 0
   ignorePngGamma: 0
   applyGammaDecoding: 0
-  swizzle: 50462976
   cookieLightType: 0
   platformSettings:
-  - serializedVersion: 4
+  - serializedVersion: 3
     buildTarget: DefaultTexturePlatform
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -77,10 +79,9 @@ TextureImporter:
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
-    ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
-  - serializedVersion: 4
+  - serializedVersion: 3
     buildTarget: Standalone
     maxTextureSize: 2048
     resizeAlgorithm: 0
@@ -90,9 +91,9 @@ TextureImporter:
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
-    ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
+<<<<<<<< HEAD:Assets/GemCatchIcon.png.meta
   - serializedVersion: 4
     buildTarget: Android
     maxTextureSize: 2048
@@ -108,6 +109,10 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   - serializedVersion: 4
     buildTarget: iOS
+========
+  - serializedVersion: 3
+    buildTarget: Server
+>>>>>>>> origin/main:Assets/Toony_Items_Pack/Textures/Hue_Palette_V1_0.png.meta
     maxTextureSize: 2048
     resizeAlgorithm: 0
     textureFormat: -1
@@ -116,14 +121,12 @@ TextureImporter:
     crunchedCompression: 0
     allowsAlphaSplitting: 0
     overridden: 0
-    ignorePlatformSupport: 0
     androidETC2FallbackOverride: 0
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
     sprites: []
     outline: []
-    customData: 
     physicsShape: []
     bones: []
     spriteID: 
@@ -133,11 +136,17 @@ TextureImporter:
     edges: []
     weights: []
     secondaryTextures: []
-    spriteCustomMetadata:
-      entries: []
     nameFileIdTable: {}
-  mipmapLimitGroupName: 
+  spritePackingTag: 
   pSDRemoveMatte: 0
+  pSDShowRemoveMatteOption: 0
   userData: 
   assetBundleName: 
   assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 348798
+  packageName: Toony Items Pack
+  packageVersion: 1.0
+  assetPath: Assets/Toony_Items_Pack/Textures/Hue_Palette_V1_0.png
+  uploadId: 830290
