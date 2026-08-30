@@ -2406,8 +2406,9 @@ public class UIManager : MonoBehaviour
     else if (canAfford) { statusTmp.text = $"{def.price:N0} pts"; statusTmp.color = new Color(1f, 0.85f, 0.35f); }
     else                { statusTmp.text = $"{def.price:N0} pts"; statusTmp.color = new Color(0.6f, 0.4f, 0.3f); }
 
-    // ── Right side: two buttons (Preview + Action) ──
-    // Preview button
+    // ── Right side: buttons ──
+    // Preview button (only for items not yet owned)
+    if (!owned)
     {
       GameObject btnGo = new GameObject("PreviewBtn",
           typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
@@ -2452,7 +2453,7 @@ public class UIManager : MonoBehaviour
           typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
       btnGo.transform.SetParent(cardGo.transform, false);
       RectTransform btnRect = btnGo.GetComponent<RectTransform>();
-      btnRect.anchorMin = new Vector2(0.76f, 0.15f);
+      btnRect.anchorMin = new Vector2(owned ? 0.52f : 0.76f, 0.15f);
       btnRect.anchorMax = new Vector2(0.98f, 0.85f);
       btnRect.offsetMin = Vector2.zero;
       btnRect.offsetMax = Vector2.zero;
