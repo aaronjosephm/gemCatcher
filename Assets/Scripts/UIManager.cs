@@ -3059,7 +3059,7 @@ public class UIManager : MonoBehaviour
     var cm = FindObjectOfType<CatcherManager>();
     Color glassCol = (cm != null)
         ? cm.glassColor
-        : new Color(0.65f, 0.85f, 1f, 1f);
+        : Color.white;
 
     foreach (var rend in shopPreviewCatchy.GetComponentsInChildren<Renderer>())
     {

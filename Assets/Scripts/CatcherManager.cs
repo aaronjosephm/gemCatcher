@@ -44,7 +44,7 @@ public class CatcherManager : MonoBehaviour
 
     [Header("Catcher Appearance")]
     [Tooltip("Tint of the catcher.")]
-    public Color glassColor = new Color(0.65f, 0.85f, 1.00f, 1.00f);
+    public Color glassColor = new Color(1f, 1f, 1f, 1f);
     [Range(0f, 1f)]
     [Tooltip("Catcher transparency. 0 = fully transparent, 1 = fully opaque.")]
     public float glassOpacity = 1f;
