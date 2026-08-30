@@ -117,7 +117,7 @@ public static class LevelManager
             dailyMinSpawnInterval = 1.0f,
             catcherYOffset = 0f,
             placementDuration = 2.5f,
-            backgroundWallZ = 5f,
+            backgroundWallZ = 100f,
         },
     };
 
