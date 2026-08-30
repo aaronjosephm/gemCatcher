@@ -102,6 +102,7 @@ public class UIManager : MonoBehaviour
   private TextMeshProUGUI shopBalanceText;
   private Transform shopGridContainer;
   private GameObject shopActionArea;    // buy/equip bar at bottom
+  private Transform shopTabContainer;
 
   // Auto-created on first request. Shown when the OS backgrounds the app
   // (incoming call, home button, app switcher) so the player can resume on
@@ -221,10 +222,6 @@ public class UIManager : MonoBehaviour
 
   void Start()
   {
-    // DEBUG: reset wearable purchases for testing — remove before release
-    WearableManager.ResetAll();
-    SkinManager.ResetAll();
-
     levelAtSceneLoad = LevelManager.SelectedLevel;
 
     // If the app started/restarted and the loaded scene doesn't match the
@@ -2259,6 +2256,7 @@ public class UIManager : MonoBehaviour
     shopBalanceText = null;
     shopGridContainer = null;
     shopActionArea = null;
+    shopTabContainer = null;
   }
 
   void SetupShopPreview()
@@ -2326,6 +2324,7 @@ public class UIManager : MonoBehaviour
       var spinner = shopPreviewCatchy.AddComponent<SimpleSpinner>();
       spinner.speed = new Vector3(0f, 30f, 0f);
       CatcherManager.Instance.ApplyGlassAppearance(shopPreviewCatchy);
+      RestorePreviewFaceColors();
       ApplyShopPreviewWearables(null);
     }
   }
@@ -2436,7 +2435,7 @@ public class UIManager : MonoBehaviour
       titleR.anchorMin = new Vector2(0.15f, 0f);
       titleR.anchorMax = new Vector2(0.5f, 1f);
       titleR.offsetMin = Vector2.zero; titleR.offsetMax = Vector2.zero;
-      titleTmp.text = "SHOP";
+      titleTmp.text = "STORE";
       titleTmp.fontSize = 36;
       titleTmp.fontStyle = FontStyles.Bold;
       titleTmp.alignment = TextAlignmentOptions.MidlineLeft;
@@ -2499,18 +2498,20 @@ public class UIManager : MonoBehaviour
     GameObject tabRow = new GameObject("TabRow", typeof(RectTransform));
     tabRow.transform.SetParent(content, false);
     RectTransform tabRowR = tabRow.GetComponent<RectTransform>();
-    tabRowR.anchorMin = new Vector2(0.08f, 0.49f);
-    tabRowR.anchorMax = new Vector2(0.92f, 0.54f);
+    tabRowR.anchorMin = new Vector2(0.08f, 0.485f);
+    tabRowR.anchorMax = new Vector2(0.92f, 0.545f);
     tabRowR.offsetMin = Vector2.zero;
     tabRowR.offsetMax = Vector2.zero;
 
     HorizontalLayoutGroup tabHlg = tabRow.AddComponent<HorizontalLayoutGroup>();
     tabHlg.childAlignment = TextAnchor.MiddleCenter;
-    tabHlg.spacing = 12f;
+    tabHlg.spacing = 14f;
     tabHlg.childControlWidth = true;
     tabHlg.childControlHeight = true;
     tabHlg.childForceExpandWidth = true;
     tabHlg.childForceExpandHeight = true;
+    tabHlg.padding = new RectOffset(8, 8, 0, 0);
+    shopTabContainer = tabRow.transform;
 
     BuildShopTab(tabRow.transform, "Wearables", "wearables");
     BuildShopTab(tabRow.transform, "Skins", "skins");
@@ -2522,8 +2523,8 @@ public class UIManager : MonoBehaviour
     GameObject scrollGo = new GameObject("ItemScroll", typeof(RectTransform));
     scrollGo.transform.SetParent(content, false);
     RectTransform scrollR = scrollGo.GetComponent<RectTransform>();
-    scrollR.anchorMin = new Vector2(0.04f, 0.13f);
-    scrollR.anchorMax = new Vector2(0.96f, 0.48f);
+    scrollR.anchorMin = new Vector2(0.05f, 0.14f);
+    scrollR.anchorMax = new Vector2(0.95f, 0.47f);
     scrollR.offsetMin = Vector2.zero;
     scrollR.offsetMax = Vector2.zero;
 
@@ -2551,14 +2552,14 @@ public class UIManager : MonoBehaviour
     gridR.sizeDelta = new Vector2(0f, 0f);
 
     GridLayoutGroup glg = gridGo.GetComponent<GridLayoutGroup>();
-    glg.cellSize = new Vector2(250f, 170f);
-    glg.spacing = new Vector2(16f, 16f);
+    glg.cellSize = new Vector2(258f, 176f);
+    glg.spacing = new Vector2(18f, 18f);
     glg.startCorner = GridLayoutGroup.Corner.UpperLeft;
     glg.startAxis = GridLayoutGroup.Axis.Horizontal;
     glg.childAlignment = TextAnchor.UpperCenter;
     glg.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
     glg.constraintCount = 2;
-    glg.padding = new RectOffset(10, 10, 10, 10);
+    glg.padding = new RectOffset(12, 12, 12, 12);
 
     ContentSizeFitter csf = gridGo.GetComponent<ContentSizeFitter>();
     csf.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -2583,8 +2584,8 @@ public class UIManager : MonoBehaviour
     shopActionArea = new GameObject("ActionBar", typeof(RectTransform));
     shopActionArea.transform.SetParent(content, false);
     RectTransform actionR = shopActionArea.GetComponent<RectTransform>();
-    actionR.anchorMin = new Vector2(0.08f, 0.03f);
-    actionR.anchorMax = new Vector2(0.92f, 0.12f);
+    actionR.anchorMin = new Vector2(0.08f, 0.035f);
+    actionR.anchorMax = new Vector2(0.92f, 0.115f);
     actionR.offsetMin = Vector2.zero;
     actionR.offsetMax = Vector2.zero;
 
@@ -2884,10 +2885,10 @@ public class UIManager : MonoBehaviour
     btn.targetGraphic = bg;
     btn.transition = Selectable.Transition.None;
 
-    bool active = shopActiveTab == tabId;
+    bool active = string.Equals(shopActiveTab, tabId, System.StringComparison.OrdinalIgnoreCase);
     bg.color = active
-        ? new Color(0.25f, 0.35f, 0.55f, 0.9f)
-        : new Color(0.12f, 0.12f, 0.18f, 0.6f);
+        ? new Color(0.20f, 0.42f, 0.80f, 0.95f)
+        : new Color(0.14f, 0.15f, 0.22f, 0.75f);
 
     TextMeshProUGUI tmp = new GameObject("Label", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
     tmp.transform.SetParent(go.transform, false);
@@ -2895,10 +2896,10 @@ public class UIManager : MonoBehaviour
     lblR.anchorMin = Vector2.zero; lblR.anchorMax = Vector2.one;
     lblR.offsetMin = Vector2.zero; lblR.offsetMax = Vector2.zero;
     tmp.text = label;
-    tmp.fontSize = 26;
+    tmp.fontSize = 24;
     tmp.fontStyle = active ? FontStyles.Bold : FontStyles.Normal;
     tmp.alignment = TextAlignmentOptions.Center;
-    tmp.color = active ? Color.white : new Color(0.55f, 0.55f, 0.65f);
+    tmp.color = active ? Color.white : new Color(0.64f, 0.68f, 0.78f);
 
     var capturedTab = tabId;
     btn.onClick.AddListener(() => OnShopTabSelected(capturedTab));
@@ -2906,7 +2907,7 @@ public class UIManager : MonoBehaviour
 
   void OnShopTabSelected(string tabId)
   {
-    if (shopActiveTab == tabId) return;
+    if (string.Equals(shopActiveTab, tabId, System.StringComparison.OrdinalIgnoreCase)) return;
     shopActiveTab = tabId;
     shopSelectedId = null;
 
@@ -2917,16 +2918,12 @@ public class UIManager : MonoBehaviour
       ApplyShopPreviewSkin(null);
 
     // Rebuild tabs, grid, and action bar
-    if (shopPanel != null)
+    if (shopTabContainer != null)
     {
-      Transform tabRow = shopPanel.transform.Find("Content/TabRow");
-      if (tabRow != null)
-      {
-        for (int i = tabRow.childCount - 1; i >= 0; i--)
-          Destroy(tabRow.GetChild(i).gameObject);
-        BuildShopTab(tabRow, "Wearables", "wearables");
-        BuildShopTab(tabRow, "Skins", "skins");
-      }
+      for (int i = shopTabContainer.childCount - 1; i >= 0; i--)
+        Destroy(shopTabContainer.GetChild(i).gameObject);
+      BuildShopTab(shopTabContainer, "Wearables", "wearables");
+      BuildShopTab(shopTabContainer, "Skins", "skins");
     }
 
     RefreshShopGrid();
@@ -2946,8 +2943,8 @@ public class UIManager : MonoBehaviour
 
     Image cardBg = card.GetComponent<Image>();
     cardBg.color = selected
-        ? new Color(0.22f, 0.28f, 0.42f, 0.95f)
-        : new Color(0.10f, 0.10f, 0.16f, 0.85f);
+        ? new Color(0.20f, 0.32f, 0.52f, 0.95f)
+        : new Color(0.10f, 0.12f, 0.18f, 0.88f);
 
     Button cardBtn = card.GetComponent<Button>();
     cardBtn.targetGraphic = cardBg;
@@ -3038,6 +3035,7 @@ public class UIManager : MonoBehaviour
           ResetPreviewSkinToDefault();
         else
           SkinManager.ApplySkin(shopPreviewCatchy, skinN.Value);
+        RestorePreviewFaceColors();
       }
     }
     else
@@ -3046,6 +3044,7 @@ public class UIManager : MonoBehaviour
       var equippedSkin = SkinManager.GetEquippedDef();
       if (equippedSkin != null && equippedSkin.Value.id != "default")
         SkinManager.ApplySkin(shopPreviewCatchy, equippedSkin.Value);
+        RestorePreviewFaceColors();
       else
         ResetPreviewSkinToDefault();
     }
@@ -3054,10 +3053,51 @@ public class UIManager : MonoBehaviour
   void ResetPreviewSkinToDefault()
   {
     if (shopPreviewCatchy == null) return;
-    // Re-apply the glass appearance to restore default look
     var cm = FindObjectOfType<CatcherManager>();
     if (cm != null)
       cm.ApplyGlassAppearance(shopPreviewCatchy);
+    RestorePreviewFaceColors();
+  }
+
+  /// <summary>
+  /// Forces all CatchyFace parts (eyes, smile, mouth, tears) back to their
+  /// correct colors after ApplyGlassAppearance or ApplySkin overwrites them.
+  /// </summary>
+  void RestorePreviewFaceColors()
+  {
+    if (shopPreviewCatchy == null) return;
+    var face = shopPreviewCatchy.GetComponent<CatchyFace>();
+    if (face == null) return;
+
+    Color dark = new Color(0.1f, 0.1f, 0.15f, 1f);
+    Color tear = new Color(0.3f, 0.6f, 1f, 1f);
+
+    foreach (Transform child in shopPreviewCatchy.transform)
+    {
+      string n = child.gameObject.name;
+      Renderer rend = child.GetComponent<Renderer>();
+      if (rend == null) continue;
+
+      if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth") || n.Contains("Happy"))
+      {
+        foreach (var mat in rend.materials)
+        {
+          if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", dark);
+          else if (mat.HasProperty("_Color")) mat.SetColor("_Color", dark);
+          else mat.color = dark;
+        }
+      }
+      else if (n.Contains("Tear"))
+      {
+        foreach (var mat in rend.materials)
+        {
+          if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tear);
+          else if (mat.HasProperty("_Color")) mat.SetColor("_Color", tear);
+          else mat.color = tear;
+        }
+      }
+    }
+    RestorePreviewFaceColors();
   }
 
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
