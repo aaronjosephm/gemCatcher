@@ -284,7 +284,7 @@ public class ObjectPooler : MonoBehaviour
                     if (obj.GetComponent<Collider>() == null)
                     {
                         SphereCollider sc = obj.AddComponent<SphereCollider>();
-                        sc.radius = 0.5f;
+                        sc.radius = 0.15f;
                         sc.isTrigger = true;
                     }
                     objectPool.Add(obj);
