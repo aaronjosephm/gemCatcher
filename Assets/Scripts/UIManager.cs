@@ -216,6 +216,9 @@ public class UIManager : MonoBehaviour
 
   void Start()
   {
+    // DEBUG: reset wearable purchases for testing — remove before release
+    WearableManager.ResetAll();
+
     levelAtSceneLoad = LevelManager.SelectedLevel;
 
     // If the app started/restarted and the loaded scene doesn't match the

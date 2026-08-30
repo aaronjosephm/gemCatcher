@@ -153,6 +153,19 @@ public static class WearableManager
 
     // ─── Helpers ────────────────────────────────────────────────────────
 
+    /// <summary>Reset all wearable ownership, equips, and spent points (testing only).</summary>
+    public static void ResetAll()
+    {
+        foreach (var def in Catalog)
+        {
+            PlayerPrefs.DeleteKey("Wearable_Owned_" + def.id);
+            PlayerPrefs.DeleteKey("Wearable_Equipped_" + def.attach);
+        }
+        PlayerPrefs.DeleteKey("TotalPointsSpent");
+        PlayerPrefs.Save();
+        OnWearableChanged?.Invoke();
+    }
+
     public static WearableDef? GetDef(string id)
     {
         foreach (var def in catalog)
