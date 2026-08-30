@@ -2149,8 +2149,8 @@ public class UIManager : MonoBehaviour
 
   void OnShopClicked()
   {
-    EnsureShopPanel();
     SetupShopPreview();
+    EnsureShopPanel();
     FadePanel(mainMenuPanel, false);
     FadePanel(shopPanel, true);
   }
@@ -2290,9 +2290,6 @@ public class UIManager : MonoBehaviour
 
     shopPanel = BuildFullScreenPanel("ShopPanel (auto)",
         new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
-
-    // Title
-    AddPanelTitle(contentParent, "SHOP", new Color(0.85f, 0.55f, 0.85f), 100f);
 
     // Balance display
     GameObject balGo = new GameObject("Balance", typeof(RectTransform));
