@@ -917,6 +917,11 @@ public class CatcherManager : MonoBehaviour
             {
                 catcherInstance.AddComponent<CatchyFace>();
             }
+            // Attach wearable system for cosmetic items.
+            if (catcherInstance.GetComponent<WearableAttachment>() == null)
+            {
+                catcherInstance.AddComponent<WearableAttachment>();
+            }
             catcherBaseScale = catcherInstance.transform.localScale;
             feedbackScale = Vector3.one;
         }

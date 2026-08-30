@@ -89,6 +89,9 @@ public class UIManager : MonoBehaviour
   // Level select panel — auto-created, opened from the Levels button.
   private GameObject levelSelectPanel;
 
+  // Shop panel — auto-created, opened from the Shop button.
+  private GameObject shopPanel;
+
   // Auto-created on first request. Shown when the OS backgrounds the app
   // (incoming call, home button, app switcher) so the player can resume on
   // their own terms. Time.timeScale is forced to 0 while it's visible.
@@ -1445,6 +1448,7 @@ public class UIManager : MonoBehaviour
 
     BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
+    BuildStackedMenuButton(stackGo.transform, "ShopButton",        "Shop",         new Color(0.55f, 0.25f, 0.55f), OnShopClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
 
     // High Score — per-level, below buttons.
@@ -2131,6 +2135,220 @@ public class UIManager : MonoBehaviour
     LevelManager.SelectedLevel = id;
     s_returnToLevelSelect = true;
     StartCoroutine(FadeAndLoadScene(LevelManager.CurrentConfig.sceneName));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shop (Wearables)
+  // ---------------------------------------------------------------------------
+
+  void OnShopClicked()
+  {
+    EnsureShopPanel();
+    FadePanel(mainMenuPanel, false);
+    FadePanel(shopPanel, true);
+  }
+
+  void OnShopBackClicked()
+  {
+    FadePanel(shopPanel, false);
+    ShowMainMenu();
+  }
+
+  void EnsureShopPanel()
+  {
+    if (shopPanel != null)
+    {
+      Destroy(shopPanel);
+      shopPanel = null;
+    }
+
+    shopPanel = BuildFullScreenPanel("ShopPanel (auto)",
+        new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
+
+    // Title
+    AddPanelTitle(contentParent, "SHOP", new Color(0.85f, 0.55f, 0.85f), 100f);
+
+    // Balance display
+    GameObject balGo = new GameObject("Balance", typeof(RectTransform));
+    balGo.transform.SetParent(contentParent, false);
+    RectTransform balRect = balGo.GetComponent<RectTransform>();
+    balRect.anchorMin = new Vector2(0.5f, 0.82f);
+    balRect.anchorMax = new Vector2(0.5f, 0.82f);
+    balRect.pivot = new Vector2(0.5f, 0.5f);
+    balRect.anchoredPosition = Vector2.zero;
+    balRect.sizeDelta = new Vector2(600f, 50f);
+    TextMeshProUGUI balTmp = balGo.AddComponent<TextMeshProUGUI>();
+    balTmp.text = $"Balance: {WearableManager.Balance:N0} pts";
+    balTmp.fontSize = 36;
+    balTmp.fontStyle = FontStyles.Bold;
+    balTmp.alignment = TextAlignmentOptions.Center;
+    balTmp.color = new Color(1f, 0.85f, 0.35f);
+
+    // Wearable cards container
+    GameObject cardsGo = new GameObject("WearableCards", typeof(RectTransform), typeof(VerticalLayoutGroup));
+    cardsGo.transform.SetParent(contentParent, false);
+    RectTransform cardsRect = cardsGo.GetComponent<RectTransform>();
+    cardsRect.anchorMin = new Vector2(0.5f, 0.5f);
+    cardsRect.anchorMax = new Vector2(0.5f, 0.5f);
+    cardsRect.pivot = new Vector2(0.5f, 0.5f);
+    cardsRect.anchoredPosition = new Vector2(0f, -30f);
+    cardsRect.sizeDelta = new Vector2(700f, 700f);
+    VerticalLayoutGroup vlg = cardsGo.GetComponent<VerticalLayoutGroup>();
+    vlg.childAlignment = TextAnchor.UpperCenter;
+    vlg.spacing = 20f;
+    vlg.childControlWidth = false;
+    vlg.childControlHeight = false;
+    vlg.childForceExpandWidth = false;
+    vlg.childForceExpandHeight = false;
+
+    foreach (var def in WearableManager.Catalog)
+    {
+      BuildWearableCard(cardsGo.transform, def);
+    }
+
+    // Back button
+    BuildStackedBackButton(contentParent, OnShopBackClicked);
+
+    shopPanel.SetActive(false);
+  }
+
+  void BuildWearableCard(Transform parent, WearableManager.WearableDef def)
+  {
+    bool owned = WearableManager.IsOwned(def.id);
+    bool equipped = WearableManager.IsEquipped(def.id);
+    bool canAfford = WearableManager.Balance >= def.price;
+
+    Color bgColor = equipped ? new Color(0.20f, 0.55f, 0.35f)
+                   : owned   ? new Color(0.18f, 0.22f, 0.30f)
+                             : new Color(0.12f, 0.12f, 0.15f);
+
+    GameObject cardGo = new GameObject(def.id + "Card", typeof(RectTransform));
+    cardGo.transform.SetParent(parent, false);
+    RectTransform cardRect = cardGo.GetComponent<RectTransform>();
+    cardRect.sizeDelta = new Vector2(650f, 120f);
+
+    Image cardBg = cardGo.AddComponent<Image>();
+    cardBg.color = bgColor;
+
+    // Wearable name
+    GameObject nameGo = new GameObject("Name", typeof(RectTransform));
+    nameGo.transform.SetParent(cardGo.transform, false);
+    RectTransform nameRect = nameGo.GetComponent<RectTransform>();
+    nameRect.anchorMin = new Vector2(0f, 0.5f);
+    nameRect.anchorMax = new Vector2(0.55f, 0.5f);
+    nameRect.pivot = new Vector2(0f, 0.5f);
+    nameRect.anchoredPosition = new Vector2(30f, 10f);
+    nameRect.sizeDelta = new Vector2(0f, 50f);
+    TextMeshProUGUI nameTmp = nameGo.AddComponent<TextMeshProUGUI>();
+    nameTmp.text = def.displayName;
+    nameTmp.fontSize = 36;
+    nameTmp.fontStyle = FontStyles.Bold;
+    nameTmp.alignment = TextAlignmentOptions.MidlineLeft;
+    nameTmp.color = owned ? Color.white : (canAfford ? new Color(0.8f, 0.8f, 0.8f) : new Color(0.5f, 0.5f, 0.5f));
+
+    // Price / status text
+    GameObject priceGo = new GameObject("Price", typeof(RectTransform));
+    priceGo.transform.SetParent(cardGo.transform, false);
+    RectTransform priceRect = priceGo.GetComponent<RectTransform>();
+    priceRect.anchorMin = new Vector2(0f, 0f);
+    priceRect.anchorMax = new Vector2(0.55f, 0.5f);
+    priceRect.pivot = new Vector2(0f, 0.5f);
+    priceRect.anchoredPosition = new Vector2(30f, -5f);
+    priceRect.sizeDelta = new Vector2(0f, 35f);
+    TextMeshProUGUI priceTmp = priceGo.AddComponent<TextMeshProUGUI>();
+    priceTmp.fontSize = 26;
+    priceTmp.alignment = TextAlignmentOptions.MidlineLeft;
+
+    if (equipped)
+    {
+      priceTmp.text = "EQUIPPED";
+      priceTmp.color = new Color(0.7f, 1f, 0.8f);
+    }
+    else if (owned)
+    {
+      priceTmp.text = "OWNED";
+      priceTmp.color = new Color(0.7f, 0.7f, 0.8f);
+    }
+    else
+    {
+      priceTmp.text = $"{def.price:N0} pts";
+      priceTmp.color = canAfford ? new Color(1f, 0.85f, 0.35f) : new Color(0.6f, 0.4f, 0.3f);
+    }
+
+    // Action button on right
+    GameObject btnGo = new GameObject("ActionBtn", typeof(RectTransform));
+    btnGo.transform.SetParent(cardGo.transform, false);
+    RectTransform btnRect = btnGo.GetComponent<RectTransform>();
+    btnRect.anchorMin = new Vector2(0.58f, 0.15f);
+    btnRect.anchorMax = new Vector2(0.95f, 0.85f);
+    btnRect.pivot = new Vector2(0.5f, 0.5f);
+    btnRect.anchoredPosition = Vector2.zero;
+    btnRect.sizeDelta = Vector2.zero;
+
+    Image btnBg = btnGo.AddComponent<Image>();
+    TextMeshProUGUI btnText;
+
+    // Button text child
+    GameObject btnTextGo = new GameObject("BtnText", typeof(RectTransform));
+    btnTextGo.transform.SetParent(btnGo.transform, false);
+    RectTransform btnTextRect = btnTextGo.GetComponent<RectTransform>();
+    btnTextRect.anchorMin = Vector2.zero;
+    btnTextRect.anchorMax = Vector2.one;
+    btnTextRect.sizeDelta = Vector2.zero;
+    btnText = btnTextGo.AddComponent<TextMeshProUGUI>();
+    btnText.fontSize = 28;
+    btnText.fontStyle = FontStyles.Bold;
+    btnText.alignment = TextAlignmentOptions.Center;
+
+    if (equipped)
+    {
+      btnBg.color = new Color(0.4f, 0.2f, 0.2f);
+      btnText.text = "Unequip";
+      btnText.color = new Color(1f, 0.6f, 0.6f);
+      Button btn = btnGo.AddComponent<Button>();
+      var slot = def.attach;
+      btn.onClick.AddListener(() =>
+      {
+        WearableManager.Unequip(slot);
+        EnsureShopPanel();
+        FadePanel(shopPanel, true);
+      });
+    }
+    else if (owned)
+    {
+      btnBg.color = new Color(0.15f, 0.45f, 0.65f);
+      btnText.text = "Equip";
+      btnText.color = Color.white;
+      Button btn = btnGo.AddComponent<Button>();
+      var wearId = def.id;
+      btn.onClick.AddListener(() =>
+      {
+        WearableManager.Equip(wearId);
+        EnsureShopPanel();
+        FadePanel(shopPanel, true);
+      });
+    }
+    else if (canAfford)
+    {
+      btnBg.color = new Color(0.20f, 0.60f, 0.35f);
+      btnText.text = "Buy";
+      btnText.color = Color.white;
+      Button btn = btnGo.AddComponent<Button>();
+      var wearId = def.id;
+      btn.onClick.AddListener(() =>
+      {
+        WearableManager.Purchase(wearId);
+        EnsureShopPanel();
+        FadePanel(shopPanel, true);
+      });
+    }
+    else
+    {
+      btnBg.color = new Color(0.15f, 0.15f, 0.18f);
+      btnText.text = $"Need\n{(def.price - WearableManager.Balance):N0}";
+      btnText.color = new Color(0.5f, 0.5f, 0.5f);
+      btnText.fontSize = 22;
+    }
   }
 
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
