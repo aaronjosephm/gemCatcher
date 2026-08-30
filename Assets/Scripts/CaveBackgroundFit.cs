@@ -161,7 +161,6 @@ public class CaveBackgroundFit : MonoBehaviour
 
     transform.localScale = new Vector3(worldW / PlaneMeshSize, 1f, worldH / PlaneMeshSize);
     float z = wallZ;
-    var cfg = LevelManager.CurrentConfig;
     if (cfg.backgroundWallZ > 0f) z = cfg.backgroundWallZ;
     transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, z);
     transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
