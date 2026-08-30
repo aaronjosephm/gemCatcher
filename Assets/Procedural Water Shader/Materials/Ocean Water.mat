@@ -80,7 +80,7 @@ Material:
     - _FresnelBias: 0.06
     - _FresnelPower: 3.2
     - _FresnelScale: 1.6
-    - _GerstnerIntensity: 0.08
+    - _GerstnerIntensity: 0
     - _GlossMapScale: 1
     - _Glossiness: 0.5
     - _GlossyReflections: 1
@@ -93,8 +93,8 @@ Material:
     - _RefractionDistort: 0.35
     - _RefractionStrength: 0.8
     - _RippleScale: 0.45
-    - _RippleSpeed: 0.15
-    - _RippleStrength: 0.05
+    - _RippleSpeed: 0
+    - _RippleStrength: 0
     - _Shininess: 90
     - _ShoreDepth: 2.2
     - _SmoothnessTextureChannel: 0
@@ -113,12 +113,12 @@ Material:
     - _DeepColor: {r: 0.01, g: 0.06, b: 0.1, a: 0.8509804}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _FoamColor: {r: 0.92, g: 0.96999997, b: 1, a: 1}
-    - _GAmplitude: {r: 0.03, g: 0.02, b: 0.015, a: 0.01}
+    - _GAmplitude: {r: 0, g: 0, b: 0, a: 0}
     - _GDirectionAB: {r: 0.85, g: 0.35, b: 0.5, a: 0.86}
     - _GDirectionCD: {r: 0.2, g: 0.98, b: -0.75, a: 0.55}
     - _GFrequency: {r: 0.55, g: 0.75, b: 1.05, a: 1.35}
-    - _GSpeed: {r: 0.15, g: 0.2, b: 0.25, a: 0.3}
-    - _GSteepness: {r: 0.08, g: 0.06, b: 0.04, a: 0.03}
+    - _GSpeed: {r: 0, g: 0, b: 0, a: 0}
+    - _GSteepness: {r: 0, g: 0, b: 0, a: 0}
     - _ReflectionColor: {r: 0.7, g: 0.9, b: 1, a: 0.69803923}
     - _SpecularColor: {r: 1, g: 1, b: 1, a: 0.54901963}
     - _WorldLightDir: {r: 0.25, g: 0.85, b: -0.35, a: 0}
