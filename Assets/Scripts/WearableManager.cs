@@ -34,10 +34,8 @@ public static class WearableManager
         {
             id = "eyepatch",
             displayName = "Eye Patch",
-            price = 1000000,
+            price = 10,
             prefabPath = "Wearables/EyePatch",
-            attach = AttachPoint.Face,
-            localOffset = new Vector3(0.15f, 0.1f, 0.3f),
             localRotation = Vector3.zero,
             scale = 0.5f,
         },
@@ -45,7 +43,7 @@ public static class WearableManager
         {
             id = "tophat",
             displayName = "Top Hat",
-            price = 2000000,
+            price = 10,
             prefabPath = "Wearables/TopHat",
             attach = AttachPoint.Head,
             localOffset = new Vector3(0f, 0.5f, 0f),
@@ -56,10 +54,8 @@ public static class WearableManager
         {
             id = "sunglasses",
             displayName = "Sunglasses",
-            price = 1000000,
+            price = 10,
             prefabPath = "Wearables/Sunglasses",
-            attach = AttachPoint.Face,
-            localOffset = new Vector3(0f, 0.1f, 0.3f),
             localRotation = Vector3.zero,
             scale = 0.5f,
         },
