@@ -18,6 +18,7 @@ public static class LevelManager
         public string displayName;
         public string sceneName;             // Scene to load for this level
         public string backgroundResource;   // Resources/ path to background texture
+        public string backgroundMaterialResource; // Resources/ path to a Material (overrides texture)
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
         public string musicResource;         // Resources/ path to background music
         public string[] extraGemPrefabs;     // Additional gem prefab names (from Resources/Gems/) for this level
@@ -98,14 +99,15 @@ public static class LevelManager
         new LevelConfig
         {
             id = LevelId.Lava,
-            displayName = "Twilight City",
+            displayName = "Bay Lookout",
             sceneName = "LavaLamp",
-            backgroundResource = "Backgrounds/TwilightBackground",
+            backgroundResource = null,
+            backgroundMaterialResource = "Materials/OceanWater",
             midgroundResource = null,
             musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = null,
             unlockScore = 100,
-            cameraColor = new Color(0.02f, 0.01f, 0.04f, 1f),
+            cameraColor = new Color(0.02f, 0.08f, 0.18f, 1f),
             initialFallSpeed = 5.0f,
             initialSpawnInterval = 1.8f,
             bombChance = 0.18f,

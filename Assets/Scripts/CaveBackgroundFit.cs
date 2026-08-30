@@ -94,10 +94,22 @@ public class CaveBackgroundFit : MonoBehaviour
     MeshRenderer mr = GetComponent<MeshRenderer>();
     if (mr == null) return;
 
-    Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
-    if (tex != null && mr.material != null)
+    // If the level defines a full material (e.g. water shader), apply it directly.
+    if (!string.IsNullOrEmpty(cfg.backgroundMaterialResource))
     {
-      mr.material.mainTexture = tex;
+      Material mat = Resources.Load<Material>(cfg.backgroundMaterialResource);
+      if (mat != null)
+      {
+        mr.material = mat;
+      }
+    }
+    else
+    {
+      Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
+      if (tex != null && mr.material != null)
+      {
+        mr.material.mainTexture = tex;
+      }
     }
 
     ReadAspectFromMaterial();
