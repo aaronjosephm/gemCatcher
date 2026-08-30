@@ -869,8 +869,8 @@ MonoBehaviour:
   trajectoryLine: {fileID: 0}
   trajectoryPoints: 10
   trajectoryTimeStep: 0.1
-  glassColor: {r: 0.80740476, g: 0.8833296, b: 0.9056604, a: 0}
-  glassOpacity: 0.72
+  glassColor: {r: 1, g: 1, b: 1, a: 1}
+  glassOpacity: 1
   glassSmoothness: 0.18
   glassMetallic: 0
   catcherSpinSpeed: 120
