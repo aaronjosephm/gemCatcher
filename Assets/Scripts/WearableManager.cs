@@ -54,12 +54,12 @@ public static class WearableManager
         },
         new WearableDef
         {
-            id = "cape",
-            displayName = "Cape",
-            price = 5000000,
-            prefabPath = "Wearables/Cape",
-            attach = AttachPoint.Body,
-            localOffset = new Vector3(0f, 0f, -0.3f),
+            id = "sunglasses",
+            displayName = "Sunglasses",
+            price = 1000000,
+            prefabPath = "Wearables/Sunglasses",
+            attach = AttachPoint.Face,
+            localOffset = new Vector3(0f, 0.1f, 0.3f),
             localRotation = Vector3.zero,
             scale = 0.5f,
         },
