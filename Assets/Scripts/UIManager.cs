@@ -2335,7 +2335,13 @@ public class UIManager : MonoBehaviour
     balRect.offsetMax = Vector2.zero;
     Image balBg = balGo.AddComponent<Image>();
     balBg.color = new Color(0.10f, 0.10f, 0.14f, 0.8f);
-    shopBalanceText = balGo.AddComponent<TextMeshProUGUI>();
+
+    GameObject balTextGo = new GameObject("BalText", typeof(RectTransform));
+    balTextGo.transform.SetParent(balGo.transform, false);
+    RectTransform balTextRect = balTextGo.GetComponent<RectTransform>();
+    balTextRect.anchorMin = Vector2.zero; balTextRect.anchorMax = Vector2.one;
+    balTextRect.offsetMin = Vector2.zero; balTextRect.offsetMax = Vector2.zero;
+    shopBalanceText = balTextGo.AddComponent<TextMeshProUGUI>();
     shopBalanceText.text = $"  \u2605  {WearableManager.Balance:N0}  pts";
     shopBalanceText.fontSize = 32;
     shopBalanceText.fontStyle = FontStyles.Bold;
