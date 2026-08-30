@@ -453,6 +453,7 @@ public class SoundManager : MonoBehaviour
         RegisterFallback("BonusLife",     () => CreateArpeggio(new[] { 659f, 880f, 1175f, 1568f }, 0.35f, 0.32f));
         RegisterFallback("PowerUp",       () => CreateArpeggio(new[] { 880f, 1175f, 1568f, 2093f }, 0.40f, 0.30f));
         RegisterFallback("Bomb",          () => CreateSweep(220f, 60f, 0.55f, 0.40f));
+        RegisterFallback("RockBreak",     () => CreateRockBreak(0.20f, 0.40f));
         RegisterFallback("Milestone",     () => CreateArpeggio(new[] { 523f, 698f, 880f, 1175f, 1568f }, 0.65f, 0.32f));
         RegisterFallback("MagnetOn",      () => CreateArpeggio(new[] { 440f, 660f, 880f, 1320f }, 0.40f, 0.35f));
         RegisterFallback("MagnetOff",     () => CreateSweep(880f, 220f, 0.50f, 0.30f));
@@ -554,5 +555,34 @@ public class SoundManager : MonoBehaviour
         if (t < attack) return t / attack;
         float decayT = (t - attack) / Mathf.Max(0.0001f, duration - attack);
         return Mathf.Exp(-3.5f * decayT);
+    }
+
+    /// <summary>
+    /// Short percussive noise burst with a low-frequency thud — sounds like
+    /// a rock cracking/crumbling.
+    /// </summary>
+    private static AudioClip CreateRockBreak(float duration, float volume)
+    {
+        int count = Mathf.Max(1, Mathf.CeilToInt(SampleRate * duration));
+        float[] samples = new float[count];
+        // Use a seeded random for deterministic output.
+        System.Random rng = new System.Random(42);
+        for (int i = 0; i < count; i++)
+        {
+            float t = (float)i / SampleRate;
+            float u = t / duration;
+            // Fast exponential decay for a snappy crack.
+            float env = Mathf.Exp(-12f * u);
+            // White noise for the crunch texture.
+            float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
+            // Low-frequency thud underneath.
+            float thud = Mathf.Sin(2f * Mathf.PI * 80f * t) * Mathf.Exp(-20f * u);
+            // Mid-frequency crackle.
+            float crackle = Mathf.Sin(2f * Mathf.PI * 220f * t) * Mathf.Exp(-15f * u) * 0.4f;
+            samples[i] = volume * (env * noise * 0.6f + thud * 0.7f + crackle);
+        }
+        AudioClip clip = AudioClip.Create("rockBreak", count, 1, SampleRate, false);
+        clip.SetData(samples, 0);
+        return clip;
     }
 }

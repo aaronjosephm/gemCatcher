@@ -110,7 +110,7 @@ public class CatchZone : MonoBehaviour
                 UIManager.Instance?.SpawnFloatingText("+50", new Color(1f, 0.85f, 0.2f), catchPosition);
                 CatchBurst.Spawn(catchPosition, new Color(0.6f, 0.6f, 0.6f));
                 if (SoundManager.Instance != null)
-                    SoundManager.Instance.PlayWithPitch("GemCaught", 0.55f);
+                    SoundManager.Instance.PlayWithPitch("RockBreak", 1f);
                 fo.gameObject.SetActive(false);
                 return;
             }
