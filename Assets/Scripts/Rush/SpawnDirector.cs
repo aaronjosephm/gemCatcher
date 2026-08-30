@@ -52,6 +52,11 @@ public class SpawnDirector : MonoBehaviour
     private bool pendingDice;
     private bool diceEnabled; // only levels 2+
 
+    // MasterGem (invincibility) power-up drop
+    private float nextMasterGemDropTime;
+    private const float MasterGemDropInterval = 180f; // every 3 minutes
+    private bool pendingMasterGem;
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -107,6 +112,9 @@ public class SpawnDirector : MonoBehaviour
         diceEnabled = LevelManager.SelectedLevel != LevelManager.LevelId.Cave;
         dicePrefab = Resources.Load<GameObject>("PowerUps/Dice_V3_0");
         nextDiceDropTime = 60f;
+
+        // MasterGem (invincibility) — 5s for testing.
+        nextMasterGemDropTime = 5f;
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -191,6 +199,11 @@ public class SpawnDirector : MonoBehaviour
             {
                 nextDiceDropTime = float.MaxValue;
             }
+        }
+        if (elapsed >= nextMasterGemDropTime)
+        {
+            nextMasterGemDropTime = elapsed + MasterGemDropInterval;
+            pendingMasterGem = true;
         }
 
         // If no active wave, generate a new one.
@@ -333,6 +346,12 @@ public class SpawnDirector : MonoBehaviour
         {
             pendingDice = false;
             SpawnDicePowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingMasterGem)
+        {
+            pendingMasterGem = false;
+            SpawnMasterGemPowerUp(x, y, fallSpeed);
             return;
         }
 
@@ -583,6 +602,43 @@ public class SpawnDirector : MonoBehaviour
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Dice (swap) power-up spawned at ({x:F2}, {y:F2})");
+    }
+
+    void SpawnMasterGemPowerUp(float x, float y, float fallSpeed)
+    {
+        GameObject masterPrefab = Resources.Load<GameObject>("Gems/MasterGem");
+        if (masterPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] MasterGem prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(masterPrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 4f;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushMasterGem = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 90f, 20f);
+
+        // White glow aura.
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = Color.white;
+        glow.glowAlpha = 0.9f;
+        glow.glowRadius = 2f;
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
     }
 
     void OnDestroy()

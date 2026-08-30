@@ -30,6 +30,7 @@ public static class PowerUpPickup
       case PowerUpType.DoubleScore:  return new Color(0.45f, 1.00f, 0.55f); // bright green
       case PowerUpType.ExtraLife:    return new Color(1.00f, 0.30f, 0.90f); // hot magenta
       case PowerUpType.Swap:         return new Color(0.20f, 0.50f, 1.00f); // blue
+      case PowerUpType.Invincibility:return new Color(1.00f, 0.85f, 0.20f); // gold
       default:                       return Color.white;
     }
   }
@@ -48,6 +49,7 @@ public static class PowerUpPickup
       // slot — it's instant-effect) so this is dev-facing only.
       case PowerUpType.ExtraLife:    return "+" + PowerUpManager.ExtraLifeAwardCount + " \u2665";
       case PowerUpType.Swap:         return "SWAP";
+      case PowerUpType.Invincibility:return "INVINCIBLE";
       default:                       return "";
     }
   }

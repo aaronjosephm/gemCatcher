@@ -213,6 +213,7 @@ public class CatcherManager : MonoBehaviour
         UpdateMagnetGlow();
         UpdateShieldBubble();
         UpdateSwapBubble();
+        UpdateInvincibilityBubble();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -494,6 +495,71 @@ public class CatcherManager : MonoBehaviour
 
             float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
             float fadeFactor = remaining / 3f;
+            Color c = sr.material.GetColor("_BaseColor");
+            c.a = 0.2f * alpha * fadeFactor;
+            sr.material.SetColor("_BaseColor", c);
+        }
+    }
+
+    private GameObject invincibilityBubble;
+
+    void UpdateInvincibilityBubble()
+    {
+        if (catcherInstance == null) return;
+        bool shouldShow = PowerUpManager.InvincibilityActive;
+
+        if (shouldShow && invincibilityBubble == null)
+        {
+            invincibilityBubble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            invincibilityBubble.name = "InvincibilityBubble";
+            invincibilityBubble.transform.SetParent(catcherInstance.transform, false);
+            invincibilityBubble.transform.localPosition = Vector3.zero;
+            invincibilityBubble.transform.localScale = Vector3.one * 3f;
+
+            Collider col = invincibilityBubble.GetComponent<Collider>();
+            if (col != null) Destroy(col);
+
+            Renderer r = invincibilityBubble.GetComponent<Renderer>();
+            Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
+                        ?? Shader.Find("Unlit/Transparent");
+            Material mat = new Material(shader);
+            mat.SetColor("_BaseColor", new Color(1f, 0.85f, 0.2f, 0.2f));
+            mat.SetFloat("_Surface", 1f); // transparent
+            mat.SetFloat("_Blend", 0f);
+            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            mat.SetInt("_ZWrite", 0);
+            mat.renderQueue = 3000;
+            r.material = mat;
+
+            // Gold glow aura on the catcher
+            if (catcherInstance.GetComponent<GemGlowVolume>() == null)
+            {
+                var glow = catcherInstance.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
+                glow.glowAlpha = 0.9f;
+                glow.glowRadius = 2f;
+            }
+        }
+        else if (!shouldShow && invincibilityBubble != null)
+        {
+            Destroy(invincibilityBubble);
+            invincibilityBubble = null;
+            // Remove gold glow
+            GemGlowVolume glow = catcherInstance.GetComponent<GemGlowVolume>();
+            if (glow != null) Destroy(glow);
+        }
+
+        if (!shouldShow || invincibilityBubble == null) return;
+
+        // Blink in last 5 seconds
+        float remaining = PowerUpManager.InvincibilityTimeRemaining;
+        if (remaining <= 5f && remaining > 0f)
+        {
+            float blinkFreq = remaining <= 2f ? 6f : 3f;
+            float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            float fadeFactor = remaining / 5f;
+            Renderer sr = invincibilityBubble.GetComponent<Renderer>();
             Color c = sr.material.GetColor("_BaseColor");
             c.a = 0.2f * alpha * fadeFactor;
             sr.material.SetColor("_BaseColor", c);

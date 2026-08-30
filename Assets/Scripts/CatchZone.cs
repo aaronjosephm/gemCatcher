@@ -197,6 +197,17 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
+        // Rush Mode MasterGem (invincibility) power-up pickup.
+        if (fo.isRushMasterGem)
+        {
+            PowerUpManager.Activate(PowerUpType.Invincibility);
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.Play("MagnetOn");
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {
@@ -296,6 +307,13 @@ public class CatchZone : MonoBehaviour
 
         if (PowerUpManager.TryConsumeShield(worldPosition))
         {
+            return true;
+        }
+
+        // Invincibility absorbs all hits without being consumed.
+        if (PowerUpManager.InvincibilityActive)
+        {
+            UIManager.Instance?.SpawnFloatingText("INVINCIBLE!", new Color(1f, 0.85f, 0.2f), worldPosition);
             return true;
         }
 

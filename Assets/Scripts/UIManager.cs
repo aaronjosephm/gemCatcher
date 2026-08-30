@@ -907,6 +907,7 @@ public class UIManager : MonoBehaviour
       case PowerUpType.Shield: banner = "SHIELD UP!"; break;
       case PowerUpType.DoubleScore: banner = "DOUBLE SCORE!"; break;
       case PowerUpType.Swap: banner = "PROBABILITY FLIPPED!"; break;
+      case PowerUpType.Invincibility: banner = "INVINCIBLE!"; break;
       default: return;
     }
     SpawnBannerNotification(banner, color);
@@ -923,6 +924,10 @@ public class UIManager : MonoBehaviour
     if (type == PowerUpType.Swap)
     {
       SpawnBannerNotification("PROBABILITY FLIPPED BACK", new Color(0.2f, 0.5f, 1f));
+    }
+    if (type == PowerUpType.Invincibility)
+    {
+      SpawnBannerNotification("INVINCIBILITY ENDED", new Color(1f, 0.85f, 0.2f));
     }
     // No banner on other expires — the HUD slot fading away is feedback enough, and
     // expiry can fire several at once (game-over) which would stack banners.
