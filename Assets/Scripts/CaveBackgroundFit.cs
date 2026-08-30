@@ -136,6 +136,12 @@ public class CaveBackgroundFit : MonoBehaviour
     if (cam == null) cam = Camera.main;
     if (cam == null) return;
 
+    // When using a material override (e.g. water shader), let the scene
+    // transform stay as-is so it can be positioned manually in the Editor.
+    var cfg = LevelManager.CurrentConfig;
+    if (!string.IsNullOrEmpty(cfg.backgroundMaterialResource))
+      return;
+
     float aspect = cam.aspect;
     float ortho = cam.orthographicSize;
     lastAspect = aspect;
