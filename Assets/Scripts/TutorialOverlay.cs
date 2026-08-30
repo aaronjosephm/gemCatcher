@@ -1,32 +1,23 @@
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
-using System.Collections.Generic;
 
 /// <summary>
-/// Procedural UI overlay that shows animated directional chevron arrows
-/// to teach the player to move left/right. No text — pure visual.
-///
-/// The arrows slide across the screen in the target direction with a
-/// staggered pulse, drawing the player's eye toward the safe gap.
+/// Tutorial overlay that shows a pulsing white circle with "Press" label
+/// on the side of the screen the player should tap.
 /// </summary>
 public class TutorialOverlay : MonoBehaviour
 {
     public static TutorialOverlay Instance { get; private set; }
 
     Canvas canvas;
-    readonly List<RectTransform> chevrons = new List<RectTransform>();
-    readonly List<TextMeshProUGUI> chevronTexts = new List<TextMeshProUGUI>();
+    GameObject indicator; // container for circle + label
+    Image circleImage;
+    TextMeshProUGUI pressLabel;
+    RectTransform indicatorRect;
 
-    int direction; // +1 = right, -1 = left
     bool showing;
     float showTime;
-
-    const int ChevronCount = 3;
-    const float ChevronSpacing = 120f;
-    const float SlideRange = 60f;   // px of slide animation per chevron
-    const float CycleTime = 0.8f;   // seconds per full pulse cycle
-    const float ChevronSize = 100f;
 
     void Awake()
     {
@@ -42,80 +33,108 @@ public class TutorialOverlay : MonoBehaviour
 
     void BuildUI()
     {
-        // Create an overlay canvas.
-        GameObject canvasGo = new GameObject("TutorialCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+        // Overlay canvas.
+        GameObject canvasGo = new GameObject("TutorialCanvas", typeof(Canvas), typeof(CanvasScaler));
         canvasGo.transform.SetParent(transform, false);
         canvas = canvasGo.GetComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.sortingOrder = 90; // above gameplay, below menus
+        canvas.sortingOrder = 90;
 
         CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1080, 1920);
         scaler.matchWidthOrHeight = 0.5f;
 
-        // Disable raycast blocking so it doesn't interfere with input.
-        Destroy(canvasGo.GetComponent<GraphicRaycaster>());
+        // Indicator container.
+        indicator = new GameObject("PressIndicator", typeof(RectTransform));
+        indicator.transform.SetParent(canvasGo.transform, false);
+        indicatorRect = indicator.GetComponent<RectTransform>();
+        indicatorRect.sizeDelta = new Vector2(200f, 260f);
 
-        // Container positioned in the lower-middle area (near the catchy).
-        GameObject container = new GameObject("ArrowContainer", typeof(RectTransform));
-        container.transform.SetParent(canvasGo.transform, false);
-        RectTransform containerRect = container.GetComponent<RectTransform>();
-        containerRect.anchorMin = new Vector2(0.5f, 0.25f);
-        containerRect.anchorMax = new Vector2(0.5f, 0.25f);
-        containerRect.pivot = new Vector2(0.5f, 0.5f);
-        containerRect.anchoredPosition = Vector2.zero;
-        containerRect.sizeDelta = new Vector2(600f, 200f);
+        // "Press" label above the circle.
+        GameObject labelGo = new GameObject("PressLabel", typeof(RectTransform));
+        labelGo.transform.SetParent(indicator.transform, false);
+        RectTransform labelRect = labelGo.GetComponent<RectTransform>();
+        labelRect.anchorMin = new Vector2(0.5f, 1f);
+        labelRect.anchorMax = new Vector2(0.5f, 1f);
+        labelRect.pivot = new Vector2(0.5f, 1f);
+        labelRect.anchoredPosition = new Vector2(0f, 0f);
+        labelRect.sizeDelta = new Vector2(200f, 60f);
 
-        // Create chevron text elements.
-        for (int i = 0; i < ChevronCount; i++)
-        {
-            GameObject chevGo = new GameObject($"Chevron_{i}", typeof(RectTransform));
-            chevGo.transform.SetParent(container.transform, false);
-            RectTransform chevRect = chevGo.GetComponent<RectTransform>();
-            chevRect.anchorMin = new Vector2(0.5f, 0.5f);
-            chevRect.anchorMax = new Vector2(0.5f, 0.5f);
-            chevRect.pivot = new Vector2(0.5f, 0.5f);
-            chevRect.sizeDelta = new Vector2(ChevronSize, ChevronSize);
+        pressLabel = labelGo.AddComponent<TextMeshProUGUI>();
+        pressLabel.text = "Press";
+        pressLabel.fontSize = 48;
+        pressLabel.fontStyle = FontStyles.Bold;
+        pressLabel.alignment = TextAlignmentOptions.Center;
+        pressLabel.color = Color.white;
+        pressLabel.raycastTarget = false;
+        pressLabel.outlineWidth = 0.25f;
+        pressLabel.outlineColor = new Color(0f, 0f, 0f, 0.7f);
 
-            TextMeshProUGUI tmp = chevGo.AddComponent<TextMeshProUGUI>();
-            tmp.text = "▶"; // will be flipped for left
-            tmp.fontSize = 80;
-            tmp.alignment = TextAlignmentOptions.Center;
-            tmp.color = new Color(1f, 1f, 1f, 0.9f);
-            tmp.enableWordWrapping = false;
-            tmp.overflowMode = TextOverflowModes.Overflow;
-            tmp.raycastTarget = false;
+        // White circle below the label.
+        GameObject circleGo = new GameObject("Circle", typeof(RectTransform));
+        circleGo.transform.SetParent(indicator.transform, false);
+        RectTransform circleRect = circleGo.GetComponent<RectTransform>();
+        circleRect.anchorMin = new Vector2(0.5f, 0f);
+        circleRect.anchorMax = new Vector2(0.5f, 0f);
+        circleRect.pivot = new Vector2(0.5f, 0f);
+        circleRect.anchoredPosition = new Vector2(0f, 0f);
+        circleRect.sizeDelta = new Vector2(160f, 160f);
 
-            // Add outline for visibility against any background.
-            tmp.outlineWidth = 0.2f;
-            tmp.outlineColor = new Color(0f, 0f, 0f, 0.6f);
+        circleImage = circleGo.AddComponent<Image>();
+        circleImage.color = new Color(1f, 1f, 1f, 0.85f);
+        circleImage.raycastTarget = false;
 
-            chevrons.Add(chevRect);
-            chevronTexts.Add(tmp);
-        }
+        // Make it circular by using a rounded sprite — but we don't have one.
+        // Use the default UI sprite and mask it round via a generated texture.
+        circleImage.sprite = CreateCircleSprite(128);
+
+        indicator.SetActive(false);
     }
 
-    /// <summary>Show animated arrows pointing in the given direction (+1 right, -1 left).</summary>
+    /// <summary>Generates a white filled circle sprite at runtime.</summary>
+    static Sprite CreateCircleSprite(int size)
+    {
+        Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        float center = size * 0.5f;
+        float radius = center - 1f;
+        for (int y = 0; y < size; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {
+                float dist = Vector2.Distance(new Vector2(x, y), new Vector2(center, center));
+                if (dist <= radius)
+                    tex.SetPixel(x, y, Color.white);
+                else if (dist <= radius + 1f)
+                    tex.SetPixel(x, y, new Color(1, 1, 1, Mathf.Clamp01(radius + 1f - dist)));
+                else
+                    tex.SetPixel(x, y, Color.clear);
+            }
+        }
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, size, size), new Vector2(0.5f, 0.5f));
+    }
+
+    /// <summary>Show the press indicator on the given side (+1 = right, -1 = left).</summary>
     public void ShowArrows(int dir)
     {
-        direction = dir;
         showing = true;
         showTime = Time.time;
 
-        string symbol = dir > 0 ? "▶" : "◀";
-        foreach (var tmp in chevronTexts)
-        {
-            tmp.text = symbol;
-            tmp.gameObject.SetActive(true);
-        }
+        // Position: right or left side, vertically centered.
+        float xAnchor = dir > 0 ? 0.78f : 0.22f;
+        indicatorRect.anchorMin = new Vector2(xAnchor, 0.45f);
+        indicatorRect.anchorMax = new Vector2(xAnchor, 0.45f);
+        indicatorRect.pivot = new Vector2(0.5f, 0.5f);
+        indicatorRect.anchoredPosition = Vector2.zero;
+
+        indicator.SetActive(true);
     }
 
     public void HideArrows()
     {
         showing = false;
-        foreach (var chevRect in chevrons)
-            chevRect.gameObject.SetActive(false);
+        if (indicator != null) indicator.SetActive(false);
     }
 
     void Update()
@@ -124,23 +143,15 @@ public class TutorialOverlay : MonoBehaviour
 
         float t = Time.time - showTime;
 
-        for (int i = 0; i < ChevronCount; i++)
-        {
-            // Each chevron is offset in the animation cycle.
-            float phase = (t / CycleTime + (float)i / ChevronCount) % 1f;
+        // Pulse scale between 0.9 and 1.1.
+        float pulse = Mathf.Sin(t * Mathf.PI * 2f * 1.2f);
+        float scale = Mathf.Lerp(0.9f, 1.1f, (pulse + 1f) * 0.5f);
+        indicatorRect.localScale = Vector3.one * scale;
 
-            // Position: spread out from center, slide in the direction.
-            float baseX = (i - (ChevronCount - 1) * 0.5f) * ChevronSpacing * direction;
-            float slideOffset = Mathf.Sin(phase * Mathf.PI * 2f) * SlideRange * 0.5f * direction;
-            chevrons[i].anchoredPosition = new Vector2(baseX + slideOffset, 0f);
-
-            // Alpha: pulse between 0.3 and 1.0.
-            float alpha = Mathf.Lerp(0.4f, 1f, (Mathf.Sin(phase * Mathf.PI * 2f) + 1f) * 0.5f);
-            // Scale: subtle pulse.
-            float scale = Mathf.Lerp(0.85f, 1.15f, (Mathf.Sin(phase * Mathf.PI * 2f) + 1f) * 0.5f);
-
-            chevronTexts[i].color = new Color(1f, 1f, 1f, alpha);
-            chevrons[i].localScale = Vector3.one * scale;
-        }
+        // Pulse alpha between 0.5 and 1.0.
+        float alpha = Mathf.Lerp(0.5f, 1f, (pulse + 1f) * 0.5f);
+        circleImage.color = new Color(1f, 1f, 1f, alpha);
+        pressLabel.color = new Color(1f, 1f, 1f, alpha);
     }
 }
+
