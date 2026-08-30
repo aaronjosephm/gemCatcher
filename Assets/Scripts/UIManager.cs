@@ -2082,9 +2082,7 @@ public class UIManager : MonoBehaviour
 
     if (!unlocked)
     {
-      int idx = System.Array.FindIndex(LevelManager.AllLevels, l => l.id == config.id);
-      string prevName = idx > 0 ? LevelManager.AllLevels[idx - 1].displayName : "previous level";
-      statusTmp.text = $"Score {config.unlockScore} on {prevName}";
+      statusTmp.text = $"Catch the key ({config.unlockScore} pts)";
       statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
     }
     else if (selected)

@@ -57,6 +57,12 @@ public class SpawnDirector : MonoBehaviour
     private const float MasterGemDropInterval = 180f; // every 3 minutes
     private bool pendingMasterGem;
 
+    // Key drop (level unlock)
+    private GameObject keyPrefab;
+    private bool pendingKey;
+    private bool keyDropped; // only one key per round
+    private int keyDropScore; // score threshold to trigger key drop
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -115,6 +121,18 @@ public class SpawnDirector : MonoBehaviour
 
         // MasterGem (invincibility) — 5s for testing.
         nextMasterGemDropTime = MasterGemDropInterval;
+
+        // Key drop — load prefab and determine score threshold.
+        keyPrefab = Resources.Load<GameObject>("PowerUps/Key_V3_0");
+        keyDropScore = LevelManager.GetKeyDropScore();
+        keyDropped = keyDropScore <= 0; // no key needed if nothing to unlock
+        pendingKey = false;
+
+        // Subscribe to score changes to trigger key drop.
+        if (!keyDropped && RoundManager.Instance != null)
+        {
+            RoundManager.Instance.OnScoreChanged += OnScoreChangedForKey;
+        }
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -352,6 +370,12 @@ public class SpawnDirector : MonoBehaviour
         {
             pendingMasterGem = false;
             SpawnMasterGemPowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingKey)
+        {
+            pendingKey = false;
+            SpawnKeyDrop(x, y, fallSpeed);
             return;
         }
 
@@ -647,8 +671,77 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
     }
 
+    void OnScoreChangedForKey(int score)
+    {
+        if (keyDropped) return;
+        if (score >= keyDropScore)
+        {
+            keyDropped = true;
+            pendingKey = true;
+            if (RoundManager.Instance != null)
+                RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
+            Debug.Log($"[SpawnDirector] Key drop triggered at score {score} (threshold {keyDropScore})");
+        }
+    }
+
+    void SpawnKeyDrop(float x, float y, float fallSpeed)
+    {
+        if (keyPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Key prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(keyPrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 2.5f;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed * 0.7f; // slower so player can't miss it
+        fo.InitializeMovement(fo.fallSpeed);
+        fo.isRushKey = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 90f, 0f);
+
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Golden glow
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        foreach (Renderer r in renderers)
+        {
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor("_EmissionColor", new Color(1f, 0.85f, 0.2f) * 3f);
+            r.SetPropertyBlock(mpb);
+        }
+
+        // Add glow aura
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
+        glow.glowRadius = 2f;
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Key drop spawned at ({x:F2}, {y:F2})");
+    }
+
     void OnDestroy()
     {
+        // Unsubscribe from score changes.
+        if (RoundManager.Instance != null)
+            RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
+
         if (rockPool != null)
         {
             foreach (GameObject obj in rockPool)

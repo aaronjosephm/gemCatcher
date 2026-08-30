@@ -219,6 +219,24 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
+        // Rush Mode key pickup — unlock next level.
+        if (fo.isRushKey)
+        {
+            var nextLevel = LevelManager.GetNextLockedLevel();
+            if (nextLevel != null)
+            {
+                LevelManager.UnlockLevel(nextLevel.Value);
+                var nextConfig = LevelManager.GetConfig(nextLevel.Value);
+                if (UIManager.Instance != null)
+                    UIManager.Instance.SpawnBannerNotification($"{nextConfig.displayName} UNLOCKED!", new Color(1f, 0.85f, 0.2f));
+            }
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.PlayWithPitch("GemCaught", 1.8f);
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {
