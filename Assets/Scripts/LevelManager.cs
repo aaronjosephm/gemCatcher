@@ -105,7 +105,7 @@ public static class LevelManager
             backgroundResource = "Backgrounds/BayLookoutBackground",
             backgroundMaterialResource = null,
             midgroundResource = null,
-            musicResource = "Audio/SpaceMusic",
+            musicResource = "Audio/BayLookoutMusic",
             extraGemPrefabs = null,
             unlockScore = 100,
             cameraColor = new Color(0.02f, 0.08f, 0.18f, 1f),
