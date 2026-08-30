@@ -2942,9 +2942,79 @@ public class UIManager : MonoBehaviour
     card.transform.SetParent(parent, false);
 
     Image cardBg = card.GetComponent<Image>();
-    cardBg.color = selected
-        ? new Color(0.20f, 0.32f, 0.52f, 0.95f)
-        : new Color(0.10f, 0.12f, 0.18f, 0.88f);
+
+    // Set the entire tile to the skin color
+    if (skin.type == SkinManager.SkinType.PrefabMaterial)
+    {
+      // For material-based skins, use primaryColor as base and overlay a 3D preview
+      cardBg.color = skin.primaryColor;
+      // Try to load the prefab material and show it via a MeshRenderer child
+      var prefab = Resources.Load<GameObject>(skin.materialPrefabPath);
+      if (prefab != null)
+      {
+        var prefabRend = prefab.GetComponentInChildren<Renderer>();
+        if (prefabRend != null && prefabRend.sharedMaterial != null)
+        {
+          // Create a flat quad child with the diamond material rendered in screen space
+          // Since we can't easily render 3D in UI, use the material's color properties
+          var matColor = prefabRend.sharedMaterial.HasProperty("_BaseColor")
+              ? prefabRend.sharedMaterial.GetColor("_BaseColor")
+              : prefabRend.sharedMaterial.HasProperty("_Color")
+                  ? prefabRend.sharedMaterial.GetColor("_Color")
+                  : skin.primaryColor;
+          cardBg.color = matColor;
+        }
+      }
+    }
+    else if (skin.type == SkinManager.SkinType.Camo)
+    {
+      // Camo: fill with primary, add stripe overlays
+      cardBg.color = skin.primaryColor;
+      // Diagonal stripe 1
+      GameObject stripe = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      stripe.transform.SetParent(card.transform, false);
+      RectTransform stripeR = stripe.GetComponent<RectTransform>();
+      stripeR.anchorMin = new Vector2(0f, 0f);
+      stripeR.anchorMax = new Vector2(0.4f, 1f);
+      stripeR.offsetMin = Vector2.zero;
+      stripeR.offsetMax = Vector2.zero;
+      stripe.GetComponent<Image>().color = skin.secondaryColor;
+      stripe.GetComponent<Image>().raycastTarget = false;
+
+      // Diagonal stripe 2
+      GameObject stripe2 = new GameObject("Stripe2", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      stripe2.transform.SetParent(card.transform, false);
+      RectTransform stripe2R = stripe2.GetComponent<RectTransform>();
+      stripe2R.anchorMin = new Vector2(0.55f, 0f);
+      stripe2R.anchorMax = new Vector2(0.75f, 1f);
+      stripe2R.offsetMin = Vector2.zero;
+      stripe2R.offsetMax = Vector2.zero;
+      stripe2.GetComponent<Image>().color = skin.secondaryColor;
+      stripe2.GetComponent<Image>().raycastTarget = false;
+    }
+    else if (skin.id == "default")
+    {
+      cardBg.color = Color.white;
+    }
+    else
+    {
+      // Solid color skin — fill the whole tile
+      cardBg.color = skin.primaryColor;
+    }
+
+    // Selected border glow
+    if (selected)
+    {
+      GameObject glow = new GameObject("SelectGlow", typeof(RectTransform));
+      glow.transform.SetParent(card.transform, false);
+      RectTransform glowR = glow.GetComponent<RectTransform>();
+      glowR.anchorMin = Vector2.zero; glowR.anchorMax = Vector2.one;
+      glowR.offsetMin = new Vector2(-4f, -4f); glowR.offsetMax = new Vector2(4f, 4f);
+      Image glowImg = glow.AddComponent<Image>();
+      glowImg.color = new Color(1f, 1f, 1f, 0.5f);
+      glowImg.raycastTarget = false;
+      glow.transform.SetAsFirstSibling();
+    }
 
     Button cardBtn = card.GetComponent<Button>();
     cardBtn.targetGraphic = cardBg;
@@ -2952,68 +3022,41 @@ public class UIManager : MonoBehaviour
     var skinId = skin.id;
     cardBtn.onClick.AddListener(() => OnShopItemSelected(skinId));
 
-    // Color swatch (large circle-like square showing the skin color)
-    GameObject swatchGo = new GameObject("Swatch", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-    swatchGo.transform.SetParent(card.transform, false);
-    RectTransform swatchR = swatchGo.GetComponent<RectTransform>();
-    swatchR.anchorMin = new Vector2(0.15f, 0.35f);
-    swatchR.anchorMax = new Vector2(0.85f, 0.85f);
-    swatchR.offsetMin = Vector2.zero;
-    swatchR.offsetMax = Vector2.zero;
-    Image swatchImg = swatchGo.GetComponent<Image>();
-    swatchImg.color = skin.primaryColor;
-    swatchImg.raycastTarget = false;
-
-    // For camo, add a secondary stripe
-    if (skin.id == "camo")
-    {
-      GameObject stripe = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      stripe.transform.SetParent(swatchGo.transform, false);
-      RectTransform stripeR = stripe.GetComponent<RectTransform>();
-      stripeR.anchorMin = new Vector2(0.2f, 0.2f);
-      stripeR.anchorMax = new Vector2(0.5f, 0.8f);
-      stripeR.offsetMin = Vector2.zero;
-      stripeR.offsetMax = Vector2.zero;
-      stripe.GetComponent<Image>().color = skin.secondaryColor;
-      stripe.GetComponent<Image>().raycastTarget = false;
-
-      GameObject stripe2 = new GameObject("Stripe2", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      stripe2.transform.SetParent(swatchGo.transform, false);
-      RectTransform stripe2R = stripe2.GetComponent<RectTransform>();
-      stripe2R.anchorMin = new Vector2(0.55f, 0.3f);
-      stripe2R.anchorMax = new Vector2(0.8f, 0.7f);
-      stripe2R.offsetMin = Vector2.zero;
-      stripe2R.offsetMax = Vector2.zero;
-      stripe2.GetComponent<Image>().color = skin.secondaryColor;
-      stripe2.GetComponent<Image>().raycastTarget = false;
-    }
-
-    // Name label
+    // Name + price label overlaid at the bottom
     TextMeshProUGUI nameTmp = new GameObject("Name", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
     nameTmp.transform.SetParent(card.transform, false);
     RectTransform nameR = nameTmp.GetComponent<RectTransform>();
-    nameR.anchorMin = new Vector2(0.05f, 0.05f);
-    nameR.anchorMax = new Vector2(0.95f, 0.35f);
+    nameR.anchorMin = new Vector2(0.05f, 0.02f);
+    nameR.anchorMax = new Vector2(0.95f, 0.40f);
     nameR.offsetMin = Vector2.zero;
     nameR.offsetMax = Vector2.zero;
     nameTmp.raycastTarget = false;
     nameTmp.alignment = TextAlignmentOptions.Center;
     nameTmp.fontSize = 20;
+    nameTmp.fontStyle = FontStyles.Bold;
+    // Use dark text on light backgrounds, light text on dark backgrounds
+    bool isLightBg = (cardBg.color.r + cardBg.color.g + cardBg.color.b) / 3f > 0.5f;
+    Color textColor = isLightBg ? new Color(0.1f, 0.1f, 0.15f) : Color.white;
 
-    if (skin.price == 0)
+    if (equipped)
+    {
+      nameTmp.text = $"{skin.displayName}\n<size=16>\u2713 EQUIPPED</size>";
+      nameTmp.color = isLightBg ? new Color(0.05f, 0.3f, 0.05f) : new Color(0.5f, 1f, 0.7f);
+    }
+    else if (skin.price == 0)
     {
       nameTmp.text = skin.displayName;
-      nameTmp.color = new Color(0.7f, 0.7f, 0.8f);
+      nameTmp.color = textColor;
     }
     else if (owned)
     {
       nameTmp.text = $"{skin.displayName}\n<size=16>\u2713 Owned</size>";
-      nameTmp.color = new Color(0.5f, 0.75f, 0.55f);
+      nameTmp.color = isLightBg ? new Color(0.1f, 0.35f, 0.15f) : new Color(0.5f, 0.75f, 0.55f);
     }
     else
     {
       nameTmp.text = $"{skin.displayName}\n<size=16>\u2666 {skin.price:N0}</size>";
-      nameTmp.color = new Color(0.85f, 0.8f, 0.65f);
+      nameTmp.color = textColor;
     }
   }
 
