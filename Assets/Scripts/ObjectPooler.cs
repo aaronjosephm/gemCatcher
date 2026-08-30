@@ -278,6 +278,8 @@ public class ObjectPooler : MonoBehaviour
                     FallingObject fallingObj = obj.GetComponent<FallingObject>();
                     if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
                     fallingObj.fallSpeed = currentFallSpeed;
+                    // Match scale of main pool gems (raw prefabs are 1x, game is 4x).
+                    obj.transform.localScale = Vector3.one * 4f;
                     // Ensure a collider exists for catch detection.
                     if (obj.GetComponent<Collider>() == null)
                     {
