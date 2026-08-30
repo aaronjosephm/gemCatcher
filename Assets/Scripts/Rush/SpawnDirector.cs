@@ -694,19 +694,23 @@ public class SpawnDirector : MonoBehaviour
 
         GameObject obj = Instantiate(keyPrefab);
         obj.transform.position = new Vector3(x, y, 0f);
-        obj.transform.localScale = Vector3.one * 2.5f;
+        obj.transform.localScale = Vector3.one * 1.15f; // same size as other power-ups
+
+        // Zero child mesh offsets to prevent orbiting when spinning.
+        foreach (Transform child in obj.transform)
+            child.localPosition = Vector3.zero;
 
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo == null) fo = obj.AddComponent<FallingObject>();
         fo.ResetObject();
         fo.verticalOnly = true;
         fo.horizontalSpeed = 0f;
-        fo.fallSpeed = fallSpeed * 0.7f; // slower so player can't miss it
+        fo.fallSpeed = fallSpeed;
         fo.InitializeMovement(fo.fallSpeed);
         fo.isRushKey = true;
 
         var spinner = obj.AddComponent<SimpleSpinner>();
-        spinner.speed = new Vector3(0f, 90f, 0f);
+        spinner.speed = new Vector3(0f, 120f, 0f);
 
         if (obj.GetComponent<Collider>() == null)
         {
