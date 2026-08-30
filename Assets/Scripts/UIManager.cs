@@ -1794,6 +1794,62 @@ public class UIManager : MonoBehaviour
         new Color(0.35f, 0.35f, 0.40f), onClick);
   }
 
+  /// <summary>
+  /// Compact top bar with a back arrow on the left and a title.
+  /// Matches the shop screen style.
+  /// </summary>
+  void BuildTopBarBackArrow(Transform parent, string title, UnityEngine.Events.UnityAction onClick)
+  {
+    GameObject topBar = new GameObject("TopBar", typeof(RectTransform));
+    topBar.transform.SetParent(parent, false);
+    RectTransform topBarR = topBar.GetComponent<RectTransform>();
+    topBarR.anchorMin = new Vector2(0f, 0.93f);
+    topBarR.anchorMax = new Vector2(1f, 0.99f);
+    topBarR.offsetMin = Vector2.zero;
+    topBarR.offsetMax = Vector2.zero;
+    Image topBarBg = topBar.AddComponent<Image>();
+    topBarBg.color = new Color(0.08f, 0.09f, 0.12f, 0.85f);
+    topBarBg.raycastTarget = false;
+
+    // Back arrow button
+    GameObject backGo = new GameObject("BackBtn", typeof(RectTransform), typeof(Button));
+    backGo.transform.SetParent(topBar.transform, false);
+    RectTransform backR = backGo.GetComponent<RectTransform>();
+    backR.anchorMin = new Vector2(0f, 0f);
+    backR.anchorMax = new Vector2(0.15f, 1f);
+    backR.offsetMin = Vector2.zero;
+    backR.offsetMax = Vector2.zero;
+    Image backHit = backGo.AddComponent<Image>();
+    backHit.color = new Color(0, 0, 0, 0);
+    Button backBtn = backGo.GetComponent<Button>();
+    backBtn.targetGraphic = backHit;
+    backBtn.onClick.AddListener(onClick);
+
+    TextMeshProUGUI arrowTmp = new GameObject("Arrow", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+    arrowTmp.transform.SetParent(backGo.transform, false);
+    RectTransform arrowR = arrowTmp.GetComponent<RectTransform>();
+    arrowR.anchorMin = Vector2.zero; arrowR.anchorMax = Vector2.one;
+    arrowR.offsetMin = new Vector2(15f, 0f); arrowR.offsetMax = Vector2.zero;
+    arrowTmp.text = "\u2190";
+    arrowTmp.fontSize = 40;
+    arrowTmp.fontStyle = FontStyles.Bold;
+    arrowTmp.alignment = TextAlignmentOptions.MidlineLeft;
+    arrowTmp.color = Color.white;
+
+    // Title
+    TextMeshProUGUI titleTmp = new GameObject("Title", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+    titleTmp.transform.SetParent(topBar.transform, false);
+    RectTransform titleR = titleTmp.GetComponent<RectTransform>();
+    titleR.anchorMin = new Vector2(0.15f, 0f);
+    titleR.anchorMax = new Vector2(0.85f, 1f);
+    titleR.offsetMin = Vector2.zero; titleR.offsetMax = Vector2.zero;
+    titleTmp.text = title;
+    titleTmp.fontSize = 36;
+    titleTmp.fontStyle = FontStyles.Bold;
+    titleTmp.alignment = TextAlignmentOptions.MidlineLeft;
+    titleTmp.color = Color.white;
+  }
+
   // Builds a full-screen, near-opaque panel that hosts a single menu screen.
   // The returned panel's RectTransform fills the WHOLE screen (so background
   // dim/color extends behind the Dynamic Island, notch, home indicator, etc.),
@@ -2020,7 +2076,7 @@ public class UIManager : MonoBehaviour
         new Color(0.05f, 0.07f, 0.10f, 0.97f), out Transform contentParent);
 
     // Title
-    AddPanelTitle(contentParent, "SELECT LEVEL", Color.white, 100f);
+    BuildTopBarBackArrow(contentParent, "LEVELS", OnLevelSelectBackClicked);
 
     // Level cards container
     GameObject cardsGo = new GameObject("LevelCards", typeof(RectTransform), typeof(VerticalLayoutGroup));
@@ -2045,7 +2101,7 @@ public class UIManager : MonoBehaviour
     }
 
     // Back button at bottom
-    BuildStackedBackButton(contentParent, OnLevelSelectBackClicked);
+    // Back arrow is in the top bar now.
 
     levelSelectPanel.SetActive(false);
   }
@@ -3598,8 +3654,7 @@ public class UIManager : MonoBehaviour
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
 
-    // Back button — anchored to bottom of the panel (outside the stack).
-    BuildStackedBackButton(contentParent, OnSettingsBackClicked);
+    BuildTopBarBackArrow(contentParent, "SETTINGS", OnSettingsBackClicked);
 
     settingsPanel = panel;
     settingsPanel.SetActive(false);
