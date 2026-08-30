@@ -2320,11 +2320,11 @@ public class UIManager : MonoBehaviour
       var rb = shopPreviewCatchy.GetComponent<Rigidbody>();
       if (rb != null) Destroy(rb);
 
+      CatcherManager.Instance.ApplyGlassAppearance(shopPreviewCatchy);
+      SkinManager.ApplyEquippedSkin(shopPreviewCatchy);
       shopPreviewCatchy.AddComponent<CatchyFace>();
       var spinner = shopPreviewCatchy.AddComponent<SimpleSpinner>();
       spinner.speed = new Vector3(0f, 30f, 0f);
-      CatcherManager.Instance.ApplyGlassAppearance(shopPreviewCatchy);
-      RestorePreviewFaceColors();
       ApplyShopPreviewWearables(null);
     }
   }
@@ -3055,10 +3055,35 @@ public class UIManager : MonoBehaviour
   void ResetPreviewSkinToDefault()
   {
     if (shopPreviewCatchy == null) return;
+    // Destroy existing face quads before glass reapply
+    DestroyPreviewFaceParts();
     var cm = FindObjectOfType<CatcherManager>();
     if (cm != null)
       cm.ApplyGlassAppearance(shopPreviewCatchy);
-    RestorePreviewFaceColors();
+    // Re-add CatchyFace AFTER glass so it creates fresh Unlit materials
+    shopPreviewCatchy.AddComponent<CatchyFace>();
+  }
+
+  /// <summary>
+  /// Destroys all face-part child objects (eyes, smile, mouth, tears)
+  /// so CatchyFace can recreate them with proper materials.
+  /// </summary>
+  void DestroyPreviewFaceParts()
+  {
+    if (shopPreviewCatchy == null) return;
+    var oldFace = shopPreviewCatchy.GetComponent<CatchyFace>();
+    if (oldFace != null) Destroy(oldFace);
+
+    var toDestroy = new System.Collections.Generic.List<GameObject>();
+    foreach (Transform child in shopPreviewCatchy.transform)
+    {
+      string n = child.gameObject.name;
+      if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth")
+          || n.Contains("Happy") || n.Contains("Tear") || n.Contains("Sad"))
+        toDestroy.Add(child.gameObject);
+    }
+    foreach (var go in toDestroy)
+      Destroy(go);
   }
 
   /// <summary>
@@ -3068,8 +3093,6 @@ public class UIManager : MonoBehaviour
   void RestorePreviewFaceColors()
   {
     if (shopPreviewCatchy == null) return;
-    var face = shopPreviewCatchy.GetComponent<CatchyFace>();
-    if (face == null) return;
 
     Color dark = new Color(0.1f, 0.1f, 0.15f, 1f);
     Color tear = new Color(0.3f, 0.6f, 1f, 1f);
@@ -3080,23 +3103,18 @@ public class UIManager : MonoBehaviour
       Renderer rend = child.GetComponent<Renderer>();
       if (rend == null) continue;
 
-      if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth") || n.Contains("Happy"))
-      {
-        foreach (var mat in rend.materials)
-        {
-          if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", dark);
-          else if (mat.HasProperty("_Color")) mat.SetColor("_Color", dark);
-          else mat.color = dark;
-        }
-      }
+      Color? targetColor = null;
+      if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth") || n.Contains("Happy") || n.Contains("Sad"))
+        targetColor = dark;
       else if (n.Contains("Tear"))
+        targetColor = tear;
+
+      if (targetColor.HasValue)
       {
-        foreach (var mat in rend.materials)
-        {
-          if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", tear);
-          else if (mat.HasProperty("_Color")) mat.SetColor("_Color", tear);
-          else mat.color = tear;
-        }
+        // Replace with Unlit material so face parts render as solid, not glass
+        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.SetColor("_BaseColor", targetColor.Value);
+        rend.material = mat;
       }
     }
   }
