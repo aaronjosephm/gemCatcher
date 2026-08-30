@@ -3043,8 +3043,10 @@ public class UIManager : MonoBehaviour
       // Reset to equipped skin or default
       var equippedSkin = SkinManager.GetEquippedDef();
       if (equippedSkin != null && equippedSkin.Value.id != "default")
+      {
         SkinManager.ApplySkin(shopPreviewCatchy, equippedSkin.Value);
         RestorePreviewFaceColors();
+      }
       else
         ResetPreviewSkinToDefault();
     }
