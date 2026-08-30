@@ -126,8 +126,13 @@ public class SpawnDirector : MonoBehaviour
         dicePrefab = Resources.Load<GameObject>("PowerUps/Dice_V3_0");
         nextDiceDropTime = 60f;
 
-        // MasterGem (invincibility) — 5s for testing.
-        nextMasterGemDropTime = MasterGemDropInterval;
+        // MasterGem (invincibility) — only levels 3+.
+        bool masterGemEnabled = LevelManager.SelectedLevel == LevelManager.LevelId.Space
+                             || LevelManager.SelectedLevel == LevelManager.LevelId.Lava;
+        if (!masterGemEnabled)
+            nextMasterGemDropTime = float.MaxValue;
+        else
+            nextMasterGemDropTime = MasterGemDropInterval;
 
         // Key drop — load prefab and determine score threshold.
         keyPrefab = Resources.Load<GameObject>("PowerUps/Key_V3_0");
