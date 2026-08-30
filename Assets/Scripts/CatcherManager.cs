@@ -502,6 +502,8 @@ public class CatcherManager : MonoBehaviour
     }
 
     private GameObject invincibilityBubble;
+    private Color[] originalCatcherColors;
+    private Renderer[] catcherSkinnedRenderers;
 
     void UpdateInvincibilityBubble()
     {
@@ -510,59 +512,77 @@ public class CatcherManager : MonoBehaviour
 
         if (shouldShow && invincibilityBubble == null)
         {
-            invincibilityBubble = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            invincibilityBubble.name = "InvincibilityBubble";
-            invincibilityBubble.transform.SetParent(catcherInstance.transform, false);
-            invincibilityBubble.transform.localPosition = Vector3.zero;
-            invincibilityBubble.transform.localScale = Vector3.one * 3f;
+            // Cache original catchy colors so we can restore later.
+            catcherSkinnedRenderers = catcherInstance.GetComponentsInChildren<Renderer>();
+            originalCatcherColors = new Color[catcherSkinnedRenderers.Length];
+            for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
+            {
+                Material m = catcherSkinnedRenderers[i].material;
+                originalCatcherColors[i] = m.HasProperty("_BaseColor")
+                    ? m.GetColor("_BaseColor")
+                    : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
+            }
 
-            Collider col = invincibilityBubble.GetComponent<Collider>();
-            if (col != null) Destroy(col);
+            // Tint catchy gold.
+            Color gold = new Color(1f, 0.85f, 0.2f, 1f);
+            foreach (Renderer r in catcherSkinnedRenderers)
+            {
+                Material m = r.material;
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", gold);
+                else if (m.HasProperty("_Color")) m.SetColor("_Color", gold);
+            }
 
-            Renderer r = invincibilityBubble.GetComponent<Renderer>();
-            Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
-                        ?? Shader.Find("Unlit/Transparent");
-            Material mat = new Material(shader);
-            mat.SetColor("_BaseColor", new Color(1f, 0.85f, 0.2f, 0.2f));
-            mat.SetFloat("_Surface", 1f); // transparent
-            mat.SetFloat("_Blend", 0f);
-            mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            mat.SetInt("_ZWrite", 0);
-            mat.renderQueue = 3000;
-            r.material = mat;
-
-            // Gold glow aura on the catcher
+            // Gold glow aura on the catcher.
             if (catcherInstance.GetComponent<GemGlowVolume>() == null)
             {
                 var glow = catcherInstance.AddComponent<GemGlowVolume>();
-                glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
+                glow.glowColor = gold;
                 glow.glowAlpha = 0.9f;
                 glow.glowRadius = 2f;
             }
+
+            // Dummy marker so we know we're active (reuse the field).
+            invincibilityBubble = catcherInstance;
         }
         else if (!shouldShow && invincibilityBubble != null)
         {
-            Destroy(invincibilityBubble);
+            // Restore original catchy colors.
+            if (catcherSkinnedRenderers != null && originalCatcherColors != null)
+            {
+                for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
+                {
+                    if (catcherSkinnedRenderers[i] == null) continue;
+                    Material m = catcherSkinnedRenderers[i].material;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", originalCatcherColors[i]);
+                    else if (m.HasProperty("_Color")) m.SetColor("_Color", originalCatcherColors[i]);
+                }
+            }
+            catcherSkinnedRenderers = null;
+            originalCatcherColors = null;
             invincibilityBubble = null;
-            // Remove gold glow
+
+            // Remove gold glow.
             GemGlowVolume glow = catcherInstance.GetComponent<GemGlowVolume>();
             if (glow != null) Destroy(glow);
         }
 
-        if (!shouldShow || invincibilityBubble == null) return;
+        if (!shouldShow) return;
 
-        // Blink in last 5 seconds
+        // Blink the gold tint in last 5 seconds.
         float remaining = PowerUpManager.InvincibilityTimeRemaining;
-        if (remaining <= 5f && remaining > 0f)
+        if (remaining <= 5f && remaining > 0f && catcherSkinnedRenderers != null)
         {
             float blinkFreq = remaining <= 2f ? 6f : 3f;
-            float alpha = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
-            float fadeFactor = remaining / 5f;
-            Renderer sr = invincibilityBubble.GetComponent<Renderer>();
-            Color c = sr.material.GetColor("_BaseColor");
-            c.a = 0.2f * alpha * fadeFactor;
-            sr.material.SetColor("_BaseColor", c);
+            float t = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            Color gold = new Color(1f, 0.85f, 0.2f, 1f);
+            for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
+            {
+                if (catcherSkinnedRenderers[i] == null) continue;
+                Color blended = Color.Lerp(originalCatcherColors[i], gold, t);
+                Material m = catcherSkinnedRenderers[i].material;
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", blended);
+                else if (m.HasProperty("_Color")) m.SetColor("_Color", blended);
+            }
         }
     }
 

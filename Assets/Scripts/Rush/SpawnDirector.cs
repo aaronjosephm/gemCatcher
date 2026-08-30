@@ -627,7 +627,7 @@ public class SpawnDirector : MonoBehaviour
         fo.isRushMasterGem = true;
 
         var spinner = obj.AddComponent<SimpleSpinner>();
-        spinner.speed = new Vector3(0f, 90f, 20f);
+        spinner.speed = new Vector3(0f, 90f, 0f);
 
         // White glow aura.
         var glow = obj.AddComponent<GemGlowVolume>();

@@ -310,10 +310,12 @@ public class CatchZone : MonoBehaviour
             return true;
         }
 
-        // Invincibility absorbs all hits without being consumed.
+        // Invincibility absorbs all hits and awards 50 points per rock.
         if (PowerUpManager.InvincibilityActive)
         {
-            UIManager.Instance?.SpawnFloatingText("INVINCIBLE!", new Color(1f, 0.85f, 0.2f), worldPosition);
+            rm.AddScore(50);
+            UIManager.Instance?.SpawnFloatingText("+50", new Color(1f, 0.85f, 0.2f), worldPosition);
+            CatchBurst.Spawn(worldPosition, new Color(0.6f, 0.6f, 0.6f));
             return true;
         }
 
