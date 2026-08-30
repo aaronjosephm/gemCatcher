@@ -2224,7 +2224,7 @@ public class UIManager : MonoBehaviour
     shopPreviewCamera.targetTexture = shopPreviewRT;
     shopPreviewCamera.clearFlags = CameraClearFlags.SolidColor;
     shopPreviewCamera.backgroundColor = new Color(0.06f, 0.07f, 0.10f, 1f);
-    shopPreviewCamera.fieldOfView = 30f;
+    shopPreviewCamera.fieldOfView = 36f;
     shopPreviewCamera.nearClipPlane = 0.1f;
     shopPreviewCamera.farClipPlane = 10f;
 
@@ -2540,12 +2540,19 @@ public class UIManager : MonoBehaviour
 
     Image cardBg = card.GetComponent<Image>();
     Color baseColor;
-    if (selected)         baseColor = new Color(0.22f, 0.28f, 0.48f);
-    else if (equipped)    baseColor = new Color(0.12f, 0.32f, 0.20f);
-    else if (owned)       baseColor = new Color(0.12f, 0.14f, 0.22f);
-    else                  baseColor = new Color(0.08f, 0.08f, 0.12f);
+    if (selected)         baseColor = new Color(0.16f, 0.20f, 0.35f);
+    else if (equipped)    baseColor = new Color(0.10f, 0.22f, 0.15f);
+    else if (owned)       baseColor = new Color(0.10f, 0.11f, 0.16f);
+    else                  baseColor = new Color(0.07f, 0.07f, 0.10f);
     cardBg.color = baseColor;
-    CrystalButtonStyle.Apply(card, baseColor);
+
+    // Make the button invisible (no highlight/press color changes) — acts like a tappable image
+    Button btn = card.GetComponent<Button>();
+    btn.targetGraphic = cardBg;
+    btn.transition = UnityEngine.UI.Selectable.Transition.None;
+    var nav = btn.navigation;
+    nav.mode = UnityEngine.UI.Navigation.Mode.None;
+    btn.navigation = nav;
 
     // Selected glow border
     if (selected)
@@ -2623,8 +2630,6 @@ public class UIManager : MonoBehaviour
     }
 
     // Tap to select → preview on catchy
-    Button btn = card.GetComponent<Button>();
-    btn.targetGraphic = cardBg;
     var itemId = def.id;
     btn.onClick.AddListener(() => OnShopItemSelected(itemId));
   }
