@@ -144,9 +144,9 @@ public class SpawnDirector : MonoBehaviour
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
 
-        // Tutorial intro — for testing, run every Level 1 play.
-        // For production, gate with: PlayerPrefs.GetInt("TutorialCompleted", 0) == 0
-        if (LevelManager.SelectedLevel == LevelManager.LevelId.Cave)
+        // Tutorial intro — only on first-ever play.
+        if (LevelManager.SelectedLevel == LevelManager.LevelId.Cave
+            && PlayerPrefs.GetInt("TutorialCompleted", 0) == 0)
         {
             tutorialActive = true;
             tutorialStep = 0;
@@ -795,6 +795,8 @@ public class SpawnDirector : MonoBehaviour
                 {
                     // Tutorial complete.
                     tutorialActive = false;
+                    PlayerPrefs.SetInt("TutorialCompleted", 1);
+                    PlayerPrefs.Save();
                     if (tutorialOverlay != null)
                     {
                         Destroy(tutorialOverlay.gameObject);
