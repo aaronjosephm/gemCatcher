@@ -2271,9 +2271,17 @@ public class UIManager : MonoBehaviour
       }
 
       GameObject prefab = Resources.Load<GameObject>(def.prefabPath);
-      if (prefab == null) continue;
-
-      GameObject instance = Instantiate(prefab, shopPreviewCatchy.transform);
+      GameObject instance;
+      if (prefab != null)
+      {
+        instance = Instantiate(prefab, shopPreviewCatchy.transform);
+      }
+      else
+      {
+        instance = ProceduralWearableFactory.Create(def.id);
+        if (instance == null) continue;
+        instance.transform.SetParent(shopPreviewCatchy.transform, false);
+      }
       instance.name = $"Wearable_{def.id}";
       instance.transform.localPosition = def.localOffset;
       instance.transform.localRotation = Quaternion.Euler(def.localRotation);

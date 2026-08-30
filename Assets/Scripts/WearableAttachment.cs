@@ -36,13 +36,21 @@ public class WearableAttachment : MonoBehaviour
             if (!WearableManager.IsEquipped(def.id)) continue;
 
             GameObject prefab = Resources.Load<GameObject>(def.prefabPath);
-            if (prefab == null)
+            GameObject instance;
+            if (prefab != null)
             {
-                Debug.LogWarning($"[WearableAttachment] Prefab not found: {def.prefabPath}");
-                continue;
+                instance = Instantiate(prefab, transform);
             }
-
-            GameObject instance = Instantiate(prefab, transform);
+            else
+            {
+                instance = ProceduralWearableFactory.Create(def.id);
+                if (instance == null)
+                {
+                    Debug.LogWarning($"[WearableAttachment] No prefab or procedural wearable for: {def.id}");
+                    continue;
+                }
+                instance.transform.SetParent(transform, false);
+            }
             instance.name = $"Wearable_{def.id}";
             instance.transform.localPosition = def.localOffset;
             instance.transform.localRotation = Quaternion.Euler(def.localRotation);
