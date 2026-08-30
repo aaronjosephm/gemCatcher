@@ -139,12 +139,14 @@ public static class SkinManager
     /// <summary>Applies a specific skin to catchy's renderers.</summary>
     public static void ApplySkin(GameObject catchy, SkinDef skin)
     {
+        if (skin.id == "default") return; // default uses glass appearance as-is
+
         foreach (var rend in catchy.GetComponentsInChildren<Renderer>())
         {
             if (rend == null || rend.gameObject == null) continue;
-            // Keep facial features black regardless of skin.
             string partName = rend.gameObject.name;
-            if (partName.Contains("Eye") || partName.Contains("Smile") || partName.Contains("Mouth"))
+            if (partName.Contains("Eye") || partName.Contains("Smile") || partName.Contains("Mouth")
+                || partName.Contains("Happy") || partName.Contains("Tear") || partName.Contains("Sad"))
                 continue;
 
             foreach (var mat in rend.materials)
@@ -152,13 +154,8 @@ public static class SkinManager
                 if (mat == null) continue;
                 if (skin.type == SkinType.Camo)
                 {
-                    // Camo: alternate between primary/secondary per renderer
                     int hash = rend.GetHashCode();
                     mat.color = (hash % 2 == 0) ? skin.primaryColor : skin.secondaryColor;
-                }
-                else if (skin.id == "default")
-                {
-                    mat.color = Color.white;
                 }
                 else
                 {
