@@ -3099,7 +3099,6 @@ public class UIManager : MonoBehaviour
         }
       }
     }
-    RestorePreviewFaceColors();
   }
 
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
