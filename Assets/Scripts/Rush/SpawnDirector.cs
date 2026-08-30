@@ -63,6 +63,13 @@ public class SpawnDirector : MonoBehaviour
     private bool keyDropped; // only one key per round
     private int keyDropScore; // score threshold to trigger key drop
 
+    // Tutorial intro
+    private int tutorialStep; // 0 = move right, 1 = move left, 2+ = done
+    private bool tutorialActive;
+    private float tutorialWaveSpawnTime;
+    private bool tutorialWaveInFlight;
+    private TutorialOverlay tutorialOverlay;
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -136,6 +143,20 @@ public class SpawnDirector : MonoBehaviour
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
+
+        // Tutorial intro — for testing, run every Level 1 play.
+        // For production, gate with: PlayerPrefs.GetInt("TutorialCompleted", 0) == 0
+        if (LevelManager.SelectedLevel == LevelManager.LevelId.Cave)
+        {
+            tutorialActive = true;
+            tutorialStep = 0;
+            tutorialWaveInFlight = false;
+            tutorialWaveSpawnTime = Time.time + 1.5f; // short delay before first tutorial wave
+
+            // Create the arrow overlay.
+            GameObject overlayGo = new GameObject("TutorialOverlay", typeof(TutorialOverlay));
+            tutorialOverlay = overlayGo.GetComponent<TutorialOverlay>();
+        }
     }
 
     void BuildRockPool()
@@ -190,6 +211,13 @@ public class SpawnDirector : MonoBehaviour
     void Update()
     {
         if (!GameState.IsPlaying || GemCatcher.IsGameOver) return;
+
+        // --- Tutorial phase: scripted intro waves before normal gameplay ---
+        if (tutorialActive)
+        {
+            UpdateTutorial();
+            return; // skip normal wave generation during tutorial
+        }
 
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
@@ -740,11 +768,121 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log($"[SpawnDirector] Key drop spawned at ({x:F2}, {y:F2})");
     }
 
+    // ─── Tutorial intro ─────────────────────────────────────────────────
+
+    private GameObject tutorialGem; // track the gem so we know when it's caught
+    private int tutorialScoreBefore; // score before tutorial wave spawned
+
+    /// <summary>
+    /// Called each frame during tutorial. Spawns scripted rock walls with a
+    /// gap and a gem, shows directional arrows, advances steps on gem catch.
+    /// </summary>
+    void UpdateTutorial()
+    {
+        // Check if the tutorial gem has been deactivated (caught or missed).
+        if (tutorialWaveInFlight && tutorialGem != null && !tutorialGem.activeInHierarchy)
+        {
+            int currentScore = RoundManager.Instance != null ? RoundManager.Instance.Score : 0;
+            bool wasCaught = currentScore > tutorialScoreBefore;
+
+            if (wasCaught)
+            {
+                // Gem was caught — advance to next step.
+                tutorialWaveInFlight = false;
+                if (tutorialOverlay != null) tutorialOverlay.HideArrows();
+                tutorialStep++;
+                if (tutorialStep >= 2)
+                {
+                    // Tutorial complete.
+                    tutorialActive = false;
+                    if (tutorialOverlay != null)
+                    {
+                        Destroy(tutorialOverlay.gameObject);
+                        tutorialOverlay = null;
+                    }
+                    // Reset round timer so power-up timers start from now.
+                    roundStartTime = Time.time;
+                    Debug.Log("[SpawnDirector] Tutorial complete, starting normal gameplay.");
+                    return;
+                }
+                // Pause before next tutorial wave.
+                tutorialWaveSpawnTime = Time.time + 2f;
+            }
+            else
+            {
+                // Gem was missed — retry the same step after a pause.
+                tutorialWaveInFlight = false;
+                if (tutorialOverlay != null) tutorialOverlay.HideArrows();
+                tutorialWaveSpawnTime = Time.time + 1.5f;
+            }
+        }
+
+        // Spawn next tutorial wave when timer elapses.
+        if (!tutorialWaveInFlight && Time.time >= tutorialWaveSpawnTime)
+        {
+            SpawnTutorialWave(tutorialStep);
+            tutorialWaveInFlight = true;
+        }
+    }
+
+    /// <summary>
+    /// Spawns a wall of rocks with a gap on the specified side, plus a gem
+    /// in the gap. Step 0 = gap on far right, step 1 = gap on far left.
+    /// </summary>
+    void SpawnTutorialWave(int step)
+    {
+        float left = GetPlayAreaLeft();
+        float right = GetPlayAreaRight();
+        float width = right - left;
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        float fallSpeed = 2.5f; // slow so the player has time to react
+
+        // Gap position: far right for step 0, far left for step 1.
+        float gapCenter, gapWidth;
+        gapWidth = width * 0.2f; // 20% of screen is the gap
+        if (step == 0)
+            gapCenter = right - gapWidth * 0.5f; // far right
+        else
+            gapCenter = left + gapWidth * 0.5f;  // far left
+
+        float gapLeft = gapCenter - gapWidth * 0.5f;
+        float gapRight = gapCenter + gapWidth * 0.5f;
+
+        // Spawn rocks across the screen, skipping the gap area.
+        float rockSpacing = 1.2f; // spacing between rock centers
+        for (float x = left; x <= right; x += rockSpacing)
+        {
+            if (x >= gapLeft && x <= gapRight)
+                continue; // skip the gap
+            SpawnHazardAt(x, spawnY, fallSpeed, 0);
+        }
+
+        // Spawn a gem in the center of the gap.
+        if (pooler != null)
+            pooler.SpawnRushGemAt(gapCenter, spawnY, fallSpeed, 0f);
+
+        // Track the gem so we know when it's caught.
+        if (pooler != null && pooler.CurrentActiveGem != null)
+            tutorialGem = pooler.CurrentActiveGem;
+
+        tutorialScoreBefore = RoundManager.Instance != null ? RoundManager.Instance.Score : 0;
+
+        // Show directional arrows.
+        int arrowDir = (step == 0) ? 1 : -1;
+        if (tutorialOverlay != null)
+            tutorialOverlay.ShowArrows(arrowDir);
+
+        Debug.Log($"[SpawnDirector] Tutorial wave {step}: gap at x={gapCenter:F1}, arrows={arrowDir}");
+    }
+
     void OnDestroy()
     {
         // Unsubscribe from score changes.
         if (RoundManager.Instance != null)
             RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
+
+        if (tutorialOverlay != null)
+            Destroy(tutorialOverlay.gameObject);
 
         if (rockPool != null)
         {
