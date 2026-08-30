@@ -33,7 +33,8 @@ public static class LevelManager
         public float dailyMaxFallSpeed;
         public float dailyMinSpawnInterval;
         public float catcherYOffset;         // Extra downward offset for catcher position (0 = default)
-        public float placementDuration;      // Seconds the gem blinks before going solid (0 = use default 3s)
+        public float placementDuration;
+        public float backgroundWallZ;        // Override for background plane Z (0 = use default 2)      // Seconds the gem blinks before going solid (0 = use default 3s)
     }
 
     private static readonly LevelConfig[] levels = new[]
@@ -116,6 +117,7 @@ public static class LevelManager
             dailyMinSpawnInterval = 1.0f,
             catcherYOffset = 0f,
             placementDuration = 2.5f,
+            backgroundWallZ = 5f,
         },
     };
 

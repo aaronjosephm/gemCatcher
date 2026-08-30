@@ -11,7 +11,7 @@ public class CaveBackgroundFit : MonoBehaviour
 {
   const float PlaneMeshSize = 10f;
 
-  public float wallZ = 5f;
+  public float wallZ = 2f;
 
   [SerializeField] float textureAspect = 1024f / 1536f;
 
@@ -160,7 +160,10 @@ public class CaveBackgroundFit : MonoBehaviour
     }
 
     transform.localScale = new Vector3(worldW / PlaneMeshSize, 1f, worldH / PlaneMeshSize);
-    transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, wallZ);
+    float z = wallZ;
+    var cfg = LevelManager.CurrentConfig;
+    if (cfg.backgroundWallZ > 0f) z = cfg.backgroundWallZ;
+    transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, z);
     transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
   }
 }
