@@ -69,14 +69,14 @@ Material:
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _EdgeFade: 0.55
-    - _EdgeFoamIntensity: 1.2
+    - _EdgeFoamIntensity: 0
     - _EdgeFoamThreshold: 0.06
     - _EdgeFoamWidth: 2
-    - _FoamCrestIntensity: 1.8
+    - _FoamCrestIntensity: 0
     - _FoamCrestThreshold: 0.18
-    - _FoamIntensity: 1.6
+    - _FoamIntensity: 0
     - _FoamNoiseScale: 0.75
-    - _FoamNoiseSpeed: 1.25
+    - _FoamNoiseSpeed: 0
     - _FresnelBias: 0.06
     - _FresnelPower: 3.2
     - _FresnelScale: 1.6
@@ -90,8 +90,8 @@ Material:
     - _OcclusionStrength: 1
     - _Opacity: 0.95
     - _Parallax: 0.02
-    - _RefractionDistort: 0.35
-    - _RefractionStrength: 0.8
+    - _RefractionDistort: 0
+    - _RefractionStrength: 0
     - _RippleScale: 0.45
     - _RippleSpeed: 0
     - _RippleStrength: 0
@@ -102,10 +102,10 @@ Material:
     - _SrcBlend: 1
     - _UVSec: 0
     - _UnderwaterDistortDepth: 6
-    - _UnderwaterDistortStrength: 1.5
-    - _UnderwaterTurbulenceAmount: 0.35
+    - _UnderwaterDistortStrength: 0
+    - _UnderwaterTurbulenceAmount: 0
     - _UnderwaterTurbulenceScale: 1.5
-    - _UnderwaterTurbulenceSpeed: 1
+    - _UnderwaterTurbulenceSpeed: 0
     - _ZWrite: 1
     m_Colors:
     - _BaseColor: {r: 0.06, g: 0.35, b: 0.45, a: 0.54901963}
