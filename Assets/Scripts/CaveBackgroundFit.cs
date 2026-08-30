@@ -11,7 +11,7 @@ public class CaveBackgroundFit : MonoBehaviour
 {
   const float PlaneMeshSize = 10f;
 
-  public float wallZ = 2f;
+  public float wallZ = 5f;
 
   [SerializeField] float textureAspect = 1024f / 1536f;
 
