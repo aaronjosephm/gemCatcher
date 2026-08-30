@@ -2448,16 +2448,13 @@ public class UIManager : MonoBehaviour
 
     // Balance pill (right side)
     {
-      GameObject pillGo = new GameObject("BalancePill", typeof(RectTransform));
-      pillGo.transform.SetParent(topBar.transform, false);
+      GameObject pillGo = new GameObject("BalancePill", typeof(RectTransform));      pillGo.transform.SetParent(topBar.transform, false);
       RectTransform pillR = pillGo.GetComponent<RectTransform>();
       pillR.anchorMin = new Vector2(0.52f, 0.15f);
       pillR.anchorMax = new Vector2(0.97f, 0.85f);
       pillR.offsetMin = Vector2.zero;
       pillR.offsetMax = Vector2.zero;
-      Image pillBg = pillGo.AddComponent<Image>();
-      pillBg.color = new Color(0.12f, 0.12f, 0.18f, 0.9f);
-      CrystalButtonStyle.Apply(pillGo, pillBg.color);
+      // No background — just text
 
       TextMeshProUGUI balTmp = new GameObject("BalText", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
       balTmp.transform.SetParent(pillGo.transform, false);
