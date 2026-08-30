@@ -513,6 +513,7 @@ public class CatcherManager : MonoBehaviour
         if (shouldShow && invincibilityBubble == null)
         {
             // Cache original catchy colors so we can restore later.
+            // Skip face parts (eyes, mouth) so they stay black.
             catcherSkinnedRenderers = catcherInstance.GetComponentsInChildren<Renderer>();
             originalCatcherColors = new Color[catcherSkinnedRenderers.Length];
             for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
@@ -523,11 +524,17 @@ public class CatcherManager : MonoBehaviour
                     : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
             }
 
-            // Tint catchy gold.
+            // Tint catchy gold — skip dark parts (eyes, mouth, face features).
             Color gold = new Color(1f, 0.85f, 0.2f, 1f);
-            foreach (Renderer r in catcherSkinnedRenderers)
+            for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
             {
-                Material m = r.material;
+                // If the original color is very dark, it's likely eyes/mouth — don't tint.
+                if (originalCatcherColors[i].r < 0.15f
+                    && originalCatcherColors[i].g < 0.15f
+                    && originalCatcherColors[i].b < 0.15f)
+                    continue;
+
+                Material m = catcherSkinnedRenderers[i].material;
                 if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", gold);
                 else if (m.HasProperty("_Color")) m.SetColor("_Color", gold);
             }
@@ -578,6 +585,11 @@ public class CatcherManager : MonoBehaviour
             for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
             {
                 if (catcherSkinnedRenderers[i] == null) continue;
+                // Skip dark face parts.
+                if (originalCatcherColors[i].r < 0.15f
+                    && originalCatcherColors[i].g < 0.15f
+                    && originalCatcherColors[i].b < 0.15f)
+                    continue;
                 Color blended = Color.Lerp(originalCatcherColors[i], gold, t);
                 Material m = catcherSkinnedRenderers[i].material;
                 if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", blended);

@@ -617,6 +617,12 @@ public class SpawnDirector : MonoBehaviour
         obj.transform.position = new Vector3(x, y, 0f);
         obj.transform.localScale = Vector3.one * 4f;
 
+        // Center all child meshes so rotation doesn't orbit them off-screen.
+        foreach (Transform child in obj.transform)
+        {
+            child.localPosition = Vector3.zero;
+        }
+
         FallingObject fo = obj.GetComponent<FallingObject>();
         if (fo == null) fo = obj.AddComponent<FallingObject>();
         fo.ResetObject();
