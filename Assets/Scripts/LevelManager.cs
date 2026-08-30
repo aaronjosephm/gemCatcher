@@ -106,7 +106,7 @@ public static class LevelManager
             backgroundMaterialResource = null,
             midgroundResource = null,
             musicResource = "Audio/BayLookoutMusic",
-            extraGemPrefabs = null,
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22" },
             unlockScore = 100,
             cameraColor = new Color(0.02f, 0.08f, 0.18f, 1f),
             initialFallSpeed = 5.0f,

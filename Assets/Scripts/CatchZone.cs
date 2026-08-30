@@ -286,7 +286,7 @@ public class CatchZone : MonoBehaviour
         {
             case SpecialGemType.Golden:  basePoints = RoundManager.POINTS_PER_GOLDEN_CATCH; break;
             default:
-                basePoints = fo.isRushGoldenGem ? 160 : (fo.isRushDiamondGem ? 80 : (fo.isRushRedGem ? 40 : RoundManager.POINTS_PER_CATCH));
+                basePoints = fo.isRushPlatinumGem ? 320 : (fo.isRushGoldenGem ? 160 : (fo.isRushDiamondGem ? 80 : (fo.isRushRedGem ? 40 : RoundManager.POINTS_PER_CATCH)));
                 break;
         }
 

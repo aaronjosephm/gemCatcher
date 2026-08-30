@@ -764,10 +764,20 @@ public class ObjectPooler : MonoBehaviour
         bool isDiamond = false;
         bool isRed = false;
         bool isGolden = false;
+        bool isPlatinum = false;
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.Space)
+        if (level == LevelManager.LevelId.Lava)
+        {
+            // Level 4: Magic_Gem_24 (160pts) → Magic_Gem_22 (320pts)
+            baseGem = "Magic_Gem_24";
+            upgradeGem = "Magic_Gem_22";
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isGolden = !useUpgrade;
+            isPlatinum = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Space)
         {
             // Level 3: DiamondGem (80pts) → GoldenGem (160pts)
             baseGem = "Magic_Gem_1";
@@ -818,6 +828,7 @@ public class ObjectPooler : MonoBehaviour
             fo.isRushRedGem = isRed;
             fo.isRushDiamondGem = isDiamond;
             fo.isRushGoldenGem = isGolden;
+            fo.isRushPlatinumGem = isPlatinum;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
