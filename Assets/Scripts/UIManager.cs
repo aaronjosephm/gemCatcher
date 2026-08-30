@@ -3055,25 +3055,18 @@ public class UIManager : MonoBehaviour
   void ResetPreviewSkinToDefault()
   {
     if (shopPreviewCatchy == null) return;
-    // Restore the original glass color (not plain white)
+    // Re-create glass material and apply only to body renderers (not face parts)
     var cm = FindObjectOfType<CatcherManager>();
-    Color glassCol = (cm != null)
-        ? cm.glassColor
-        : Color.white;
+    if (cm == null) return;
 
-    foreach (var rend in shopPreviewCatchy.GetComponentsInChildren<Renderer>())
-    {
-      if (rend == null) continue;
-      string n = rend.gameObject.name;
-      if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth")
-          || n.Contains("Happy") || n.Contains("Tear") || n.Contains("Sad"))
-        continue;
-      foreach (var mat in rend.materials)
-      {
-        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", glassCol);
-        else if (mat.HasProperty("_Color")) mat.SetColor("_Color", glassCol);
-      }
-    }
+    // Use reflection-free approach: create glass via ApplyGlassAppearance on a
+    // temp clone, grab its material, then apply to body renderers only.
+    // Simpler: just call ApplyGlassAppearance but protect face parts after.
+    cm.ApplyGlassAppearance(shopPreviewCatchy);
+
+    // Face quads now have glass material — destroy and re-create them
+    DestroyPreviewFaceParts();
+    shopPreviewCatchy.AddComponent<CatchyFace>();
   }
 
   /// <summary>

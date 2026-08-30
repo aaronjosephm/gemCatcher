@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public static class SkinManager
 {
-    public enum SkinType { SolidColor, Camo }
+    public enum SkinType { SolidColor, Camo, PrefabMaterial }
 
     [System.Serializable]
     public struct SkinDef
@@ -17,6 +17,7 @@ public static class SkinManager
         public SkinType type;
         public Color primaryColor;
         public Color secondaryColor; // for patterns like camo
+        public string materialPrefabPath; // for PrefabMaterial type
     }
 
     private static readonly SkinDef[] catalog = new SkinDef[]
@@ -53,6 +54,15 @@ public static class SkinManager
             type = SkinType.Camo,
             primaryColor = new Color(0.30f, 0.40f, 0.20f),
             secondaryColor = new Color(0.20f, 0.28f, 0.12f),
+        },
+        new SkinDef
+        {
+            id = "diamond",
+            displayName = "Diamond",
+            price = 50,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.7f, 0.85f, 1f), // swatch color for card
+            materialPrefabPath = "Gems/DiamondGem",
         },
     };
 
@@ -139,7 +149,19 @@ public static class SkinManager
     /// <summary>Applies a specific skin to catchy's renderers.</summary>
     public static void ApplySkin(GameObject catchy, SkinDef skin)
     {
-        if (skin.id == "default") return; // default uses glass appearance as-is
+        if (skin.id == "default") return;
+
+        Material prefabMat = null;
+        if (skin.type == SkinType.PrefabMaterial && !string.IsNullOrEmpty(skin.materialPrefabPath))
+        {
+            var prefab = Resources.Load<GameObject>(skin.materialPrefabPath);
+            if (prefab != null)
+            {
+                var rend = prefab.GetComponentInChildren<Renderer>();
+                if (rend != null && rend.sharedMaterial != null)
+                    prefabMat = rend.sharedMaterial;
+            }
+        }
 
         foreach (var rend in catchy.GetComponentsInChildren<Renderer>())
         {
@@ -149,17 +171,26 @@ public static class SkinManager
                 || partName.Contains("Happy") || partName.Contains("Tear") || partName.Contains("Sad"))
                 continue;
 
-            foreach (var mat in rend.materials)
+            if (skin.type == SkinType.PrefabMaterial && prefabMat != null)
             {
-                if (mat == null) continue;
-                if (skin.type == SkinType.Camo)
+                Material[] mats = new Material[rend.sharedMaterials.Length];
+                for (int i = 0; i < mats.Length; i++) mats[i] = prefabMat;
+                rend.sharedMaterials = mats;
+            }
+            else
+            {
+                foreach (var mat in rend.materials)
                 {
-                    int hash = rend.GetHashCode();
-                    mat.color = (hash % 2 == 0) ? skin.primaryColor : skin.secondaryColor;
-                }
-                else
-                {
-                    mat.color = skin.primaryColor;
+                    if (mat == null) continue;
+                    if (skin.type == SkinType.Camo)
+                    {
+                        int hash = rend.GetHashCode();
+                        mat.color = (hash % 2 == 0) ? skin.primaryColor : skin.secondaryColor;
+                    }
+                    else
+                    {
+                        mat.color = skin.primaryColor;
+                    }
                 }
             }
         }
