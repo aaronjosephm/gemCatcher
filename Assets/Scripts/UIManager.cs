@@ -1807,9 +1807,6 @@ public class UIManager : MonoBehaviour
     topBarR.anchorMax = new Vector2(1f, 0.99f);
     topBarR.offsetMin = Vector2.zero;
     topBarR.offsetMax = Vector2.zero;
-    Image topBarBg = topBar.AddComponent<Image>();
-    topBarBg.color = new Color(0.08f, 0.09f, 0.12f, 0.85f);
-    topBarBg.raycastTarget = false;
 
     // Back arrow button
     GameObject backGo = new GameObject("BackBtn", typeof(RectTransform), typeof(Button));
@@ -2279,8 +2276,8 @@ public class UIManager : MonoBehaviour
     shopPreviewCamera = camGo.AddComponent<Camera>();
     shopPreviewCamera.targetTexture = shopPreviewRT;
     shopPreviewCamera.clearFlags = CameraClearFlags.SolidColor;
-    shopPreviewCamera.backgroundColor = new Color(0.06f, 0.07f, 0.10f, 1f);
-    shopPreviewCamera.fieldOfView = 36f;
+    shopPreviewCamera.backgroundColor = new Color(0, 0, 0, 0);
+    shopPreviewCamera.fieldOfView = 50f;
     shopPreviewCamera.nearClipPlane = 0.1f;
     shopPreviewCamera.farClipPlane = 10f;
 
@@ -2399,9 +2396,6 @@ public class UIManager : MonoBehaviour
     topBarR.anchorMax = new Vector2(1f, 0.99f);
     topBarR.offsetMin = Vector2.zero;
     topBarR.offsetMax = Vector2.zero;
-    Image topBarBg = topBar.AddComponent<Image>();
-    topBarBg.color = new Color(0.08f, 0.09f, 0.12f, 0.85f);
-    topBarBg.raycastTarget = false;
 
     // Back arrow button (left)
     {
@@ -2481,9 +2475,7 @@ public class UIManager : MonoBehaviour
     previewR.offsetMax = Vector2.zero;
 
     // Subtle background behind preview
-    Image previewBg = previewGo.AddComponent<Image>();
-    previewBg.color = new Color(0.06f, 0.07f, 0.10f, 0.6f);
-    previewBg.raycastTarget = false;
+    // No background — catchy floats over the panel
 
     // RawImage for the render texture
     GameObject rawGo = new GameObject("RawPreview", typeof(RectTransform));
