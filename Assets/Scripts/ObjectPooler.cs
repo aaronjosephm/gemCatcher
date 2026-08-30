@@ -866,6 +866,16 @@ public class ObjectPooler : MonoBehaviour
                 glow.glowAlpha = 0.85f;
                 glow.glowRadius = 0.9f;
             }
+
+            // Add orange glow to platinum gems (Level 4 upgrade).
+            if (isPlatinum)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(1f, 0.55f, 0.1f, 1f);
+                glow.glowAlpha = 0.9f;
+                glow.glowRadius = 1f;
+            }
         }
         obj.SetActive(true);
         currentActiveGem = obj;
