@@ -98,6 +98,7 @@ public class UIManager : MonoBehaviour
   private GameObject shopPreviewCatchy;
   private string shopPreviewWearableId; // currently previewing
   private string shopSelectedId;        // currently selected card
+  private string shopActiveTab = "wearables"; // "wearables" or "skins"
   private TextMeshProUGUI shopBalanceText;
   private Transform shopGridContainer;
   private GameObject shopActionArea;    // buy/equip bar at bottom
@@ -222,6 +223,7 @@ public class UIManager : MonoBehaviour
   {
     // DEBUG: reset wearable purchases for testing — remove before release
     WearableManager.ResetAll();
+    SkinManager.ResetAll();
 
     levelAtSceneLoad = LevelManager.SelectedLevel;
 
@@ -2233,6 +2235,7 @@ public class UIManager : MonoBehaviour
   {
     SetupShopPreview();
     shopSelectedId = null;
+    shopActiveTab = "wearables";
     EnsureShopPanel();
     FadePanel(mainMenuPanel, false);
     FadePanel(shopPanel, true);
@@ -2469,7 +2472,7 @@ public class UIManager : MonoBehaviour
     GameObject previewGo = new GameObject("Preview", typeof(RectTransform));
     previewGo.transform.SetParent(content, false);
     RectTransform previewR = previewGo.GetComponent<RectTransform>();
-    previewR.anchorMin = new Vector2(0.08f, 0.50f);
+    previewR.anchorMin = new Vector2(0.08f, 0.55f);
     previewR.anchorMax = new Vector2(0.92f, 0.92f);
     previewR.offsetMin = Vector2.zero;
     previewR.offsetMax = Vector2.zero;
@@ -2491,14 +2494,36 @@ public class UIManager : MonoBehaviour
       rawImg.texture = shopPreviewRT;
 
     // ════════════════════════════════════════════════════════════════════
-    //  ITEM GRID — 2-column grid of cosmetic cards in a ScrollRect
+    //  CATEGORY TABS — Wearables | Skins
+    // ════════════════════════════════════════════════════════════════════
+    GameObject tabRow = new GameObject("TabRow", typeof(RectTransform));
+    tabRow.transform.SetParent(content, false);
+    RectTransform tabRowR = tabRow.GetComponent<RectTransform>();
+    tabRowR.anchorMin = new Vector2(0.08f, 0.49f);
+    tabRowR.anchorMax = new Vector2(0.92f, 0.54f);
+    tabRowR.offsetMin = Vector2.zero;
+    tabRowR.offsetMax = Vector2.zero;
+
+    HorizontalLayoutGroup tabHlg = tabRow.AddComponent<HorizontalLayoutGroup>();
+    tabHlg.childAlignment = TextAnchor.MiddleCenter;
+    tabHlg.spacing = 12f;
+    tabHlg.childControlWidth = true;
+    tabHlg.childControlHeight = true;
+    tabHlg.childForceExpandWidth = true;
+    tabHlg.childForceExpandHeight = true;
+
+    BuildShopTab(tabRow.transform, "Wearables", "wearables");
+    BuildShopTab(tabRow.transform, "Skins", "skins");
+
+    // ════════════════════════════════════════════════════════════════════
+    //  ITEM GRID — 2-column grid in a ScrollRect
     // ════════════════════════════════════════════════════════════════════
     // ScrollRect viewport
     GameObject scrollGo = new GameObject("ItemScroll", typeof(RectTransform));
     scrollGo.transform.SetParent(content, false);
     RectTransform scrollR = scrollGo.GetComponent<RectTransform>();
     scrollR.anchorMin = new Vector2(0.04f, 0.13f);
-    scrollR.anchorMax = new Vector2(0.96f, 0.49f);
+    scrollR.anchorMax = new Vector2(0.96f, 0.48f);
     scrollR.offsetMin = Vector2.zero;
     scrollR.offsetMax = Vector2.zero;
 
@@ -2549,9 +2574,8 @@ public class UIManager : MonoBehaviour
     sr.movementType = UnityEngine.UI.ScrollRect.MovementType.Clamped;
     sr.scrollSensitivity = 30f;
 
-    // Populate grid
-    foreach (var def in WearableManager.Catalog)
-      BuildCosmeticCard(gridGo.transform, def);
+    // Populate grid based on active tab
+    PopulateShopGrid(gridGo.transform);
 
     // ════════════════════════════════════════════════════════════════════
     //  ACTION BAR — centralized Buy/Equip button for selected item
@@ -2684,7 +2708,10 @@ public class UIManager : MonoBehaviour
   void OnShopItemSelected(string itemId)
   {
     shopSelectedId = itemId;
-    ApplyShopPreviewWearables(itemId);
+    if (shopActiveTab == "wearables")
+      ApplyShopPreviewWearables(itemId);
+    else
+      ApplyShopPreviewSkin(itemId);
     RefreshShopGrid();
     RefreshShopActionBar();
   }
@@ -2694,8 +2721,21 @@ public class UIManager : MonoBehaviour
     if (shopGridContainer == null) return;
     for (int i = shopGridContainer.childCount - 1; i >= 0; i--)
       Destroy(shopGridContainer.GetChild(i).gameObject);
-    foreach (var def in WearableManager.Catalog)
-      BuildCosmeticCard(shopGridContainer, def);
+    PopulateShopGrid(shopGridContainer);
+  }
+
+  void PopulateShopGrid(Transform parent)
+  {
+    if (shopActiveTab == "wearables")
+    {
+      foreach (var def in WearableManager.Catalog)
+        BuildCosmeticCard(parent, def);
+    }
+    else
+    {
+      foreach (var skin in SkinManager.Catalog)
+        BuildSkinCard(parent, skin);
+    }
   }
 
   // ─── Action Bar ─────────────────────────────────────────────────────
@@ -2704,13 +2744,11 @@ public class UIManager : MonoBehaviour
   {
     if (shopActionArea == null) return;
 
-    // Clear existing children
     for (int i = shopActionArea.transform.childCount - 1; i >= 0; i--)
       Destroy(shopActionArea.transform.GetChild(i).gameObject);
 
     if (shopSelectedId == null)
     {
-      // No item selected — show hint
       TextMeshProUGUI hintTmp = new GameObject("Hint", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
       hintTmp.transform.SetParent(shopActionArea.transform, false);
       RectTransform hintR = hintTmp.GetComponent<RectTransform>();
@@ -2724,15 +2762,33 @@ public class UIManager : MonoBehaviour
       return;
     }
 
-    var defN = WearableManager.GetDef(shopSelectedId);
-    if (defN == null) return;
-    var def = defN.Value;
+    string itemName;
+    int itemPrice;
+    bool owned, equipped, canAfford;
 
-    bool owned = WearableManager.IsOwned(def.id);
-    bool equipped = WearableManager.IsEquipped(def.id);
-    bool canAfford = WearableManager.Balance >= def.price;
+    if (shopActiveTab == "wearables")
+    {
+      var defN = WearableManager.GetDef(shopSelectedId);
+      if (defN == null) return;
+      var def = defN.Value;
+      itemName = def.displayName;
+      itemPrice = def.price;
+      owned = WearableManager.IsOwned(def.id);
+      equipped = WearableManager.IsEquipped(def.id);
+      canAfford = WearableManager.Balance >= def.price;
+    }
+    else
+    {
+      var skinN = SkinManager.GetDef(shopSelectedId);
+      if (skinN == null) return;
+      var skin = skinN.Value;
+      itemName = skin.displayName;
+      itemPrice = skin.price;
+      owned = SkinManager.IsOwned(skin.id);
+      equipped = SkinManager.IsEquipped(skin.id);
+      canAfford = WearableManager.Balance >= skin.price;
+    }
 
-    // Big action button spanning the action bar
     GameObject btnGo = new GameObject("ActionBtn",
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
     btnGo.transform.SetParent(shopActionArea.transform, false);
@@ -2768,29 +2824,33 @@ public class UIManager : MonoBehaviour
       actionColor = new Color(0.15f, 0.45f, 0.65f);
       btnTmp.text = "EQUIP";
       btnTmp.color = Color.white;
-      var wearId = def.id;
+      var selId = shopSelectedId;
+      var tab = shopActiveTab;
       btn.onClick.AddListener(() =>
       {
-        WearableManager.Equip(wearId);
-        RefreshShopAfterAction(wearId);
+        if (tab == "wearables") WearableManager.Equip(selId);
+        else SkinManager.Equip(selId);
+        RefreshShopAfterAction(selId);
       });
     }
     else if (canAfford)
     {
       actionColor = new Color(0.18f, 0.55f, 0.28f);
-      btnTmp.text = $"BUY \u2014 {def.price:N0} pts";
+      btnTmp.text = $"BUY \u2014 {itemPrice:N0} pts";
       btnTmp.color = Color.white;
-      var wearId = def.id;
+      var selId = shopSelectedId;
+      var tab = shopActiveTab;
       btn.onClick.AddListener(() =>
       {
-        WearableManager.Purchase(wearId);
-        RefreshShopAfterAction(wearId);
+        if (tab == "wearables") WearableManager.Purchase(selId);
+        else SkinManager.Purchase(selId);
+        RefreshShopAfterAction(selId);
       });
     }
     else
     {
       actionColor = new Color(0.10f, 0.10f, 0.13f);
-      btnTmp.text = $"BUY \u2014 {def.price:N0} pts";
+      btnTmp.text = $"BUY \u2014 {itemPrice:N0} pts";
       btnTmp.color = new Color(0.4f, 0.35f, 0.3f);
       btn.interactable = false;
     }
@@ -2804,9 +2864,200 @@ public class UIManager : MonoBehaviour
     shopSelectedId = keepSelectedId;
     if (shopBalanceText != null)
       shopBalanceText.text = $"\u2666 {WearableManager.Balance:N0}";
-    ApplyShopPreviewWearables(null);
+    if (shopActiveTab == "wearables")
+      ApplyShopPreviewWearables(null);
+    else
+      ApplyShopPreviewSkin(shopSelectedId);
     RefreshShopGrid();
     RefreshShopActionBar();
+  }
+
+  // ─── Shop Tab Button ──────────────────────────────────────────────
+  void BuildShopTab(Transform parent, string label, string tabId)
+  {
+    GameObject go = new GameObject($"Tab_{tabId}",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    go.transform.SetParent(parent, false);
+
+    Image bg = go.GetComponent<Image>();
+    Button btn = go.GetComponent<Button>();
+    btn.targetGraphic = bg;
+    btn.transition = Selectable.Transition.None;
+
+    bool active = shopActiveTab == tabId;
+    bg.color = active
+        ? new Color(0.25f, 0.35f, 0.55f, 0.9f)
+        : new Color(0.12f, 0.12f, 0.18f, 0.6f);
+
+    TextMeshProUGUI tmp = new GameObject("Label", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+    tmp.transform.SetParent(go.transform, false);
+    RectTransform lblR = tmp.GetComponent<RectTransform>();
+    lblR.anchorMin = Vector2.zero; lblR.anchorMax = Vector2.one;
+    lblR.offsetMin = Vector2.zero; lblR.offsetMax = Vector2.zero;
+    tmp.text = label;
+    tmp.fontSize = 26;
+    tmp.fontStyle = active ? FontStyles.Bold : FontStyles.Normal;
+    tmp.alignment = TextAlignmentOptions.Center;
+    tmp.color = active ? Color.white : new Color(0.55f, 0.55f, 0.65f);
+
+    var capturedTab = tabId;
+    btn.onClick.AddListener(() => OnShopTabSelected(capturedTab));
+  }
+
+  void OnShopTabSelected(string tabId)
+  {
+    if (shopActiveTab == tabId) return;
+    shopActiveTab = tabId;
+    shopSelectedId = null;
+
+    // Reset preview to default appearance
+    if (shopActiveTab == "wearables")
+      ApplyShopPreviewWearables(null);
+    else
+      ApplyShopPreviewSkin(null);
+
+    // Rebuild tabs, grid, and action bar
+    if (shopPanel != null)
+    {
+      Transform tabRow = shopPanel.transform.Find("Content/TabRow");
+      if (tabRow != null)
+      {
+        for (int i = tabRow.childCount - 1; i >= 0; i--)
+          Destroy(tabRow.GetChild(i).gameObject);
+        BuildShopTab(tabRow, "Wearables", "wearables");
+        BuildShopTab(tabRow, "Skins", "skins");
+      }
+    }
+
+    RefreshShopGrid();
+    RefreshShopActionBar();
+  }
+
+  // ─── Skin Card ──────────────────────────────────────────────────────
+  void BuildSkinCard(Transform parent, SkinManager.SkinDef skin)
+  {
+    bool owned = SkinManager.IsOwned(skin.id);
+    bool equipped = SkinManager.IsEquipped(skin.id);
+    bool selected = shopSelectedId == skin.id;
+
+    GameObject card = new GameObject($"Skin_{skin.id}",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button));
+    card.transform.SetParent(parent, false);
+
+    Image cardBg = card.GetComponent<Image>();
+    cardBg.color = selected
+        ? new Color(0.22f, 0.28f, 0.42f, 0.95f)
+        : new Color(0.10f, 0.10f, 0.16f, 0.85f);
+
+    Button cardBtn = card.GetComponent<Button>();
+    cardBtn.targetGraphic = cardBg;
+    cardBtn.transition = Selectable.Transition.None;
+    var skinId = skin.id;
+    cardBtn.onClick.AddListener(() => OnShopItemSelected(skinId));
+
+    // Color swatch (large circle-like square showing the skin color)
+    GameObject swatchGo = new GameObject("Swatch", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    swatchGo.transform.SetParent(card.transform, false);
+    RectTransform swatchR = swatchGo.GetComponent<RectTransform>();
+    swatchR.anchorMin = new Vector2(0.15f, 0.35f);
+    swatchR.anchorMax = new Vector2(0.85f, 0.85f);
+    swatchR.offsetMin = Vector2.zero;
+    swatchR.offsetMax = Vector2.zero;
+    Image swatchImg = swatchGo.GetComponent<Image>();
+    swatchImg.color = skin.primaryColor;
+    swatchImg.raycastTarget = false;
+
+    // For camo, add a secondary stripe
+    if (skin.id == "camo")
+    {
+      GameObject stripe = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      stripe.transform.SetParent(swatchGo.transform, false);
+      RectTransform stripeR = stripe.GetComponent<RectTransform>();
+      stripeR.anchorMin = new Vector2(0.2f, 0.2f);
+      stripeR.anchorMax = new Vector2(0.5f, 0.8f);
+      stripeR.offsetMin = Vector2.zero;
+      stripeR.offsetMax = Vector2.zero;
+      stripe.GetComponent<Image>().color = skin.secondaryColor;
+      stripe.GetComponent<Image>().raycastTarget = false;
+
+      GameObject stripe2 = new GameObject("Stripe2", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+      stripe2.transform.SetParent(swatchGo.transform, false);
+      RectTransform stripe2R = stripe2.GetComponent<RectTransform>();
+      stripe2R.anchorMin = new Vector2(0.55f, 0.3f);
+      stripe2R.anchorMax = new Vector2(0.8f, 0.7f);
+      stripe2R.offsetMin = Vector2.zero;
+      stripe2R.offsetMax = Vector2.zero;
+      stripe2.GetComponent<Image>().color = skin.secondaryColor;
+      stripe2.GetComponent<Image>().raycastTarget = false;
+    }
+
+    // Name label
+    TextMeshProUGUI nameTmp = new GameObject("Name", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
+    nameTmp.transform.SetParent(card.transform, false);
+    RectTransform nameR = nameTmp.GetComponent<RectTransform>();
+    nameR.anchorMin = new Vector2(0.05f, 0.05f);
+    nameR.anchorMax = new Vector2(0.95f, 0.35f);
+    nameR.offsetMin = Vector2.zero;
+    nameR.offsetMax = Vector2.zero;
+    nameTmp.raycastTarget = false;
+    nameTmp.alignment = TextAlignmentOptions.Center;
+    nameTmp.fontSize = 20;
+
+    if (skin.price == 0)
+    {
+      nameTmp.text = skin.displayName;
+      nameTmp.color = new Color(0.7f, 0.7f, 0.8f);
+    }
+    else if (owned)
+    {
+      nameTmp.text = $"{skin.displayName}\n<size=16>\u2713 Owned</size>";
+      nameTmp.color = new Color(0.5f, 0.75f, 0.55f);
+    }
+    else
+    {
+      nameTmp.text = $"{skin.displayName}\n<size=16>\u2666 {skin.price:N0}</size>";
+      nameTmp.color = new Color(0.85f, 0.8f, 0.65f);
+    }
+  }
+
+  // ─── Skin Preview ───────────────────────────────────────────────────
+  void ApplyShopPreviewSkin(string skinId)
+  {
+    if (shopPreviewCatchy == null) return;
+
+    // Remove any wearable preview attachments
+    var attach = shopPreviewCatchy.GetComponent<WearableAttachment>();
+    if (attach != null) attach.Rebuild();
+
+    if (skinId != null)
+    {
+      var skinN = SkinManager.GetDef(skinId);
+      if (skinN != null)
+      {
+        if (skinN.Value.id == "default")
+          ResetPreviewSkinToDefault();
+        else
+          SkinManager.ApplySkin(shopPreviewCatchy, skinN.Value);
+      }
+    }
+    else
+    {
+      // Reset to equipped skin or default
+      var equippedSkin = SkinManager.GetEquippedDef();
+      if (equippedSkin != null && equippedSkin.Value.id != "default")
+        SkinManager.ApplySkin(shopPreviewCatchy, equippedSkin.Value);
+      else
+        ResetPreviewSkinToDefault();
+    }
+  }
+
+  void ResetPreviewSkinToDefault()
+  {
+    if (shopPreviewCatchy == null) return;
+    // Re-apply the glass appearance to restore default look
+    var cm = FindObjectOfType<CatcherManager>();
+    if (cm != null)
+      cm.ApplyGlassAppearance(shopPreviewCatchy);
   }
 
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)

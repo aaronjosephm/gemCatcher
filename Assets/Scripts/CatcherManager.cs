@@ -906,6 +906,7 @@ public class CatcherManager : MonoBehaviour
             rb.useGravity = false;
 
             ApplyGlassAppearance(catcherInstance);
+            SkinManager.ApplyEquippedSkin(catcherInstance);
             AddSparkleEffect(catcherInstance);
             // Ensure CatchZone is attached for trigger-based catch detection.
             if (catcherInstance.GetComponent<CatchZone>() == null)
