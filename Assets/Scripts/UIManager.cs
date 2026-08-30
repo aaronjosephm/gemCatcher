@@ -3055,13 +3055,23 @@ public class UIManager : MonoBehaviour
   void ResetPreviewSkinToDefault()
   {
     if (shopPreviewCatchy == null) return;
-    // Destroy existing face quads before glass reapply
-    DestroyPreviewFaceParts();
-    var cm = FindObjectOfType<CatcherManager>();
-    if (cm != null)
-      cm.ApplyGlassAppearance(shopPreviewCatchy);
-    // Re-add CatchyFace AFTER glass so it creates fresh Unlit materials
-    shopPreviewCatchy.AddComponent<CatchyFace>();
+    // Glass material was applied at setup. Just reset body renderer colors
+    // back to the glass tint (white). Do NOT re-apply glass — that would
+    // overwrite face-quad materials (Destroy is deferred in Unity).
+    foreach (var rend in shopPreviewCatchy.GetComponentsInChildren<Renderer>())
+    {
+      if (rend == null) continue;
+      string n = rend.gameObject.name;
+      // Skip face parts — they have their own Unlit materials
+      if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth")
+          || n.Contains("Happy") || n.Contains("Tear") || n.Contains("Sad"))
+        continue;
+      foreach (var mat in rend.materials)
+      {
+        if (mat.HasProperty("_BaseColor")) mat.SetColor("_BaseColor", Color.white);
+        else if (mat.HasProperty("_Color")) mat.SetColor("_Color", Color.white);
+      }
+    }
   }
 
   /// <summary>
