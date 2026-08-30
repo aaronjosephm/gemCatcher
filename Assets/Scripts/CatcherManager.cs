@@ -524,20 +524,8 @@ public class CatcherManager : MonoBehaviour
                     : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
             }
 
-            // Tint catchy gold — skip dark parts (eyes, mouth, face features).
-            Color gold = new Color(1f, 0.85f, 0.2f, 1f);
-            for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
-            {
-                // If the original color is very dark, it's likely eyes/mouth — don't tint.
-                if (originalCatcherColors[i].r < 0.15f
-                    && originalCatcherColors[i].g < 0.15f
-                    && originalCatcherColors[i].b < 0.15f)
-                    continue;
-
-                Material m = catcherSkinnedRenderers[i].material;
-                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", gold);
-                else if (m.HasProperty("_Color")) m.SetColor("_Color", gold);
-            }
+            // Tint starts at normal — the pulse in the update loop
+            // will smoothly ease between normal and gold.
 
             // Gold glow aura on the catcher.
             if (catcherInstance.GetComponent<GemGlowVolume>() == null)
@@ -575,17 +563,22 @@ public class CatcherManager : MonoBehaviour
 
         if (!shouldShow) return;
 
-        // Blink the gold tint in last 5 seconds.
-        float remaining = PowerUpManager.InvincibilityTimeRemaining;
-        if (remaining <= 5f && remaining > 0f && catcherSkinnedRenderers != null)
+        // Smooth ease pulse: normal → gold (0.5s) → normal (0.5s), full cycle = 1s.
+        // SmoothStep gives the ease-in/ease-out feel.
+        if (catcherSkinnedRenderers != null)
         {
-            float blinkFreq = remaining <= 2f ? 6f : 3f;
-            float t = (Mathf.Sin(Time.time * blinkFreq * Mathf.PI * 2f) + 1f) * 0.5f;
+            float cycle = Time.time % 1f; // 0→1 over 1 second
+            float t;
+            if (cycle < 0.5f)
+                t = Mathf.SmoothStep(0f, 1f, cycle / 0.5f);       // normal → gold
+            else
+                t = Mathf.SmoothStep(1f, 0f, (cycle - 0.5f) / 0.5f); // gold → normal
+
             Color gold = new Color(1f, 0.85f, 0.2f, 1f);
             for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
             {
                 if (catcherSkinnedRenderers[i] == null) continue;
-                // Skip dark face parts.
+                // Skip dark face parts (eyes/mouth).
                 if (originalCatcherColors[i].r < 0.15f
                     && originalCatcherColors[i].g < 0.15f
                     && originalCatcherColors[i].b < 0.15f)
