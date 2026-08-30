@@ -960,7 +960,7 @@ public class CatcherManager : MonoBehaviour
 
     // Swaps every Renderer on the catcher prefab over to the solid catcher material.
     // Called once when the catcher is first instantiated.
-    void ApplyGlassAppearance(GameObject catcherObject)
+    public void ApplyGlassAppearance(GameObject catcherObject)
     {
         if (catcherObject == null) return;
 

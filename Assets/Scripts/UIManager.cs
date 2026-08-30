@@ -91,6 +91,12 @@ public class UIManager : MonoBehaviour
 
   // Shop panel — auto-created, opened from the Shop button.
   private GameObject shopPanel;
+  // Shop preview objects (cleaned up when shop closes).
+  private GameObject shopPreviewRoot;
+  private Camera shopPreviewCamera;
+  private RenderTexture shopPreviewRT;
+  private GameObject shopPreviewCatchy;
+  private string shopPreviewWearableId; // currently previewing
 
   // Auto-created on first request. Shown when the OS backgrounds the app
   // (incoming call, home button, app switcher) so the player can resume on
@@ -2144,6 +2150,7 @@ public class UIManager : MonoBehaviour
   void OnShopClicked()
   {
     EnsureShopPanel();
+    SetupShopPreview();
     FadePanel(mainMenuPanel, false);
     FadePanel(shopPanel, true);
   }
@@ -2151,7 +2158,126 @@ public class UIManager : MonoBehaviour
   void OnShopBackClicked()
   {
     FadePanel(shopPanel, false);
+    CleanupShopPreview();
     ShowMainMenu();
+  }
+
+  void CleanupShopPreview()
+  {
+    if (shopPreviewRoot != null) { Destroy(shopPreviewRoot); shopPreviewRoot = null; }
+    if (shopPreviewRT != null) { shopPreviewRT.Release(); Destroy(shopPreviewRT); shopPreviewRT = null; }
+    shopPreviewCamera = null;
+    shopPreviewCatchy = null;
+    shopPreviewWearableId = null;
+  }
+
+  void SetupShopPreview()
+  {
+    CleanupShopPreview();
+
+    // Render texture for the preview.
+    shopPreviewRT = new RenderTexture(512, 512, 16);
+    shopPreviewRT.Create();
+
+    // Root container far offscreen.
+    shopPreviewRoot = new GameObject("ShopPreview");
+    shopPreviewRoot.transform.position = new Vector3(0f, 100f, 0f);
+
+    // Camera looking at catchy.
+    GameObject camGo = new GameObject("PreviewCam");
+    camGo.transform.SetParent(shopPreviewRoot.transform, false);
+    camGo.transform.localPosition = new Vector3(0f, 0f, 2.5f);
+    camGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+    shopPreviewCamera = camGo.AddComponent<Camera>();
+    shopPreviewCamera.targetTexture = shopPreviewRT;
+    shopPreviewCamera.clearFlags = CameraClearFlags.SolidColor;
+    shopPreviewCamera.backgroundColor = new Color(0.08f, 0.10f, 0.14f, 1f);
+    shopPreviewCamera.fieldOfView = 30f;
+    shopPreviewCamera.nearClipPlane = 0.1f;
+    shopPreviewCamera.farClipPlane = 10f;
+
+    // Add a light so catchy is visible.
+    GameObject lightGo = new GameObject("PreviewLight");
+    lightGo.transform.SetParent(shopPreviewRoot.transform, false);
+    lightGo.transform.localPosition = new Vector3(1f, 2f, 2f);
+    lightGo.transform.LookAt(shopPreviewRoot.transform);
+    Light previewLight = lightGo.AddComponent<Light>();
+    previewLight.type = LightType.Directional;
+    previewLight.intensity = 1.2f;
+    previewLight.color = Color.white;
+
+    // Instantiate catchy clone.
+    GameObject catcherPrefab = null;
+    if (CatcherManager.Instance != null)
+      catcherPrefab = CatcherManager.Instance.catcherPrefab;
+    if (catcherPrefab != null)
+    {
+      shopPreviewCatchy = Instantiate(catcherPrefab, shopPreviewRoot.transform);
+      shopPreviewCatchy.transform.localPosition = Vector3.zero;
+      shopPreviewCatchy.transform.localRotation = Quaternion.identity;
+      shopPreviewCatchy.name = "PreviewCatchy";
+
+      // Strip gameplay components.
+      foreach (var c in shopPreviewCatchy.GetComponents<MonoBehaviour>())
+        Destroy(c);
+      foreach (var col in shopPreviewCatchy.GetComponentsInChildren<Collider>())
+        Destroy(col);
+      var rb = shopPreviewCatchy.GetComponent<Rigidbody>();
+      if (rb != null) Destroy(rb);
+
+      // Add face.
+      shopPreviewCatchy.AddComponent<CatchyFace>();
+
+      // Add slow spin.
+      var spinner = shopPreviewCatchy.AddComponent<SimpleSpinner>();
+      spinner.speed = new Vector3(0f, 30f, 0f);
+
+      // Apply glass appearance like the real catchy.
+      CatcherManager.Instance.ApplyGlassAppearance(shopPreviewCatchy);
+
+      // Apply currently equipped wearables.
+      ApplyShopPreviewWearables(null);
+    }
+  }
+
+  void ApplyShopPreviewWearables(string previewId)
+  {
+    if (shopPreviewCatchy == null) return;
+
+    // Remove existing preview wearables.
+    foreach (Transform child in shopPreviewCatchy.transform)
+    {
+      if (child.name.StartsWith("Wearable_"))
+        Destroy(child.gameObject);
+    }
+
+    shopPreviewWearableId = previewId;
+
+    // Attach equipped wearables + preview wearable.
+    foreach (var def in WearableManager.Catalog)
+    {
+      bool shouldShow = WearableManager.IsEquipped(def.id) || def.id == previewId;
+      if (!shouldShow) continue;
+
+      // If previewing a wearable that shares the slot with an equipped one, skip the equipped one.
+      if (previewId != null && def.id != previewId)
+      {
+        var previewDef = WearableManager.GetDef(previewId);
+        if (previewDef != null && previewDef.Value.attach == def.attach)
+          continue;
+      }
+
+      GameObject prefab = Resources.Load<GameObject>(def.prefabPath);
+      if (prefab == null) continue;
+
+      GameObject instance = Instantiate(prefab, shopPreviewCatchy.transform);
+      instance.name = $"Wearable_{def.id}";
+      instance.transform.localPosition = def.localOffset;
+      instance.transform.localRotation = Quaternion.Euler(def.localRotation);
+      instance.transform.localScale = Vector3.one * def.scale;
+      foreach (var col in instance.GetComponentsInChildren<Collider>())
+        Destroy(col);
+    }
   }
 
   void EnsureShopPanel()
@@ -2172,8 +2298,8 @@ public class UIManager : MonoBehaviour
     GameObject balGo = new GameObject("Balance", typeof(RectTransform));
     balGo.transform.SetParent(contentParent, false);
     RectTransform balRect = balGo.GetComponent<RectTransform>();
-    balRect.anchorMin = new Vector2(0.5f, 0.82f);
-    balRect.anchorMax = new Vector2(0.5f, 0.82f);
+    balRect.anchorMin = new Vector2(0.5f, 0.84f);
+    balRect.anchorMax = new Vector2(0.5f, 0.84f);
     balRect.pivot = new Vector2(0.5f, 0.5f);
     balRect.anchoredPosition = Vector2.zero;
     balRect.sizeDelta = new Vector2(600f, 50f);
@@ -2184,18 +2310,32 @@ public class UIManager : MonoBehaviour
     balTmp.alignment = TextAlignmentOptions.Center;
     balTmp.color = new Color(1f, 0.85f, 0.35f);
 
-    // Wearable cards container
+    // 3D Preview area (RawImage displaying RenderTexture).
+    GameObject previewGo = new GameObject("Preview", typeof(RectTransform));
+    previewGo.transform.SetParent(contentParent, false);
+    RectTransform previewRect = previewGo.GetComponent<RectTransform>();
+    previewRect.anchorMin = new Vector2(0.5f, 0.72f);
+    previewRect.anchorMax = new Vector2(0.5f, 0.72f);
+    previewRect.pivot = new Vector2(0.5f, 1f);
+    previewRect.anchoredPosition = Vector2.zero;
+    previewRect.sizeDelta = new Vector2(300f, 300f);
+    UnityEngine.UI.RawImage rawImage = previewGo.AddComponent<UnityEngine.UI.RawImage>();
+    rawImage.raycastTarget = false;
+    if (shopPreviewRT != null)
+      rawImage.texture = shopPreviewRT;
+
+    // Wearable cards container (scrollable area below preview).
     GameObject cardsGo = new GameObject("WearableCards", typeof(RectTransform), typeof(VerticalLayoutGroup));
     cardsGo.transform.SetParent(contentParent, false);
     RectTransform cardsRect = cardsGo.GetComponent<RectTransform>();
-    cardsRect.anchorMin = new Vector2(0.5f, 0.5f);
-    cardsRect.anchorMax = new Vector2(0.5f, 0.5f);
+    cardsRect.anchorMin = new Vector2(0.5f, 0.38f);
+    cardsRect.anchorMax = new Vector2(0.5f, 0.38f);
     cardsRect.pivot = new Vector2(0.5f, 0.5f);
-    cardsRect.anchoredPosition = new Vector2(0f, -30f);
-    cardsRect.sizeDelta = new Vector2(700f, 700f);
+    cardsRect.anchoredPosition = Vector2.zero;
+    cardsRect.sizeDelta = new Vector2(600f, 500f);
     VerticalLayoutGroup vlg = cardsGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.UpperCenter;
-    vlg.spacing = 20f;
+    vlg.spacing = 15f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -2219,135 +2359,188 @@ public class UIManager : MonoBehaviour
     bool canAfford = WearableManager.Balance >= def.price;
 
     Color bgColor = equipped ? new Color(0.20f, 0.55f, 0.35f)
-                   : owned   ? new Color(0.18f, 0.22f, 0.30f)
-                             : new Color(0.12f, 0.12f, 0.15f);
+                   : owned   ? new Color(0.18f, 0.25f, 0.35f)
+                             : new Color(0.14f, 0.14f, 0.18f);
 
-    GameObject cardGo = new GameObject(def.id + "Card", typeof(RectTransform));
+    // Card container with LayoutElement so VLG sizes it.
+    GameObject cardGo = new GameObject(def.id + "Card",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(LayoutElement));
     cardGo.transform.SetParent(parent, false);
+    LayoutElement cardLe = cardGo.GetComponent<LayoutElement>();
+    cardLe.preferredWidth = 560f;
+    cardLe.preferredHeight = 130f;
     RectTransform cardRect = cardGo.GetComponent<RectTransform>();
-    cardRect.sizeDelta = new Vector2(650f, 120f);
+    cardRect.sizeDelta = new Vector2(560f, 130f);
 
-    Image cardBg = cardGo.AddComponent<Image>();
+    Image cardBg = cardGo.GetComponent<Image>();
     cardBg.color = bgColor;
+    CrystalButtonStyle.Apply(cardGo, bgColor);
 
-    // Wearable name
+    // ── Left side: name + status ──
     GameObject nameGo = new GameObject("Name", typeof(RectTransform));
     nameGo.transform.SetParent(cardGo.transform, false);
     RectTransform nameRect = nameGo.GetComponent<RectTransform>();
     nameRect.anchorMin = new Vector2(0f, 0.5f);
-    nameRect.anchorMax = new Vector2(0.55f, 0.5f);
+    nameRect.anchorMax = new Vector2(0.5f, 1f);
     nameRect.pivot = new Vector2(0f, 0.5f);
-    nameRect.anchoredPosition = new Vector2(30f, 10f);
-    nameRect.sizeDelta = new Vector2(0f, 50f);
+    nameRect.offsetMin = new Vector2(25f, 0f);
+    nameRect.offsetMax = Vector2.zero;
     TextMeshProUGUI nameTmp = nameGo.AddComponent<TextMeshProUGUI>();
     nameTmp.text = def.displayName;
-    nameTmp.fontSize = 36;
+    nameTmp.fontSize = 34;
     nameTmp.fontStyle = FontStyles.Bold;
-    nameTmp.alignment = TextAlignmentOptions.MidlineLeft;
-    nameTmp.color = owned ? Color.white : (canAfford ? new Color(0.8f, 0.8f, 0.8f) : new Color(0.5f, 0.5f, 0.5f));
+    nameTmp.alignment = TextAlignmentOptions.BottomLeft;
+    nameTmp.color = Color.white;
 
-    // Price / status text
-    GameObject priceGo = new GameObject("Price", typeof(RectTransform));
-    priceGo.transform.SetParent(cardGo.transform, false);
-    RectTransform priceRect = priceGo.GetComponent<RectTransform>();
-    priceRect.anchorMin = new Vector2(0f, 0f);
-    priceRect.anchorMax = new Vector2(0.55f, 0.5f);
-    priceRect.pivot = new Vector2(0f, 0.5f);
-    priceRect.anchoredPosition = new Vector2(30f, -5f);
-    priceRect.sizeDelta = new Vector2(0f, 35f);
-    TextMeshProUGUI priceTmp = priceGo.AddComponent<TextMeshProUGUI>();
-    priceTmp.fontSize = 26;
-    priceTmp.alignment = TextAlignmentOptions.MidlineLeft;
+    GameObject statusGo = new GameObject("Status", typeof(RectTransform));
+    statusGo.transform.SetParent(cardGo.transform, false);
+    RectTransform statusRect = statusGo.GetComponent<RectTransform>();
+    statusRect.anchorMin = new Vector2(0f, 0f);
+    statusRect.anchorMax = new Vector2(0.5f, 0.5f);
+    statusRect.pivot = new Vector2(0f, 0.5f);
+    statusRect.offsetMin = new Vector2(25f, 0f);
+    statusRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI statusTmp = statusGo.AddComponent<TextMeshProUGUI>();
+    statusTmp.fontSize = 24;
+    statusTmp.alignment = TextAlignmentOptions.TopLeft;
 
-    if (equipped)
+    if (equipped)       { statusTmp.text = "EQUIPPED"; statusTmp.color = new Color(0.7f, 1f, 0.8f); }
+    else if (owned)     { statusTmp.text = "OWNED"; statusTmp.color = new Color(0.7f, 0.7f, 0.8f); }
+    else if (canAfford) { statusTmp.text = $"{def.price:N0} pts"; statusTmp.color = new Color(1f, 0.85f, 0.35f); }
+    else                { statusTmp.text = $"{def.price:N0} pts"; statusTmp.color = new Color(0.6f, 0.4f, 0.3f); }
+
+    // ── Right side: two buttons (Preview + Action) ──
+    // Preview button
     {
-      priceTmp.text = "EQUIPPED";
-      priceTmp.color = new Color(0.7f, 1f, 0.8f);
-    }
-    else if (owned)
-    {
-      priceTmp.text = "OWNED";
-      priceTmp.color = new Color(0.7f, 0.7f, 0.8f);
-    }
-    else
-    {
-      priceTmp.text = $"{def.price:N0} pts";
-      priceTmp.color = canAfford ? new Color(1f, 0.85f, 0.35f) : new Color(0.6f, 0.4f, 0.3f);
-    }
+      GameObject btnGo = new GameObject("PreviewBtn",
+          typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
+      btnGo.transform.SetParent(cardGo.transform, false);
+      RectTransform btnRect = btnGo.GetComponent<RectTransform>();
+      btnRect.anchorMin = new Vector2(0.52f, 0.15f);
+      btnRect.anchorMax = new Vector2(0.74f, 0.85f);
+      btnRect.offsetMin = Vector2.zero;
+      btnRect.offsetMax = Vector2.zero;
 
-    // Action button on right
-    GameObject btnGo = new GameObject("ActionBtn", typeof(RectTransform));
-    btnGo.transform.SetParent(cardGo.transform, false);
-    RectTransform btnRect = btnGo.GetComponent<RectTransform>();
-    btnRect.anchorMin = new Vector2(0.58f, 0.15f);
-    btnRect.anchorMax = new Vector2(0.95f, 0.85f);
-    btnRect.pivot = new Vector2(0.5f, 0.5f);
-    btnRect.anchoredPosition = Vector2.zero;
-    btnRect.sizeDelta = Vector2.zero;
+      Image btnBg = btnGo.GetComponent<Image>();
+      Color previewColor = new Color(0.25f, 0.25f, 0.35f);
+      btnBg.color = previewColor;
+      CrystalButtonStyle.Apply(btnGo, previewColor);
 
-    Image btnBg = btnGo.AddComponent<Image>();
-    TextMeshProUGUI btnText;
+      GameObject lblGo = new GameObject("Lbl", typeof(RectTransform));
+      lblGo.transform.SetParent(btnGo.transform, false);
+      RectTransform lblRect = lblGo.GetComponent<RectTransform>();
+      lblRect.anchorMin = Vector2.zero; lblRect.anchorMax = Vector2.one;
+      lblRect.offsetMin = Vector2.zero; lblRect.offsetMax = Vector2.zero;
+      TextMeshProUGUI lblTmp = lblGo.AddComponent<TextMeshProUGUI>();
+      lblTmp.text = "Preview";
+      lblTmp.fontSize = 22;
+      lblTmp.fontStyle = FontStyles.Bold;
+      lblTmp.alignment = TextAlignmentOptions.Center;
+      lblTmp.color = Color.white;
 
-    // Button text child
-    GameObject btnTextGo = new GameObject("BtnText", typeof(RectTransform));
-    btnTextGo.transform.SetParent(btnGo.transform, false);
-    RectTransform btnTextRect = btnTextGo.GetComponent<RectTransform>();
-    btnTextRect.anchorMin = Vector2.zero;
-    btnTextRect.anchorMax = Vector2.one;
-    btnTextRect.sizeDelta = Vector2.zero;
-    btnText = btnTextGo.AddComponent<TextMeshProUGUI>();
-    btnText.fontSize = 28;
-    btnText.fontStyle = FontStyles.Bold;
-    btnText.alignment = TextAlignmentOptions.Center;
-
-    if (equipped)
-    {
-      btnBg.color = new Color(0.4f, 0.2f, 0.2f);
-      btnText.text = "Unequip";
-      btnText.color = new Color(1f, 0.6f, 0.6f);
-      Button btn = btnGo.AddComponent<Button>();
-      var slot = def.attach;
-      btn.onClick.AddListener(() =>
-      {
-        WearableManager.Unequip(slot);
-        EnsureShopPanel();
-        FadePanel(shopPanel, true);
-      });
-    }
-    else if (owned)
-    {
-      btnBg.color = new Color(0.15f, 0.45f, 0.65f);
-      btnText.text = "Equip";
-      btnText.color = Color.white;
-      Button btn = btnGo.AddComponent<Button>();
+      Button btn = btnGo.GetComponent<Button>();
+      btn.targetGraphic = btnBg;
       var wearId = def.id;
       btn.onClick.AddListener(() =>
       {
-        WearableManager.Equip(wearId);
-        EnsureShopPanel();
-        FadePanel(shopPanel, true);
+        // Toggle preview.
+        string nextPreview = (shopPreviewWearableId == wearId) ? null : wearId;
+        ApplyShopPreviewWearables(nextPreview);
       });
     }
-    else if (canAfford)
+
+    // Action button (Buy / Equip / Unequip)
     {
-      btnBg.color = new Color(0.20f, 0.60f, 0.35f);
-      btnText.text = "Buy";
-      btnText.color = Color.white;
-      Button btn = btnGo.AddComponent<Button>();
-      var wearId = def.id;
-      btn.onClick.AddListener(() =>
+      GameObject btnGo = new GameObject("ActionBtn",
+          typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
+      btnGo.transform.SetParent(cardGo.transform, false);
+      RectTransform btnRect = btnGo.GetComponent<RectTransform>();
+      btnRect.anchorMin = new Vector2(0.76f, 0.15f);
+      btnRect.anchorMax = new Vector2(0.98f, 0.85f);
+      btnRect.offsetMin = Vector2.zero;
+      btnRect.offsetMax = Vector2.zero;
+
+      Image btnBg = btnGo.GetComponent<Image>();
+
+      GameObject lblGo = new GameObject("Lbl", typeof(RectTransform));
+      lblGo.transform.SetParent(btnGo.transform, false);
+      RectTransform lblRect = lblGo.GetComponent<RectTransform>();
+      lblRect.anchorMin = Vector2.zero; lblRect.anchorMax = Vector2.one;
+      lblRect.offsetMin = Vector2.zero; lblRect.offsetMax = Vector2.zero;
+      TextMeshProUGUI lblTmp = lblGo.AddComponent<TextMeshProUGUI>();
+      lblTmp.fontSize = 22;
+      lblTmp.fontStyle = FontStyles.Bold;
+      lblTmp.alignment = TextAlignmentOptions.Center;
+
+      Color actionColor;
+      if (equipped)
       {
-        WearableManager.Purchase(wearId);
-        EnsureShopPanel();
-        FadePanel(shopPanel, true);
-      });
-    }
-    else
-    {
-      btnBg.color = new Color(0.15f, 0.15f, 0.18f);
-      btnText.text = $"Need\n{(def.price - WearableManager.Balance):N0}";
-      btnText.color = new Color(0.5f, 0.5f, 0.5f);
-      btnText.fontSize = 22;
+        actionColor = new Color(0.45f, 0.18f, 0.18f);
+        lblTmp.text = "Unequip";
+        lblTmp.color = new Color(1f, 0.7f, 0.7f);
+      }
+      else if (owned)
+      {
+        actionColor = new Color(0.15f, 0.45f, 0.65f);
+        lblTmp.text = "Equip";
+        lblTmp.color = Color.white;
+      }
+      else if (canAfford)
+      {
+        actionColor = new Color(0.20f, 0.55f, 0.30f);
+        lblTmp.text = "Buy";
+        lblTmp.color = Color.white;
+      }
+      else
+      {
+        actionColor = new Color(0.12f, 0.12f, 0.15f);
+        lblTmp.text = "Buy";
+        lblTmp.color = new Color(0.4f, 0.4f, 0.4f);
+      }
+
+      btnBg.color = actionColor;
+      CrystalButtonStyle.Apply(btnGo, actionColor);
+
+      Button btn = btnGo.GetComponent<Button>();
+      btn.targetGraphic = btnBg;
+
+      if (equipped)
+      {
+        var slot = def.attach;
+        btn.onClick.AddListener(() =>
+        {
+          WearableManager.Unequip(slot);
+          EnsureShopPanel();
+          ApplyShopPreviewWearables(null);
+          FadePanel(shopPanel, true);
+        });
+      }
+      else if (owned)
+      {
+        var wearId = def.id;
+        btn.onClick.AddListener(() =>
+        {
+          WearableManager.Equip(wearId);
+          EnsureShopPanel();
+          ApplyShopPreviewWearables(null);
+          FadePanel(shopPanel, true);
+        });
+      }
+      else if (canAfford)
+      {
+        var wearId = def.id;
+        btn.onClick.AddListener(() =>
+        {
+          WearableManager.Purchase(wearId);
+          EnsureShopPanel();
+          ApplyShopPreviewWearables(null);
+          FadePanel(shopPanel, true);
+        });
+      }
+      else
+      {
+        btn.interactable = false;
+      }
     }
   }
 
