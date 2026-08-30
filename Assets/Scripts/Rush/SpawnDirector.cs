@@ -114,7 +114,7 @@ public class SpawnDirector : MonoBehaviour
         nextDiceDropTime = 60f;
 
         // MasterGem (invincibility) — 5s for testing.
-        nextMasterGemDropTime = 5f;
+        nextMasterGemDropTime = MasterGemDropInterval;
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
