@@ -36,8 +36,9 @@ public static class WearableManager
             displayName = "Eye Patch",
             price = 10,
             prefabPath = "Wearables/EyePatch",
+            localOffset = new Vector3(0.12f, 0.08f, 0.45f),
             localRotation = Vector3.zero,
-            scale = 0.5f,
+            scale = 0.45f,
         },
         new WearableDef
         {

@@ -2,74 +2,140 @@ using UnityEngine;
 
 /// <summary>
 /// Builds wearable GameObjects procedurally when no prefab asset exists.
+/// Uses pixel-art style textures on quads.
 /// </summary>
 public static class ProceduralWearableFactory
 {
-    /// <summary>
-    /// Returns a procedurally built wearable, or null if the id has no
-    /// procedural implementation.
-    /// </summary>
     public static GameObject Create(string wearableId)
     {
         switch (wearableId)
         {
-            case "eye_patch": return BuildEyePatch();
+            case "eyepatch": return BuildEyePatch();
             default: return null;
         }
     }
 
-    // ─── Eye Patch ──────────────────────────────────────────────────────
+    // ─── Eye Patch (pixel art on a quad) ────────────────────────────────
 
     static GameObject BuildEyePatch()
     {
         GameObject root = new GameObject("EyePatch_Procedural");
 
-        // ── Patch (dark oval disc over one eye) ──
-        GameObject patch = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        // Patch quad
+        GameObject patch = GameObject.CreatePrimitive(PrimitiveType.Quad);
         patch.name = "Patch";
         patch.transform.SetParent(root.transform, false);
-        // Flatten into a thin disc, stretched into an oval.
-        patch.transform.localScale = new Vector3(0.38f, 0.015f, 0.30f);
-        patch.transform.localPosition = new Vector3(0.12f, 0.05f, 0.42f);
-        // Tilt slightly to conform to the face curve.
-        patch.transform.localRotation = Quaternion.Euler(80f, 0f, 0f);
+        patch.transform.localPosition = Vector3.zero;
+        patch.transform.localScale = Vector3.one;
 
-        Renderer patchRend = patch.GetComponent<Renderer>();
-        Material patchMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        patchMat.color = new Color(0.08f, 0.06f, 0.06f); // near-black leather
-        patchMat.SetFloat("_Smoothness", 0.3f);
-        patchRend.material = patchMat;
+        // Remove the collider — not needed for a cosmetic.
+        var col = patch.GetComponent<Collider>();
+        if (col != null) Object.Destroy(col);
 
-        // ── Strap (thin band going diagonally around the head) ──
-        // Left strap segment (patch → left side of head)
-        CreateStrapSegment(root.transform, "StrapLeft",
-            new Vector3(0.12f, 0.05f, 0.42f),
-            new Vector3(-0.35f, 0.15f, 0.10f));
+        // Build the pixel-art texture.
+        Texture2D tex = BuildEyePatchTexture();
+        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+        mat.mainTexture = tex;
 
-        // Right strap segment (patch → right/back of head)
-        CreateStrapSegment(root.transform, "StrapRight",
-            new Vector3(0.12f, 0.05f, 0.42f),
-            new Vector3(-0.35f, 0.15f, -0.10f));
+        // Enable transparency.
+        mat.SetFloat("_Surface", 1); // Transparent
+        mat.SetFloat("_Blend", 0);   // Alpha
+        mat.SetFloat("_AlphaClip", 0);
+        mat.SetOverrideTag("RenderType", "Transparent");
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+        mat.SetInt("_ZWrite", 0);
+        mat.renderQueue = 3000;
+        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+
+        patch.GetComponent<Renderer>().material = mat;
+
+        // Strap quad (horizontal band)
+        GameObject strap = GameObject.CreatePrimitive(PrimitiveType.Quad);
+        strap.name = "Strap";
+        strap.transform.SetParent(root.transform, false);
+        strap.transform.localPosition = Vector3.zero;
+        strap.transform.localScale = Vector3.one;
+
+        var strapCol = strap.GetComponent<Collider>();
+        if (strapCol != null) Object.Destroy(strapCol);
+
+        Texture2D strapTex = BuildStrapTexture();
+        Material strapMat = new Material(mat); // clone transparent setup
+        strapMat.mainTexture = strapTex;
+        strap.GetComponent<Renderer>().material = strapMat;
 
         return root;
     }
 
-    static void CreateStrapSegment(Transform parent, string name, Vector3 from, Vector3 to)
+    /// <summary>16×16 pixel art eye patch — dark oval with highlight.</summary>
+    static Texture2D BuildEyePatchTexture()
     {
-        GameObject strap = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        strap.name = name;
-        strap.transform.SetParent(parent, false);
+        int w = 16, h = 16;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Point; // crisp pixel art
+        tex.wrapMode = TextureWrapMode.Clamp;
 
-        Vector3 mid = (from + to) * 0.5f;
-        float length = Vector3.Distance(from, to);
-        strap.transform.localPosition = mid;
-        strap.transform.localScale = new Vector3(0.04f, 0.02f, length);
-        strap.transform.LookAt(parent.TransformPoint(to), Vector3.up);
+        Color clear = new Color(0, 0, 0, 0);
+        Color black = new Color(0.06f, 0.05f, 0.05f, 1f);
+        Color dark  = new Color(0.15f, 0.12f, 0.10f, 1f);
+        Color hi    = new Color(0.25f, 0.20f, 0.18f, 1f);
 
-        Renderer rend = strap.GetComponent<Renderer>();
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-        mat.color = new Color(0.12f, 0.08f, 0.06f); // dark brown leather
-        mat.SetFloat("_Smoothness", 0.2f);
-        rend.material = mat;
+        // Fill transparent
+        Color[] pixels = new Color[w * h];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = clear;
+
+        // Draw an oval patch shape (rows 3-12, centered)
+        // Row pattern: width at each row to form an oval
+        int[] rowWidths = { 0,0,0, 4, 8, 10, 12, 12, 12, 10, 8, 4, 0,0,0,0 };
+
+        for (int y = 0; y < h; y++)
+        {
+            int rw = y < rowWidths.Length ? rowWidths[y] : 0;
+            if (rw == 0) continue;
+            int startX = (w - rw) / 2;
+            for (int x = startX; x < startX + rw; x++)
+            {
+                // Border pixels
+                if (y == 3 || y == 11 || x == startX || x == startX + rw - 1)
+                    pixels[y * w + x] = dark;
+                // Inner highlight on top-left
+                else if (y >= 4 && y <= 6 && x >= startX + 1 && x <= startX + 3)
+                    pixels[y * w + x] = hi;
+                else
+                    pixels[y * w + x] = black;
+            }
+        }
+
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return tex;
+    }
+
+    /// <summary>16×16 pixel art strap — thin horizontal band across the width.</summary>
+    static Texture2D BuildStrapTexture()
+    {
+        int w = 16, h = 16;
+        Texture2D tex = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Point;
+        tex.wrapMode = TextureWrapMode.Clamp;
+
+        Color clear = new Color(0, 0, 0, 0);
+        Color strap = new Color(0.14f, 0.10f, 0.08f, 1f);
+        Color edge  = new Color(0.08f, 0.06f, 0.05f, 1f);
+
+        Color[] pixels = new Color[w * h];
+        for (int i = 0; i < pixels.Length; i++) pixels[i] = clear;
+
+        // Draw a 2-pixel-tall band across the full width at rows 7-8
+        for (int x = 0; x < w; x++)
+        {
+            pixels[7 * w + x] = edge;
+            pixels[8 * w + x] = strap;
+        }
+
+        tex.SetPixels(pixels);
+        tex.Apply();
+        return tex;
     }
 }
