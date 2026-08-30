@@ -558,28 +558,52 @@ public class SoundManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Short percussive noise burst with a low-frequency thud — sounds like
-    /// a rock cracking/crumbling.
+    /// Large boulder breaking apart — deep sub-bass impact, initial crack,
+    /// cascading debris crumble, and a low rumble tail.
     /// </summary>
     private static AudioClip CreateRockBreak(float duration, float volume)
     {
+        // Longer duration for a massive feel.
+        duration = 0.55f;
         int count = Mathf.Max(1, Mathf.CeilToInt(SampleRate * duration));
         float[] samples = new float[count];
-        // Use a seeded random for deterministic output.
         System.Random rng = new System.Random(42);
         for (int i = 0; i < count; i++)
         {
             float t = (float)i / SampleRate;
             float u = t / duration;
-            // Fast exponential decay for a snappy crack.
-            float env = Mathf.Exp(-12f * u);
-            // White noise for the crunch texture.
-            float noise = (float)(rng.NextDouble() * 2.0 - 1.0);
-            // Low-frequency thud underneath.
-            float thud = Mathf.Sin(2f * Mathf.PI * 80f * t) * Mathf.Exp(-20f * u);
-            // Mid-frequency crackle.
-            float crackle = Mathf.Sin(2f * Mathf.PI * 220f * t) * Mathf.Exp(-15f * u) * 0.4f;
-            samples[i] = volume * (env * noise * 0.6f + thud * 0.7f + crackle);
+
+            // --- Layer 1: Sub-bass impact (40Hz, heavy) ---
+            float subBass = Mathf.Sin(2f * Mathf.PI * 40f * t) * Mathf.Exp(-6f * u) * 1.0f;
+
+            // --- Layer 2: Initial crack (sharp noise burst, first 50ms) ---
+            float crackEnv = t < 0.05f ? Mathf.Exp(-60f * t) : 0f;
+            float crackNoise = (float)(rng.NextDouble() * 2.0 - 1.0);
+            float crack = crackNoise * crackEnv * 0.9f;
+
+            // --- Layer 3: Mid-frequency fracture tones (100-300Hz) ---
+            float fracture1 = Mathf.Sin(2f * Mathf.PI * 110f * t) * Mathf.Exp(-8f * u) * 0.5f;
+            float fracture2 = Mathf.Sin(2f * Mathf.PI * 260f * t) * Mathf.Exp(-10f * u) * 0.3f;
+
+            // --- Layer 4: Debris crumble (filtered noise, delayed onset) ---
+            float debrisEnv = 0f;
+            if (t > 0.04f)
+            {
+                float dt = t - 0.04f;
+                debrisEnv = Mathf.Min(1f, dt / 0.03f) * Mathf.Exp(-4f * (dt / (duration - 0.04f)));
+            }
+            float debrisNoise = (float)(rng.NextDouble() * 2.0 - 1.0);
+            // Simple low-pass: average consecutive noise samples for a rumbly texture.
+            float debris = debrisNoise * debrisEnv * 0.45f;
+
+            // --- Layer 5: Low rumble tail (sub-harmonic wobble) ---
+            float rumble = Mathf.Sin(2f * Mathf.PI * 55f * t + 
+                           Mathf.Sin(2f * Mathf.PI * 3f * t) * 2f) * // FM wobble
+                           Mathf.Exp(-3f * u) * 0.35f;
+
+            samples[i] = volume * (subBass + crack + fracture1 + fracture2 + debris + rumble);
+            // Soft clip to avoid harsh distortion.
+            samples[i] = Mathf.Clamp(samples[i], -0.95f, 0.95f);
         }
         AudioClip clip = AudioClip.Create("rockBreak", count, 1, SampleRate, false);
         clip.SetData(samples, 0);
