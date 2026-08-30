@@ -531,7 +531,7 @@ public class CatcherManager : MonoBehaviour
             if (catcherInstance.GetComponent<GemGlowVolume>() == null)
             {
                 var glow = catcherInstance.AddComponent<GemGlowVolume>();
-                glow.glowColor = gold;
+                glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
                 glow.glowAlpha = 0.9f;
                 glow.glowRadius = 2f;
             }
