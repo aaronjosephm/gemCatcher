@@ -2763,7 +2763,7 @@ public class UIManager : MonoBehaviour
     }
 
     string itemName;
-    int itemPrice;
+    long itemPrice;
     bool owned, equipped, canAfford;
 
     if (shopActiveTab == "wearables")
