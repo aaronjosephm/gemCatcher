@@ -2382,15 +2382,15 @@ public class UIManager : MonoBehaviour
         Destroy(col);
     }
 
-    // Sunglasses: apply/remove via CatchyFace overlay
+    // Face overlay wearables: apply/remove via CatchyFace
     var face = shopPreviewCatchy.GetComponent<CatchyFace>();
     if (face != null)
     {
       bool showSunglasses = previewId == "sunglasses" || (previewId != "sunglasses" && WearableManager.IsEquipped("sunglasses"));
-      if (showSunglasses)
-        face.ApplySunglasses();
-      else
-        face.RemoveSunglasses();
+      if (showSunglasses) face.ApplySunglasses(); else face.RemoveSunglasses();
+
+      bool showEyepatch = previewId == "eyepatch" || (previewId != "eyepatch" && WearableManager.IsEquipped("eyepatch"));
+      if (showEyepatch) face.ApplyEyepatch(); else face.RemoveEyepatch();
     }
   }
 

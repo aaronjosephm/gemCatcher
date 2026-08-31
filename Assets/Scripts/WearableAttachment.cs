@@ -38,13 +38,18 @@ public class WearableAttachment : MonoBehaviour
                 face.ApplySunglasses();
             else
                 face.RemoveSunglasses();
+
+            if (WearableManager.IsEquipped("eyepatch"))
+                face.ApplyEyepatch();
+            else
+                face.RemoveEyepatch();
         }
 
         // Attach each equipped wearable.
         foreach (var def in WearableManager.Catalog)
         {
             if (!WearableManager.IsEquipped(def.id)) continue;
-            if (def.id == "sunglasses") continue; // handled above via face
+            if (def.id == "sunglasses" || def.id == "eyepatch") continue; // handled above via face
 
             GameObject prefab = Resources.Load<GameObject>(def.prefabPath);
             GameObject instance;

@@ -195,7 +195,7 @@ public class CatchyFace : MonoBehaviour
 
     static readonly Color lensColor = new Color(0.04f, 0.04f, 0.08f, 1f);
     static readonly Color lensHighlight = new Color(0.15f, 0.2f, 0.3f, 1f);
-    static readonly Color frameColor = new Color(0.55f, 0.55f, 0.5f, 1f); // metallic silver
+    static readonly Color frameColor = new Color(0.06f, 0.06f, 0.08f, 1f); // black frame
     const float SZ = -0.505f;
 
     GameObject SG(string n, Vector3 p, Vector3 s, Color c)
@@ -253,5 +253,51 @@ public class CatchyFace : MonoBehaviour
         foreach (var go in sunglassParts)
             if (go != null) Destroy(go);
         sunglassParts.Clear();
+    }
+
+    // ---- Eye Patch ----
+
+    private readonly System.Collections.Generic.List<GameObject> eyepatchParts = new System.Collections.Generic.List<GameObject>();
+    private bool hasEyepatch;
+
+    static readonly Color patchColor = new Color(0.08f, 0.06f, 0.04f, 1f); // dark brown/black leather
+    static readonly Color strapColor = new Color(0.1f, 0.08f, 0.06f, 1f);
+
+    GameObject EP(string n, Vector3 p, Vector3 s, Color c)
+    {
+        var go = CreateFacePart(n, p, s, c);
+        eyepatchParts.Add(go);
+        return go;
+    }
+
+    /// <summary>Add eye patch overlay to face (covers left eye).</summary>
+    public void ApplyEyepatch()
+    {
+        if (hasEyepatch) return;
+        hasEyepatch = true;
+
+        float ex = -0.22f; // left eye X
+
+        // Patch — rounded-ish shape from stacked quads
+        EP("EyepatchMain", new Vector3(ex, 0.12f, SZ), new Vector3(0.20f, 0.16f, 0.01f), patchColor);
+        EP("EyepatchTop",  new Vector3(ex, 0.21f, SZ), new Vector3(0.14f, 0.04f, 0.01f), patchColor);
+        EP("EyepatchBot",  new Vector3(ex, 0.03f, SZ), new Vector3(0.14f, 0.04f, 0.01f), patchColor);
+
+        // Strap going diagonally across face — upper right
+        EP("StrapUR", new Vector3(0.0f,  0.24f, SZ), new Vector3(0.34f, 0.03f, 0.01f), strapColor);
+        EP("StrapTop", new Vector3(0.18f, 0.27f, SZ), new Vector3(0.12f, 0.03f, 0.01f), strapColor);
+        // Strap going diagonally — lower right
+        EP("StrapLR", new Vector3(0.0f,  0.0f, SZ),  new Vector3(0.34f, 0.03f, 0.01f), strapColor);
+        EP("StrapBot", new Vector3(0.18f, -0.03f, SZ), new Vector3(0.12f, 0.03f, 0.01f), strapColor);
+    }
+
+    /// <summary>Remove eye patch overlay.</summary>
+    public void RemoveEyepatch()
+    {
+        if (!hasEyepatch) return;
+        hasEyepatch = false;
+        foreach (var go in eyepatchParts)
+            if (go != null) Destroy(go);
+        eyepatchParts.Clear();
     }
 }
