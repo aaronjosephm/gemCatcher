@@ -49,7 +49,7 @@ public static class SkinManager
         new SkinDef
         {
             id = "camo",
-            displayName = "Camo",
+            displayName = "Green",
             price = 10,
             type = SkinType.Camo,
             primaryColor = new Color(0.30f, 0.40f, 0.20f),
