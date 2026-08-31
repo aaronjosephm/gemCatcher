@@ -278,17 +278,14 @@ public class CatchyFace : MonoBehaviour
 
         float ex = -0.22f; // left eye X
 
-        // Patch — rounded-ish shape from stacked quads
+        // Patch — rounded-ish shape from stacked quads over left eye
         EP("EyepatchMain", new Vector3(ex, 0.12f, SZ), new Vector3(0.20f, 0.16f, 0.01f), patchColor);
         EP("EyepatchTop",  new Vector3(ex, 0.21f, SZ), new Vector3(0.14f, 0.04f, 0.01f), patchColor);
         EP("EyepatchBot",  new Vector3(ex, 0.03f, SZ), new Vector3(0.14f, 0.04f, 0.01f), patchColor);
 
-        // Strap going diagonally across face — upper right
-        EP("StrapUR", new Vector3(0.0f,  0.24f, SZ), new Vector3(0.34f, 0.03f, 0.01f), strapColor);
-        EP("StrapTop", new Vector3(0.18f, 0.27f, SZ), new Vector3(0.12f, 0.03f, 0.01f), strapColor);
-        // Strap going diagonally — lower right
-        EP("StrapLR", new Vector3(0.0f,  0.0f, SZ),  new Vector3(0.34f, 0.03f, 0.01f), strapColor);
-        EP("StrapBot", new Vector3(0.18f, -0.03f, SZ), new Vector3(0.12f, 0.03f, 0.01f), strapColor);
+        // Strap — horizontal band from patch left edge to right edge of face
+        EP("StrapL", new Vector3(-0.42f, 0.12f, SZ), new Vector3(0.14f, 0.03f, 0.01f), strapColor);
+        EP("StrapR", new Vector3(0.15f,  0.12f, SZ), new Vector3(0.60f, 0.03f, 0.01f), strapColor);
     }
 
     /// <summary>Remove eye patch overlay.</summary>
