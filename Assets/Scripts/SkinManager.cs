@@ -169,7 +169,8 @@ public static class SkinManager
             string partName = rend.gameObject.name;
             if (partName.Contains("Eye") || partName.Contains("Smile") || partName.Contains("Mouth")
                 || partName.Contains("Happy") || partName.Contains("Tear") || partName.Contains("Sad")
-                || partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap"))
+                || partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap")
+                || IsUnderWearable(rend.transform))
                 continue;
 
             if (skin.type == SkinType.PrefabMaterial && prefabMat != null)
@@ -197,6 +198,17 @@ public static class SkinManager
                 rend.materials = mats;
             }
         }
+    }
+
+    /// <summary>Returns true if the transform or any ancestor is a wearable instance (named Wearable_*).</summary>
+    private static bool IsUnderWearable(Transform t)
+    {
+        while (t != null)
+        {
+            if (t.gameObject.name.StartsWith("Wearable_")) return true;
+            t = t.parent;
+        }
+        return false;
     }
 
     /// <summary>Reset all skin purchases (testing only).</summary>

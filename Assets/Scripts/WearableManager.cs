@@ -43,17 +43,6 @@ public static class WearableManager
         },
         new WearableDef
         {
-            id = "tophat",
-            displayName = "Top Hat",
-            price = 10,
-            prefabPath = "Wearables/TopHat",
-            attach = AttachPoint.Head,
-            localOffset = new Vector3(0f, 0.5f, 0f),
-            localRotation = Vector3.zero,
-            scale = 0.5f,
-        },
-        new WearableDef
-        {
             id = "sunglasses",
             displayName = "Sunglasses",
             price = 10,

@@ -971,12 +971,23 @@ public class CatcherManager : MonoBehaviour
         foreach (Renderer r in renderers)
         {
             string partName = r.gameObject.name;
-            if (partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap"))
+            if (partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap")
+                || IsUnderWearable(r.transform))
                 continue;
             Material[] mats = new Material[r.sharedMaterials.Length];
             for (int i = 0; i < mats.Length; i++) mats[i] = glass;
             r.sharedMaterials = mats;
         }
+    }
+
+    static bool IsUnderWearable(Transform t)
+    {
+        while (t != null)
+        {
+            if (t.gameObject.name.StartsWith("Wearable_")) return true;
+            t = t.parent;
+        }
+        return false;
     }
 
     // Adds a sparkle particle system to the catcher with a procedural 4-point

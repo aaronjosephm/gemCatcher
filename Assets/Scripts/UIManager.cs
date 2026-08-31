@@ -2711,35 +2711,15 @@ public class UIManager : MonoBehaviour
       glow.transform.SetAsFirstSibling();
     }
 
-    // Icon area (top portion)
-    TextMeshProUGUI iconTmp = new GameObject("Icon", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
-    iconTmp.transform.SetParent(card.transform, false);
-    RectTransform iconR = iconTmp.GetComponent<RectTransform>();
-    iconR.anchorMin = new Vector2(0.1f, 0.40f);
-    iconR.anchorMax = new Vector2(0.9f, 0.90f);
-    iconR.offsetMin = Vector2.zero; iconR.offsetMax = Vector2.zero;
-    iconTmp.fontSize = 48;
-    iconTmp.alignment = TextAlignmentOptions.Center;
-    iconTmp.raycastTarget = false;
-
-    switch (def.id)
-    {
-      case "eyepatch":   iconTmp.text = "\u25D0"; iconTmp.color = new Color(0.5f, 0.35f, 0.25f); break;
-      case "tophat":     iconTmp.text = "\u25A0"; iconTmp.color = new Color(0.3f, 0.25f, 0.35f); break;
-      case "sunglasses": iconTmp.text = "\u25CB\u25CB"; iconTmp.color = new Color(0.3f, 0.35f, 0.5f); break;
-      case "cowboyhat":  iconTmp.text = "\u2302"; iconTmp.color = new Color(0.55f, 0.35f, 0.2f); break;
-      default:           iconTmp.text = "?"; iconTmp.color = Color.gray; break;
-    }
-
-    // Item name (middle)
+    // Item name (centered, no icon)
     TextMeshProUGUI nameTmp = new GameObject("Name", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
     nameTmp.transform.SetParent(card.transform, false);
     RectTransform nameR = nameTmp.GetComponent<RectTransform>();
-    nameR.anchorMin = new Vector2(0.05f, 0.18f);
-    nameR.anchorMax = new Vector2(0.95f, 0.42f);
+    nameR.anchorMin = new Vector2(0.05f, 0.25f);
+    nameR.anchorMax = new Vector2(0.95f, 0.65f);
     nameR.offsetMin = Vector2.zero; nameR.offsetMax = Vector2.zero;
     nameTmp.text = def.displayName;
-    nameTmp.fontSize = 22;
+    nameTmp.fontSize = 24;
     nameTmp.fontStyle = FontStyles.Bold;
     nameTmp.alignment = TextAlignmentOptions.Center;
     nameTmp.color = Color.white;
@@ -3179,7 +3159,8 @@ public class UIManager : MonoBehaviour
       string n = child.gameObject.name;
       if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth")
           || n.Contains("Happy") || n.Contains("Tear") || n.Contains("Sad")
-          || n.Contains("Sunglass") || n.Contains("Strap") || n.Contains("Eyepatch"))
+          || n.Contains("Sunglass") || n.Contains("Strap") || n.Contains("Eyepatch")
+          || n.StartsWith("Wearable_"))
         toDestroy.Add(child.gameObject);
     }
     foreach (var go in toDestroy)
@@ -3204,7 +3185,8 @@ public class UIManager : MonoBehaviour
       if (rend == null) continue;
 
       Color? targetColor = null;
-      if (n.Contains("Sunglass") || n.Contains("Strap") || n.Contains("Eyepatch"))
+      if (n.Contains("Sunglass") || n.Contains("Strap") || n.Contains("Eyepatch")
+          || n.StartsWith("Wearable_"))
         continue; // skip wearable overlays
       if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth") || n.Contains("Happy") || n.Contains("Sad"))
         targetColor = dark;
