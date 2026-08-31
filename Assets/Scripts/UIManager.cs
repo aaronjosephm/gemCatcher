@@ -103,6 +103,9 @@ public class UIManager : MonoBehaviour
   private Transform shopGridContainer;
   private GameObject shopActionArea;    // buy/equip bar at bottom
   private Transform shopTabContainer;
+  // Diamond skin tile: live material preview
+  private RenderTexture diamondTileRT;
+  private GameObject diamondTilePreviewRoot;
 
   // Auto-created on first request. Shown when the OS backgrounds the app
   // (incoming call, home button, app switcher) so the player can resume on
@@ -2249,6 +2252,8 @@ public class UIManager : MonoBehaviour
   {
     if (shopPreviewRoot != null) { Destroy(shopPreviewRoot); shopPreviewRoot = null; }
     if (shopPreviewRT != null) { shopPreviewRT.Release(); Destroy(shopPreviewRT); shopPreviewRT = null; }
+    if (diamondTilePreviewRoot != null) { Destroy(diamondTilePreviewRoot); diamondTilePreviewRoot = null; }
+    if (diamondTileRT != null) { diamondTileRT.Release(); Destroy(diamondTileRT); diamondTileRT = null; }
     shopPreviewCamera = null;
     shopPreviewCatchy = null;
     shopPreviewWearableId = null;
@@ -2375,6 +2380,60 @@ public class UIManager : MonoBehaviour
       foreach (var col in instance.GetComponentsInChildren<Collider>())
         Destroy(col);
     }
+
+    // Diamond tile live material preview: small camera renders a quad with
+    // the Rainbow material to a RenderTexture used by the skin tile RawImage.
+    SetupDiamondTilePreview();
+  }
+
+  void SetupDiamondTilePreview()
+  {
+    // Load the Rainbow material from the DiamondGem prefab
+    var prefab = Resources.Load<GameObject>("Gems/DiamondGem");
+    if (prefab == null) return;
+    var prefabRend = prefab.GetComponentInChildren<Renderer>();
+    if (prefabRend == null || prefabRend.sharedMaterial == null) return;
+
+    diamondTileRT = new RenderTexture(128, 128, 16);
+    diamondTileRT.Create();
+
+    // Place it far from the catchy preview so cameras don't overlap
+    diamondTilePreviewRoot = new GameObject("DiamondTilePreview");
+    diamondTilePreviewRoot.transform.position = new Vector3(50f, 100f, 0f);
+
+    // Quad facing the camera with the Rainbow material
+    GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+    quad.name = "DiamondQuad";
+    quad.transform.SetParent(diamondTilePreviewRoot.transform, false);
+    quad.transform.localPosition = Vector3.zero;
+    quad.transform.localScale = new Vector3(2f, 2f, 1f);
+    var col = quad.GetComponent<Collider>();
+    if (col != null) Destroy(col);
+    quad.GetComponent<Renderer>().sharedMaterial = prefabRend.sharedMaterial;
+
+    // Light so the material looks good
+    GameObject dtLight = new GameObject("DTLight");
+    dtLight.transform.SetParent(diamondTilePreviewRoot.transform, false);
+    dtLight.transform.localPosition = new Vector3(0.5f, 1f, 1f);
+    dtLight.transform.LookAt(diamondTilePreviewRoot.transform);
+    Light lt = dtLight.AddComponent<Light>();
+    lt.type = LightType.Directional;
+    lt.intensity = 1.5f;
+    lt.color = Color.white;
+
+    // Camera looking at the quad
+    GameObject dtCam = new GameObject("DTCam");
+    dtCam.transform.SetParent(diamondTilePreviewRoot.transform, false);
+    dtCam.transform.localPosition = new Vector3(0f, 0f, 1.5f);
+    dtCam.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+    Camera cam = dtCam.AddComponent<Camera>();
+    cam.targetTexture = diamondTileRT;
+    cam.clearFlags = CameraClearFlags.SolidColor;
+    cam.backgroundColor = new Color(0.15f, 0.15f, 0.2f);
+    cam.orthographic = true;
+    cam.orthographicSize = 1f;
+    cam.nearClipPlane = 0.1f;
+    cam.farClipPlane = 5f;
   }
 
   void EnsureShopPanel()
@@ -2457,7 +2516,7 @@ public class UIManager : MonoBehaviour
       RectTransform balR = balTmp.GetComponent<RectTransform>();
       balR.anchorMin = Vector2.zero; balR.anchorMax = Vector2.one;
       balR.offsetMin = new Vector2(8f, 0f); balR.offsetMax = new Vector2(-8f, 0f);
-      balTmp.text = $"D {WearableManager.Balance:N0}";
+      balTmp.text = $"\u2666 {WearableManager.Balance:N0}";
       balTmp.fontSize = 28;
       balTmp.fontStyle = FontStyles.Bold;
       balTmp.alignment = TextAlignmentOptions.MidlineRight;
@@ -2695,7 +2754,7 @@ public class UIManager : MonoBehaviour
     else
     {
       bool canAfford = WearableManager.Balance >= def.price;
-      priceTmp.text = $"D {def.price:N0}";
+      priceTmp.text = $"\u2666 {def.price:N0}";
       priceTmp.color = canAfford ? new Color(1f, 0.85f, 0.35f) : new Color(0.5f, 0.35f, 0.25f);
     }
 
@@ -2864,7 +2923,7 @@ public class UIManager : MonoBehaviour
   {
     shopSelectedId = keepSelectedId;
     if (shopBalanceText != null)
-      shopBalanceText.text = $"D {WearableManager.Balance:N0}";
+      shopBalanceText.text = $"\u2666 {WearableManager.Balance:N0}";
     if (shopActiveTab == "wearables")
       ApplyShopPreviewWearables(null);
     else
@@ -2946,30 +3005,19 @@ public class UIManager : MonoBehaviour
     // Set the entire tile to the skin color
     if (skin.type == SkinManager.SkinType.PrefabMaterial)
     {
-      // Rainbow gradient bands to represent the iridescent diamond material
-      cardBg.color = new Color(0.55f, 0.75f, 1f); // light blue base
-      Color[] bands = {
-        new Color(1f, 0.4f, 0.4f),   // red
-        new Color(1f, 0.75f, 0.3f),   // orange
-        new Color(1f, 1f, 0.4f),      // yellow
-        new Color(0.4f, 1f, 0.5f),    // green
-        new Color(0.4f, 0.7f, 1f),    // blue
-        new Color(0.7f, 0.4f, 1f),    // purple
-      };
-      float bandH = 1f / bands.Length;
-      for (int b = 0; b < bands.Length; b++)
+      // Live material preview via RawImage showing the diamond RenderTexture
+      cardBg.color = new Color(0.15f, 0.15f, 0.2f); // dark fallback
+      if (diamondTileRT != null)
       {
-        var band = new GameObject("Band", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-        band.transform.SetParent(card.transform, false);
-        var bR = band.GetComponent<RectTransform>();
-        bR.anchorMin = new Vector2(0, b * bandH);
-        bR.anchorMax = new Vector2(1, (b + 1) * bandH);
-        bR.offsetMin = Vector2.zero;
-        bR.offsetMax = Vector2.zero;
-        var bImg = band.GetComponent<Image>();
-        var c = bands[b]; c.a = 0.55f;
-        bImg.color = c;
-        bImg.raycastTarget = false;
+        GameObject rawGo = new GameObject("DiamondPreview", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+        rawGo.transform.SetParent(card.transform, false);
+        RectTransform rawR = rawGo.GetComponent<RectTransform>();
+        rawR.anchorMin = Vector2.zero;
+        rawR.anchorMax = Vector2.one;
+        rawR.offsetMin = Vector2.zero;
+        rawR.offsetMax = Vector2.zero;
+        rawGo.GetComponent<RawImage>().texture = diamondTileRT;
+        rawGo.GetComponent<RawImage>().raycastTarget = false;
       }
     }
     else if (skin.type == SkinManager.SkinType.Camo)
@@ -3040,7 +3088,7 @@ public class UIManager : MonoBehaviour
     }
     else
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>D {skin.price:N0}</size>";
+      nameTmp.text = $"{skin.displayName}\n<size=16>\u2666 {skin.price:N0}</size>";
       nameTmp.color = textColor;
     }
   }
