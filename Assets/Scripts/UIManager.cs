@@ -3170,7 +3170,7 @@ public class UIManager : MonoBehaviour
   {
     if (shopPreviewCatchy == null) return;
     var oldFace = shopPreviewCatchy.GetComponent<CatchyFace>();
-    if (oldFace != null) Destroy(oldFace);
+    if (oldFace != null) DestroyImmediate(oldFace);
 
     var toDestroy = new System.Collections.Generic.List<GameObject>();
     foreach (Transform child in shopPreviewCatchy.transform)
