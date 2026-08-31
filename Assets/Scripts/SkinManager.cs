@@ -168,7 +168,8 @@ public static class SkinManager
             if (rend == null || rend.gameObject == null) continue;
             string partName = rend.gameObject.name;
             if (partName.Contains("Eye") || partName.Contains("Smile") || partName.Contains("Mouth")
-                || partName.Contains("Happy") || partName.Contains("Tear") || partName.Contains("Sad"))
+                || partName.Contains("Happy") || partName.Contains("Tear") || partName.Contains("Sad")
+                || partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap"))
                 continue;
 
             if (skin.type == SkinType.PrefabMaterial && prefabMat != null)

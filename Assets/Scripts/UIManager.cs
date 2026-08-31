@@ -2332,6 +2332,8 @@ public class UIManager : MonoBehaviour
       spinner.speed = new Vector3(0f, 30f, 0f);
       ApplyShopPreviewWearables(null);
     }
+
+    SetupDiamondTilePreview();
   }
 
   void ApplyShopPreviewWearables(string previewId)
@@ -3184,6 +3186,8 @@ public class UIManager : MonoBehaviour
       if (rend == null) continue;
 
       Color? targetColor = null;
+      if (n.Contains("Sunglass") || n.Contains("Strap") || n.Contains("Eyepatch"))
+        continue; // skip wearable overlays
       if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth") || n.Contains("Happy") || n.Contains("Sad"))
         targetColor = dark;
       else if (n.Contains("Tear"))
