@@ -159,7 +159,28 @@ public static class SkinManager
             {
                 var rend = prefab.GetComponentInChildren<Renderer>();
                 if (rend != null && rend.sharedMaterial != null)
-                    prefabMat = rend.sharedMaterial;
+                {
+                    // Create an Unlit copy so the look is consistent across all levels
+                    var src = rend.sharedMaterial;
+                    prefabMat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
+                    if (src.HasProperty("_BaseMap"))
+                        prefabMat.SetTexture("_BaseMap", src.GetTexture("_BaseMap"));
+                    if (src.HasProperty("_BaseColor"))
+                        prefabMat.SetColor("_BaseColor", src.GetColor("_BaseColor"));
+                    else if (src.HasProperty("_Color"))
+                        prefabMat.SetColor("_BaseColor", src.GetColor("_Color"));
+                    // Preserve surface type settings if present
+                    if (src.HasProperty("_Surface"))
+                    {
+                        prefabMat.SetFloat("_Surface", src.GetFloat("_Surface"));
+                        if (src.GetFloat("_Surface") == 1) // Transparent
+                        {
+                            prefabMat.SetFloat("_Blend", src.HasProperty("_Blend") ? src.GetFloat("_Blend") : 0);
+                            prefabMat.SetOverrideTag("RenderType", "Transparent");
+                            prefabMat.renderQueue = 3000;
+                        }
+                    }
+                }
             }
         }
 
