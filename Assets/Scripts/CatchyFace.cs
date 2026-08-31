@@ -285,17 +285,20 @@ public class CatchyFace : MonoBehaviour
 
         // Strap — curves up from patch edges over the top of the head
         // Left strap: from patch left edge upward to top-left
-        EP("StrapL1", new Vector3(-0.34f, 0.18f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapL2", new Vector3(-0.38f, 0.24f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapL3", new Vector3(-0.40f, 0.30f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapL4", new Vector3(-0.40f, 0.36f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
+        EP("StrapL1", new Vector3(-0.34f, 0.20f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL2", new Vector3(-0.37f, 0.26f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL3", new Vector3(-0.39f, 0.32f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL4", new Vector3(-0.40f, 0.38f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL5", new Vector3(-0.40f, 0.44f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL6", new Vector3(-0.39f, 0.50f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
 
         // Right strap: from patch right edge upward to top-right
-        EP("StrapR1", new Vector3(-0.10f, 0.18f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapR2", new Vector3(-0.04f, 0.24f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapR3", new Vector3(0.02f,  0.30f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapR4", new Vector3(0.08f,  0.36f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
-        EP("StrapR5", new Vector3(0.14f,  0.42f, SZ), new Vector3(0.06f, 0.03f, 0.01f), strapColor);
+        EP("StrapR1", new Vector3(-0.10f, 0.20f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR2", new Vector3(-0.05f, 0.26f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR3", new Vector3(0.00f,  0.32f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR4", new Vector3(0.05f,  0.38f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR5", new Vector3(0.10f,  0.44f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR6", new Vector3(0.14f,  0.50f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
     }
 
     /// <summary>Remove eye patch overlay.</summary>
