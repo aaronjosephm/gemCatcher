@@ -69,9 +69,9 @@ public static class WearableManager
             price = 25,
             prefabPath = "Wearables/CowboyHat",
             attach = AttachPoint.Head,
-            localOffset = new Vector3(0f, 0.5f, 0f),
+            localOffset = new Vector3(0f, 0.55f, 0f),
             localRotation = Vector3.zero,
-            scale = 0.5f,
+            scale = 3f,
         },
     };
 

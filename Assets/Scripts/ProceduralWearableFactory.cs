@@ -11,6 +11,7 @@ public static class ProceduralWearableFactory
         switch (wearableId)
         {
             case "eyepatch": return BuildEyePatch();
+            case "cowboyhat": return BuildCowboyHat();
             default: return null;
         }
     }
@@ -137,5 +138,52 @@ public static class ProceduralWearableFactory
         tex.SetPixels(pixels);
         tex.Apply();
         return tex;
+    }
+
+    // ─── Cowboy Hat (procedural fallback) ─────────────────────────────────
+
+    static GameObject BuildCowboyHat()
+    {
+        GameObject root = new GameObject("CowboyHat_Procedural");
+        Color brown = new Color(0.45f, 0.28f, 0.15f);
+        Color darkBrown = new Color(0.3f, 0.18f, 0.08f);
+
+        // Brim — wide flat cylinder
+        GameObject brim = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        brim.name = "Brim";
+        brim.transform.SetParent(root.transform, false);
+        brim.transform.localPosition = Vector3.zero;
+        brim.transform.localScale = new Vector3(1.8f, 0.04f, 1.8f);
+        var bc = brim.GetComponent<Collider>(); if (bc) Object.Destroy(bc);
+        SetColor(brim, brown);
+
+        // Crown — taller narrower cylinder
+        GameObject crown = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        crown.name = "Crown";
+        crown.transform.SetParent(root.transform, false);
+        crown.transform.localPosition = new Vector3(0f, 0.2f, 0f);
+        crown.transform.localScale = new Vector3(0.7f, 0.25f, 0.7f);
+        var cc = crown.GetComponent<Collider>(); if (cc) Object.Destroy(cc);
+        SetColor(crown, darkBrown);
+
+        // Band around crown
+        GameObject band = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        band.name = "Band";
+        band.transform.SetParent(root.transform, false);
+        band.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+        band.transform.localScale = new Vector3(0.75f, 0.04f, 0.75f);
+        var bdc = band.GetComponent<Collider>(); if (bdc) Object.Destroy(bdc);
+        SetColor(band, new Color(0.2f, 0.12f, 0.05f));
+
+        return root;
+    }
+
+    static void SetColor(GameObject go, Color c)
+    {
+        var rend = go.GetComponent<Renderer>();
+        if (rend == null) return;
+        Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+        mat.SetColor("_BaseColor", c);
+        rend.material = mat;
     }
 }
