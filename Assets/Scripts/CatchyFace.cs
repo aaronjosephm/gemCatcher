@@ -23,11 +23,7 @@ public class CatchyFace : MonoBehaviour
     private GameObject happyMouth;
 
     // Sunglasses overlay parts
-    private GameObject sunglassLensL;
-    private GameObject sunglassLensR;
-    private GameObject sunglassBridge;
-    private GameObject sunglassArmL;
-    private GameObject sunglassArmR;
+    private readonly System.Collections.Generic.List<GameObject> sunglassParts = new System.Collections.Generic.List<GameObject>();
     private bool hasSunglasses;
 
     private float expressionTimer;
@@ -197,31 +193,56 @@ public class CatchyFace : MonoBehaviour
 
     // ---- Sunglasses ----
 
-    static readonly Color lensColor = new Color(0.05f, 0.05f, 0.1f, 1f);
-    static readonly Color frameColor = new Color(0.08f, 0.08f, 0.08f, 1f);
-    const float SZ = -0.505f; // slightly in front of eyes
+    static readonly Color lensColor = new Color(0.04f, 0.04f, 0.08f, 1f);
+    static readonly Color lensHighlight = new Color(0.15f, 0.2f, 0.3f, 1f);
+    static readonly Color frameColor = new Color(0.55f, 0.55f, 0.5f, 1f); // metallic silver
+    const float SZ = -0.505f;
 
-    /// <summary>Add sunglasses overlay to face.</summary>
+    GameObject SG(string n, Vector3 p, Vector3 s, Color c)
+    {
+        var go = CreateFacePart(n, p, s, c);
+        sunglassParts.Add(go);
+        return go;
+    }
+
+    /// <summary>Add aviator sunglasses overlay to face.</summary>
     public void ApplySunglasses()
     {
         if (hasSunglasses) return;
         hasSunglasses = true;
 
-        // Wide rectangular lenses covering each eye
-        sunglassLensL = CreateFacePart("SunglassLensL",
-            new Vector3(-0.22f, 0.12f, SZ), new Vector3(0.22f, 0.14f, 0.01f), lensColor);
-        sunglassLensR = CreateFacePart("SunglassLensR",
-            new Vector3(0.22f, 0.12f, SZ), new Vector3(0.22f, 0.14f, 0.01f), lensColor);
+        // Each aviator lens = teardrop shape built from stacked quads
+        // Wide at top, tapers down
+        float lx = -0.22f, rx = 0.22f;
 
-        // Bridge connecting the two lenses
-        sunglassBridge = CreateFacePart("SunglassBridge",
-            new Vector3(0f, 0.12f, SZ), new Vector3(0.12f, 0.04f, 0.01f), frameColor);
+        // Left lens — top wide part
+        SG("SunglassL1", new Vector3(lx, 0.16f, SZ), new Vector3(0.24f, 0.06f, 0.01f), lensColor);
+        // Left lens — main body
+        SG("SunglassL2", new Vector3(lx, 0.10f, SZ), new Vector3(0.22f, 0.08f, 0.01f), lensColor);
+        // Left lens — bottom taper
+        SG("SunglassL3", new Vector3(lx, 0.04f, SZ), new Vector3(0.16f, 0.06f, 0.01f), lensColor);
+        // Left lens — teardrop tip
+        SG("SunglassL4", new Vector3(lx, 0.00f, SZ), new Vector3(0.10f, 0.04f, 0.01f), lensColor);
+        // Left lens highlight (reflective glint)
+        SG("SunglassHL", new Vector3(lx - 0.04f, 0.15f, -0.507f), new Vector3(0.06f, 0.03f, 0.01f), lensHighlight);
 
-        // Arms extending toward the sides
-        sunglassArmL = CreateFacePart("SunglassArmL",
-            new Vector3(-0.35f, 0.12f, SZ), new Vector3(0.06f, 0.03f, 0.01f), frameColor);
-        sunglassArmR = CreateFacePart("SunglassArmR",
-            new Vector3(0.35f, 0.12f, SZ), new Vector3(0.06f, 0.03f, 0.01f), frameColor);
+        // Right lens — mirror of left
+        SG("SunglassR1", new Vector3(rx, 0.16f, SZ), new Vector3(0.24f, 0.06f, 0.01f), lensColor);
+        SG("SunglassR2", new Vector3(rx, 0.10f, SZ), new Vector3(0.22f, 0.08f, 0.01f), lensColor);
+        SG("SunglassR3", new Vector3(rx, 0.04f, SZ), new Vector3(0.16f, 0.06f, 0.01f), lensColor);
+        SG("SunglassR4", new Vector3(rx, 0.00f, SZ), new Vector3(0.10f, 0.04f, 0.01f), lensColor);
+        SG("SunglassHR", new Vector3(rx + 0.04f, 0.15f, -0.507f), new Vector3(0.06f, 0.03f, 0.01f), lensHighlight);
+
+        // Top frame bar across both lenses
+        SG("SunglassTopBar", new Vector3(0f, 0.19f, SZ), new Vector3(0.50f, 0.025f, 0.01f), frameColor);
+
+        // Double bridge (two thin bars)
+        SG("SunglassBridge1", new Vector3(0f, 0.16f, SZ), new Vector3(0.08f, 0.02f, 0.01f), frameColor);
+        SG("SunglassBridge2", new Vector3(0f, 0.13f, SZ), new Vector3(0.06f, 0.02f, 0.01f), frameColor);
+
+        // Arms extending to the sides
+        SG("SunglassArmL", new Vector3(-0.38f, 0.17f, SZ), new Vector3(0.12f, 0.02f, 0.01f), frameColor);
+        SG("SunglassArmR", new Vector3(0.38f, 0.17f, SZ), new Vector3(0.12f, 0.02f, 0.01f), frameColor);
     }
 
     /// <summary>Remove sunglasses overlay.</summary>
@@ -229,10 +250,8 @@ public class CatchyFace : MonoBehaviour
     {
         if (!hasSunglasses) return;
         hasSunglasses = false;
-        if (sunglassLensL != null) Destroy(sunglassLensL);
-        if (sunglassLensR != null) Destroy(sunglassLensR);
-        if (sunglassBridge != null) Destroy(sunglassBridge);
-        if (sunglassArmL != null) Destroy(sunglassArmL);
-        if (sunglassArmR != null) Destroy(sunglassArmR);
+        foreach (var go in sunglassParts)
+            if (go != null) Destroy(go);
+        sunglassParts.Clear();
     }
 }
