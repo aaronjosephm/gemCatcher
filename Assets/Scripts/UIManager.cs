@@ -2355,7 +2355,7 @@ public class UIManager : MonoBehaviour
     {
       bool shouldShow = WearableManager.IsEquipped(def.id) || def.id == previewId;
       if (!shouldShow) continue;
-      if (def.id == "sunglasses") continue; // handled below via CatchyFace
+      if (def.id == "sunglasses" || def.id == "eyepatch") continue; // handled below via CatchyFace
 
       if (previewId != null && def.id != previewId)
       {
@@ -2385,13 +2385,17 @@ public class UIManager : MonoBehaviour
     }
 
     // Face overlay wearables: apply/remove via CatchyFace
+    // Mutually exclusive — previewing one face wearable hides the other
     var face = shopPreviewCatchy.GetComponent<CatchyFace>();
     if (face != null)
     {
-      bool showSunglasses = previewId == "sunglasses" || (previewId != "sunglasses" && WearableManager.IsEquipped("sunglasses"));
-      if (showSunglasses) face.ApplySunglasses(); else face.RemoveSunglasses();
+      bool previewIsFace = previewId == "sunglasses" || previewId == "eyepatch";
+      bool showSunglasses = previewId == "sunglasses"
+          || (!previewIsFace && WearableManager.IsEquipped("sunglasses"));
+      bool showEyepatch = previewId == "eyepatch"
+          || (!previewIsFace && WearableManager.IsEquipped("eyepatch"));
 
-      bool showEyepatch = previewId == "eyepatch" || (previewId != "eyepatch" && WearableManager.IsEquipped("eyepatch"));
+      if (showSunglasses) face.ApplySunglasses(); else face.RemoveSunglasses();
       if (showEyepatch) face.ApplyEyepatch(); else face.RemoveEyepatch();
     }
   }
@@ -3127,6 +3131,18 @@ public class UIManager : MonoBehaviour
       if (equippedSkin != null && equippedSkin.Value.id != "default")
         SkinManager.ApplySkin(shopPreviewCatchy, equippedSkin.Value);
     }
+
+    // Re-apply face wearable overlays (destroyed by ResetPreviewSkinToDefault)
+    var face = shopPreviewCatchy.GetComponent<CatchyFace>();
+    if (face != null)
+    {
+      string wId = shopPreviewWearableId;
+      bool previewIsFace = wId == "sunglasses" || wId == "eyepatch";
+      if (wId == "sunglasses" || (!previewIsFace && WearableManager.IsEquipped("sunglasses")))
+        face.ApplySunglasses();
+      if (wId == "eyepatch" || (!previewIsFace && WearableManager.IsEquipped("eyepatch")))
+        face.ApplyEyepatch();
+    }
   }
 
   void ResetPreviewSkinToDefault()
@@ -3161,7 +3177,8 @@ public class UIManager : MonoBehaviour
     {
       string n = child.gameObject.name;
       if (n.Contains("Eye") || n.Contains("Smile") || n.Contains("Mouth")
-          || n.Contains("Happy") || n.Contains("Tear") || n.Contains("Sad"))
+          || n.Contains("Happy") || n.Contains("Tear") || n.Contains("Sad")
+          || n.Contains("Sunglass") || n.Contains("Strap") || n.Contains("Eyepatch"))
         toDestroy.Add(child.gameObject);
     }
     foreach (var go in toDestroy)

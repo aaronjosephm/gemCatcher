@@ -970,6 +970,9 @@ public class CatcherManager : MonoBehaviour
         Renderer[] renderers = catcherObject.GetComponentsInChildren<Renderer>(true);
         foreach (Renderer r in renderers)
         {
+            string partName = r.gameObject.name;
+            if (partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap"))
+                continue;
             Material[] mats = new Material[r.sharedMaterials.Length];
             for (int i = 0; i < mats.Length; i++) mats[i] = glass;
             r.sharedMaterials = mats;
