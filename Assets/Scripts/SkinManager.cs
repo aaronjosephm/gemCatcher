@@ -180,7 +180,8 @@ public static class SkinManager
             }
             else
             {
-                foreach (var mat in rend.materials)
+                Material[] mats = rend.materials; // single access creates instances
+                foreach (var mat in mats)
                 {
                     if (mat == null) continue;
                     if (skin.type == SkinType.Camo)
@@ -193,6 +194,7 @@ public static class SkinManager
                         mat.color = skin.primaryColor;
                     }
                 }
+                rend.materials = mats;
             }
         }
     }
