@@ -30,10 +30,21 @@ public class WearableAttachment : MonoBehaviour
         }
         activeWearables.Clear();
 
+        // Handle sunglasses via CatchyFace overlay
+        var face = GetComponent<CatchyFace>();
+        if (face != null)
+        {
+            if (WearableManager.IsEquipped("sunglasses"))
+                face.ApplySunglasses();
+            else
+                face.RemoveSunglasses();
+        }
+
         // Attach each equipped wearable.
         foreach (var def in WearableManager.Catalog)
         {
             if (!WearableManager.IsEquipped(def.id)) continue;
+            if (def.id == "sunglasses") continue; // handled above via face
 
             GameObject prefab = Resources.Load<GameObject>(def.prefabPath);
             GameObject instance;

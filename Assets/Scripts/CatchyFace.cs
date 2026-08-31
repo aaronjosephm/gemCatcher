@@ -22,6 +22,14 @@ public class CatchyFace : MonoBehaviour
     // Happy open mouth
     private GameObject happyMouth;
 
+    // Sunglasses overlay parts
+    private GameObject sunglassLensL;
+    private GameObject sunglassLensR;
+    private GameObject sunglassBridge;
+    private GameObject sunglassArmL;
+    private GameObject sunglassArmR;
+    private bool hasSunglasses;
+
     private float expressionTimer;
     private const float ExpressionDuration = 0.6f;
     private bool isExpressing;
@@ -185,5 +193,46 @@ public class CatchyFace : MonoBehaviour
         rend.material = mat;
 
         return part;
+    }
+
+    // ---- Sunglasses ----
+
+    static readonly Color lensColor = new Color(0.05f, 0.05f, 0.1f, 1f);
+    static readonly Color frameColor = new Color(0.08f, 0.08f, 0.08f, 1f);
+    const float SZ = -0.505f; // slightly in front of eyes
+
+    /// <summary>Add sunglasses overlay to face.</summary>
+    public void ApplySunglasses()
+    {
+        if (hasSunglasses) return;
+        hasSunglasses = true;
+
+        // Wide rectangular lenses covering each eye
+        sunglassLensL = CreateFacePart("SunglassLensL",
+            new Vector3(-0.22f, 0.12f, SZ), new Vector3(0.22f, 0.14f, 0.01f), lensColor);
+        sunglassLensR = CreateFacePart("SunglassLensR",
+            new Vector3(0.22f, 0.12f, SZ), new Vector3(0.22f, 0.14f, 0.01f), lensColor);
+
+        // Bridge connecting the two lenses
+        sunglassBridge = CreateFacePart("SunglassBridge",
+            new Vector3(0f, 0.12f, SZ), new Vector3(0.12f, 0.04f, 0.01f), frameColor);
+
+        // Arms extending toward the sides
+        sunglassArmL = CreateFacePart("SunglassArmL",
+            new Vector3(-0.35f, 0.12f, SZ), new Vector3(0.06f, 0.03f, 0.01f), frameColor);
+        sunglassArmR = CreateFacePart("SunglassArmR",
+            new Vector3(0.35f, 0.12f, SZ), new Vector3(0.06f, 0.03f, 0.01f), frameColor);
+    }
+
+    /// <summary>Remove sunglasses overlay.</summary>
+    public void RemoveSunglasses()
+    {
+        if (!hasSunglasses) return;
+        hasSunglasses = false;
+        if (sunglassLensL != null) Destroy(sunglassLensL);
+        if (sunglassLensR != null) Destroy(sunglassLensR);
+        if (sunglassBridge != null) Destroy(sunglassBridge);
+        if (sunglassArmL != null) Destroy(sunglassArmL);
+        if (sunglassArmR != null) Destroy(sunglassArmR);
     }
 }

@@ -2353,6 +2353,7 @@ public class UIManager : MonoBehaviour
     {
       bool shouldShow = WearableManager.IsEquipped(def.id) || def.id == previewId;
       if (!shouldShow) continue;
+      if (def.id == "sunglasses") continue; // handled below via CatchyFace
 
       if (previewId != null && def.id != previewId)
       {
@@ -2381,9 +2382,16 @@ public class UIManager : MonoBehaviour
         Destroy(col);
     }
 
-    // Diamond tile live material preview: small camera renders a quad with
-    // the Rainbow material to a RenderTexture used by the skin tile RawImage.
-    SetupDiamondTilePreview();
+    // Sunglasses: apply/remove via CatchyFace overlay
+    var face = shopPreviewCatchy.GetComponent<CatchyFace>();
+    if (face != null)
+    {
+      bool showSunglasses = previewId == "sunglasses" || (previewId != "sunglasses" && WearableManager.IsEquipped("sunglasses"));
+      if (showSunglasses)
+        face.ApplySunglasses();
+      else
+        face.RemoveSunglasses();
+    }
   }
 
   void SetupDiamondTilePreview()
