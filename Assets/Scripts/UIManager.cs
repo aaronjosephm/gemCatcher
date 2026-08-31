@@ -2727,6 +2727,7 @@ public class UIManager : MonoBehaviour
       case "eyepatch":   iconTmp.text = "\u25D0"; iconTmp.color = new Color(0.5f, 0.35f, 0.25f); break;
       case "tophat":     iconTmp.text = "\u25A0"; iconTmp.color = new Color(0.3f, 0.25f, 0.35f); break;
       case "sunglasses": iconTmp.text = "\u25CB\u25CB"; iconTmp.color = new Color(0.3f, 0.35f, 0.5f); break;
+      case "cowboyhat":  iconTmp.text = "\u2302"; iconTmp.color = new Color(0.55f, 0.35f, 0.2f); break;
       default:           iconTmp.text = "?"; iconTmp.color = Color.gray; break;
     }
 

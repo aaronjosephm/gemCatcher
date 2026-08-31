@@ -62,6 +62,17 @@ public static class WearableManager
             localRotation = Vector3.zero,
             scale = 0.5f,
         },
+        new WearableDef
+        {
+            id = "cowboyhat",
+            displayName = "Cowboy Hat",
+            price = 25,
+            prefabPath = "Wearables/CowboyHat",
+            attach = AttachPoint.Head,
+            localOffset = new Vector3(0f, 0.5f, 0f),
+            localRotation = Vector3.zero,
+            scale = 0.005f,
+        },
     };
 
     public static WearableDef[] Catalog => catalog;
