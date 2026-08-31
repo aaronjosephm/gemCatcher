@@ -159,18 +159,7 @@ public static class SkinManager
             {
                 var rend = prefab.GetComponentInChildren<Renderer>();
                 if (rend != null && rend.sharedMaterial != null)
-                {
-                    // Create an instance with all environment-dependent effects
-                    // zeroed out so the look is consistent across all levels
-                    prefabMat = new Material(rend.sharedMaterial);
-                    if (prefabMat.HasProperty("_EnvironmentLight"))
-                        prefabMat.SetFloat("_EnvironmentLight", 0f);
-                    if (prefabMat.HasProperty("_ReflectionStrength"))
-                        prefabMat.SetFloat("_ReflectionStrength", 0f);
-                    // Boost emission to compensate
-                    if (prefabMat.HasProperty("_Emission"))
-                        prefabMat.SetFloat("_Emission", 2.0f);
-                }
+                    prefabMat = rend.sharedMaterial;
             }
         }
 
