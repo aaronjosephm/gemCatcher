@@ -71,7 +71,7 @@ public static class WearableManager
             attach = AttachPoint.Head,
             localOffset = new Vector3(0f, 0.55f, 0f),
             localRotation = Vector3.zero,
-            scale = 3f,
+            scale = 4.5f,
         },
     };
 
