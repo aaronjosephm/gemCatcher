@@ -2457,7 +2457,7 @@ public class UIManager : MonoBehaviour
       RectTransform balR = balTmp.GetComponent<RectTransform>();
       balR.anchorMin = Vector2.zero; balR.anchorMax = Vector2.one;
       balR.offsetMin = new Vector2(8f, 0f); balR.offsetMax = new Vector2(-8f, 0f);
-      balTmp.text = $"\u2666 {WearableManager.Balance:N0}";
+      balTmp.text = $"D {WearableManager.Balance:N0}";
       balTmp.fontSize = 28;
       balTmp.fontStyle = FontStyles.Bold;
       balTmp.alignment = TextAlignmentOptions.MidlineRight;
@@ -2684,18 +2684,18 @@ public class UIManager : MonoBehaviour
 
     if (equipped)
     {
-      priceTmp.text = "\u2713 EQUIPPED";
+      priceTmp.text = "(EQUIPPED)";
       priceTmp.color = new Color(0.5f, 1f, 0.7f);
     }
     else if (owned)
     {
-      priceTmp.text = "\u2713 OWNED";
+      priceTmp.text = "(OWNED)";
       priceTmp.color = new Color(0.6f, 0.7f, 0.85f);
     }
     else
     {
       bool canAfford = WearableManager.Balance >= def.price;
-      priceTmp.text = $"\u2666 {def.price:N0}";
+      priceTmp.text = $"D {def.price:N0}";
       priceTmp.color = canAfford ? new Color(1f, 0.85f, 0.35f) : new Color(0.5f, 0.35f, 0.25f);
     }
 
@@ -2864,7 +2864,7 @@ public class UIManager : MonoBehaviour
   {
     shopSelectedId = keepSelectedId;
     if (shopBalanceText != null)
-      shopBalanceText.text = $"\u2666 {WearableManager.Balance:N0}";
+      shopBalanceText.text = $"D {WearableManager.Balance:N0}";
     if (shopActiveTab == "wearables")
       ApplyShopPreviewWearables(null);
     else
@@ -2946,8 +2946,31 @@ public class UIManager : MonoBehaviour
     // Set the entire tile to the skin color
     if (skin.type == SkinManager.SkinType.PrefabMaterial)
     {
-      // Diamond-like icy blue shimmer tile
-      cardBg.color = new Color(0.6f, 0.85f, 0.95f);
+      // Rainbow gradient bands to represent the iridescent diamond material
+      cardBg.color = new Color(0.55f, 0.75f, 1f); // light blue base
+      Color[] bands = {
+        new Color(1f, 0.4f, 0.4f),   // red
+        new Color(1f, 0.75f, 0.3f),   // orange
+        new Color(1f, 1f, 0.4f),      // yellow
+        new Color(0.4f, 1f, 0.5f),    // green
+        new Color(0.4f, 0.7f, 1f),    // blue
+        new Color(0.7f, 0.4f, 1f),    // purple
+      };
+      float bandH = 1f / bands.Length;
+      for (int b = 0; b < bands.Length; b++)
+      {
+        var band = new GameObject("Band", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+        band.transform.SetParent(card.transform, false);
+        var bR = band.GetComponent<RectTransform>();
+        bR.anchorMin = new Vector2(0, b * bandH);
+        bR.anchorMax = new Vector2(1, (b + 1) * bandH);
+        bR.offsetMin = Vector2.zero;
+        bR.offsetMax = Vector2.zero;
+        var bImg = band.GetComponent<Image>();
+        var c = bands[b]; c.a = 0.55f;
+        bImg.color = c;
+        bImg.raycastTarget = false;
+      }
     }
     else if (skin.type == SkinManager.SkinType.Camo)
     {
@@ -3002,7 +3025,7 @@ public class UIManager : MonoBehaviour
 
     if (equipped)
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>\u2713 EQUIPPED</size>";
+      nameTmp.text = $"{skin.displayName}\n<size=16>(EQUIPPED)</size>";
       nameTmp.color = isLightBg ? new Color(0.05f, 0.3f, 0.05f) : new Color(0.5f, 1f, 0.7f);
     }
     else if (skin.price == 0)
@@ -3012,12 +3035,12 @@ public class UIManager : MonoBehaviour
     }
     else if (owned)
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>\u2713 Owned</size>";
+      nameTmp.text = $"{skin.displayName}\n<size=16>(OWNED)</size>";
       nameTmp.color = isLightBg ? new Color(0.1f, 0.35f, 0.15f) : new Color(0.5f, 0.75f, 0.55f);
     }
     else
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>\u2666 {skin.price:N0}</size>";
+      nameTmp.text = $"{skin.displayName}\n<size=16>D {skin.price:N0}</size>";
       nameTmp.color = textColor;
     }
   }
