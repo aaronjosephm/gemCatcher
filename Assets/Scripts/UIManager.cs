@@ -2946,51 +2946,13 @@ public class UIManager : MonoBehaviour
     // Set the entire tile to the skin color
     if (skin.type == SkinManager.SkinType.PrefabMaterial)
     {
-      // For material-based skins, use primaryColor as base and overlay a 3D preview
-      cardBg.color = skin.primaryColor;
-      // Try to load the prefab material and show it via a MeshRenderer child
-      var prefab = Resources.Load<GameObject>(skin.materialPrefabPath);
-      if (prefab != null)
-      {
-        var prefabRend = prefab.GetComponentInChildren<Renderer>();
-        if (prefabRend != null && prefabRend.sharedMaterial != null)
-        {
-          // Create a flat quad child with the diamond material rendered in screen space
-          // Since we can't easily render 3D in UI, use the material's color properties
-          var matColor = prefabRend.sharedMaterial.HasProperty("_BaseColor")
-              ? prefabRend.sharedMaterial.GetColor("_BaseColor")
-              : prefabRend.sharedMaterial.HasProperty("_Color")
-                  ? prefabRend.sharedMaterial.GetColor("_Color")
-                  : skin.primaryColor;
-          cardBg.color = matColor;
-        }
-      }
+      // Diamond-like icy blue shimmer tile
+      cardBg.color = new Color(0.6f, 0.85f, 0.95f);
     }
     else if (skin.type == SkinManager.SkinType.Camo)
     {
-      // Camo: fill with primary, add stripe overlays
+      // Solid green for camo
       cardBg.color = skin.primaryColor;
-      // Diagonal stripe 1
-      GameObject stripe = new GameObject("Stripe", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      stripe.transform.SetParent(card.transform, false);
-      RectTransform stripeR = stripe.GetComponent<RectTransform>();
-      stripeR.anchorMin = new Vector2(0f, 0f);
-      stripeR.anchorMax = new Vector2(0.4f, 1f);
-      stripeR.offsetMin = Vector2.zero;
-      stripeR.offsetMax = Vector2.zero;
-      stripe.GetComponent<Image>().color = skin.secondaryColor;
-      stripe.GetComponent<Image>().raycastTarget = false;
-
-      // Diagonal stripe 2
-      GameObject stripe2 = new GameObject("Stripe2", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
-      stripe2.transform.SetParent(card.transform, false);
-      RectTransform stripe2R = stripe2.GetComponent<RectTransform>();
-      stripe2R.anchorMin = new Vector2(0.55f, 0f);
-      stripe2R.anchorMax = new Vector2(0.75f, 1f);
-      stripe2R.offsetMin = Vector2.zero;
-      stripe2R.offsetMax = Vector2.zero;
-      stripe2.GetComponent<Image>().color = skin.secondaryColor;
-      stripe2.GetComponent<Image>().raycastTarget = false;
     }
     else if (skin.id == "default")
     {
@@ -3065,33 +3027,24 @@ public class UIManager : MonoBehaviour
   {
     if (shopPreviewCatchy == null) return;
 
-    // Remove any wearable preview attachments
     var attach = shopPreviewCatchy.GetComponent<WearableAttachment>();
     if (attach != null) attach.Rebuild();
+
+    // Always reset to glass first so material-replacement skins (diamond)
+    // don't stick when switching to a different skin.
+    ResetPreviewSkinToDefault();
 
     if (skinId != null)
     {
       var skinN = SkinManager.GetDef(skinId);
-      if (skinN != null)
-      {
-        if (skinN.Value.id == "default")
-          ResetPreviewSkinToDefault();
-        else
-          SkinManager.ApplySkin(shopPreviewCatchy, skinN.Value);
-        RestorePreviewFaceColors();
-      }
+      if (skinN != null && skinN.Value.id != "default")
+        SkinManager.ApplySkin(shopPreviewCatchy, skinN.Value);
     }
     else
     {
-      // Reset to equipped skin or default
       var equippedSkin = SkinManager.GetEquippedDef();
       if (equippedSkin != null && equippedSkin.Value.id != "default")
-      {
         SkinManager.ApplySkin(shopPreviewCatchy, equippedSkin.Value);
-        RestorePreviewFaceColors();
-      }
-      else
-        ResetPreviewSkinToDefault();
     }
   }
 
