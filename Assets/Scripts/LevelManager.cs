@@ -87,7 +87,7 @@ public static class LevelManager
             musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = new[] { "Gems/BlueGem" },
             unlockScore = 100,
-            cameraColor = new Color(0.05f, 0.06f, 0.12f, 1f),
+            cameraColor = new Color(0.01f, 0.02f, 0.06f, 1f),
             initialFallSpeed = 4.5f,
             initialSpawnInterval = 2.0f,
             bombChance = 0.15f,
