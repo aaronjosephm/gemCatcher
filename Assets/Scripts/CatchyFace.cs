@@ -22,6 +22,10 @@ public class CatchyFace : MonoBehaviour
     // Happy open mouth
     private GameObject happyMouth;
 
+    // Sunglasses overlay parts
+    private readonly System.Collections.Generic.List<GameObject> sunglassParts = new System.Collections.Generic.List<GameObject>();
+    private bool hasSunglasses;
+
     private float expressionTimer;
     private const float ExpressionDuration = 0.6f;
     private bool isExpressing;
@@ -185,5 +189,125 @@ public class CatchyFace : MonoBehaviour
         rend.material = mat;
 
         return part;
+    }
+
+    // ---- Sunglasses ----
+
+    static readonly Color lensColor = new Color(0.04f, 0.04f, 0.08f, 1f);
+    static readonly Color lensHighlight = new Color(0.15f, 0.2f, 0.3f, 1f);
+    static readonly Color frameColor = new Color(0.06f, 0.06f, 0.08f, 1f); // black frame
+    const float SZ = -0.505f;
+
+    GameObject SG(string n, Vector3 p, Vector3 s, Color c)
+    {
+        var go = CreateFacePart(n, p, s, c);
+        sunglassParts.Add(go);
+        return go;
+    }
+
+    /// <summary>Add aviator sunglasses overlay to face.</summary>
+    public void ApplySunglasses()
+    {
+        if (hasSunglasses) return;
+        hasSunglasses = true;
+
+        // Each aviator lens = teardrop shape built from stacked quads
+        // Wide at top, tapers down
+        float lx = -0.22f, rx = 0.22f;
+
+        // Left lens — top wide part
+        SG("SunglassL1", new Vector3(lx, 0.16f, SZ), new Vector3(0.24f, 0.06f, 0.01f), lensColor);
+        // Left lens — main body
+        SG("SunglassL2", new Vector3(lx, 0.10f, SZ), new Vector3(0.22f, 0.08f, 0.01f), lensColor);
+        // Left lens — bottom taper
+        SG("SunglassL3", new Vector3(lx, 0.04f, SZ), new Vector3(0.16f, 0.06f, 0.01f), lensColor);
+        // Left lens — teardrop tip
+        SG("SunglassL4", new Vector3(lx, 0.00f, SZ), new Vector3(0.10f, 0.04f, 0.01f), lensColor);
+        // Left lens highlight (reflective glint)
+        SG("SunglassHL", new Vector3(lx - 0.04f, 0.15f, -0.507f), new Vector3(0.06f, 0.03f, 0.01f), lensHighlight);
+
+        // Right lens — mirror of left
+        SG("SunglassR1", new Vector3(rx, 0.16f, SZ), new Vector3(0.24f, 0.06f, 0.01f), lensColor);
+        SG("SunglassR2", new Vector3(rx, 0.10f, SZ), new Vector3(0.22f, 0.08f, 0.01f), lensColor);
+        SG("SunglassR3", new Vector3(rx, 0.04f, SZ), new Vector3(0.16f, 0.06f, 0.01f), lensColor);
+        SG("SunglassR4", new Vector3(rx, 0.00f, SZ), new Vector3(0.10f, 0.04f, 0.01f), lensColor);
+        SG("SunglassHR", new Vector3(rx + 0.04f, 0.15f, -0.507f), new Vector3(0.06f, 0.03f, 0.01f), lensHighlight);
+
+        // Top frame bar across both lenses
+        SG("SunglassTopBar", new Vector3(0f, 0.19f, SZ), new Vector3(0.50f, 0.025f, 0.01f), frameColor);
+
+        // Double bridge (two thin bars)
+        SG("SunglassBridge1", new Vector3(0f, 0.16f, SZ), new Vector3(0.08f, 0.02f, 0.01f), frameColor);
+        SG("SunglassBridge2", new Vector3(0f, 0.13f, SZ), new Vector3(0.06f, 0.02f, 0.01f), frameColor);
+
+        // Arms extending to the sides
+        SG("SunglassArmL", new Vector3(-0.38f, 0.17f, SZ), new Vector3(0.12f, 0.02f, 0.01f), frameColor);
+        SG("SunglassArmR", new Vector3(0.38f, 0.17f, SZ), new Vector3(0.12f, 0.02f, 0.01f), frameColor);
+    }
+
+    /// <summary>Remove sunglasses overlay.</summary>
+    public void RemoveSunglasses()
+    {
+        if (!hasSunglasses) return;
+        hasSunglasses = false;
+        foreach (var go in sunglassParts)
+            if (go != null) Destroy(go);
+        sunglassParts.Clear();
+    }
+
+    // ---- Eye Patch ----
+
+    private readonly System.Collections.Generic.List<GameObject> eyepatchParts = new System.Collections.Generic.List<GameObject>();
+    private bool hasEyepatch;
+
+    static readonly Color patchColor = new Color(0.08f, 0.06f, 0.04f, 1f); // dark brown/black leather
+    static readonly Color strapColor = new Color(0.1f, 0.08f, 0.06f, 1f);
+
+    GameObject EP(string n, Vector3 p, Vector3 s, Color c)
+    {
+        var go = CreateFacePart(n, p, s, c);
+        eyepatchParts.Add(go);
+        return go;
+    }
+
+    /// <summary>Add eye patch overlay to face (covers left eye).</summary>
+    public void ApplyEyepatch()
+    {
+        if (hasEyepatch) return;
+        hasEyepatch = true;
+
+        float ex = -0.22f; // left eye X
+
+        // Patch — rounded-ish shape from stacked quads over left eye
+        EP("EyepatchMain", new Vector3(ex, 0.12f, SZ), new Vector3(0.20f, 0.16f, 0.01f), patchColor);
+        EP("EyepatchTop",  new Vector3(ex, 0.21f, SZ), new Vector3(0.14f, 0.04f, 0.01f), patchColor);
+        EP("EyepatchBot",  new Vector3(ex, 0.03f, SZ), new Vector3(0.14f, 0.04f, 0.01f), patchColor);
+
+        // Strap — curves up from patch edges over the top of the head
+        // Left strap: from patch left edge upward to top-left
+        EP("StrapL1", new Vector3(-0.34f, 0.20f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL2", new Vector3(-0.37f, 0.26f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL3", new Vector3(-0.39f, 0.32f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL4", new Vector3(-0.40f, 0.38f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL5", new Vector3(-0.40f, 0.44f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapL6", new Vector3(-0.39f, 0.50f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+
+        // Right strap: from patch right edge upward to top-right
+        EP("StrapR1", new Vector3(-0.10f, 0.20f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR2", new Vector3(-0.05f, 0.26f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR3", new Vector3(0.00f,  0.32f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR4", new Vector3(0.05f,  0.38f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR5", new Vector3(0.10f,  0.44f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+        EP("StrapR6", new Vector3(0.14f,  0.50f, SZ), new Vector3(0.06f, 0.06f, 0.01f), strapColor);
+    }
+
+    /// <summary>Remove eye patch overlay.</summary>
+    public void RemoveEyepatch()
+    {
+        if (!hasEyepatch) return;
+        hasEyepatch = false;
+        foreach (var go in eyepatchParts)
+            if (go != null) Destroy(go);
+        eyepatchParts.Clear();
     }
 }

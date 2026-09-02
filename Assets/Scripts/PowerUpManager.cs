@@ -35,6 +35,11 @@ public enum PowerUpType
   /// gems become hazards — a huge point boost window.
   /// </summary>
   Swap,
+  /// <summary>
+  /// 30-second invincibility — rocks pass through the catcher harmlessly.
+  /// Acquired by catching the MasterGem. NOT revoked on miss.
+  /// </summary>
+  Invincibility,
 }
 
 /// <summary>
@@ -74,6 +79,7 @@ public class PowerUpManager : MonoBehaviour
   public const float MagnetRadius = 5f;
   public const float ShieldDuration = 30f;
   public const float SwapDuration = 10f;
+  public const float InvincibilityDuration = 30f;
 
   public static PowerUpManager Instance { get; private set; }
 
@@ -89,6 +95,8 @@ public class PowerUpManager : MonoBehaviour
   private static float shieldTimer;
   private static bool swapActive;
   private static float swapTimer;
+  private static bool invincibilityActive;
+  private static float invincibilityTimer;
 
   // ---- Events -------------------------------------------------------------
 
@@ -121,6 +129,8 @@ public class PowerUpManager : MonoBehaviour
 
   public static bool SwapActive => swapActive;
   public static float SwapTimeRemaining => swapTimer;
+  public static bool InvincibilityActive => invincibilityActive;
+  public static float InvincibilityTimeRemaining => invincibilityTimer;
 
   // ---- API ----------------------------------------------------------------
 
@@ -167,6 +177,11 @@ public class PowerUpManager : MonoBehaviour
         swapActive = true;
         swapTimer = SwapDuration;
         OnActivated?.Invoke(type, SwapDuration);
+        break;
+      case PowerUpType.Invincibility:
+        invincibilityActive = true;
+        invincibilityTimer = InvincibilityDuration;
+        OnActivated?.Invoke(type, InvincibilityDuration);
         break;
     }
   }
@@ -233,6 +248,8 @@ public class PowerUpManager : MonoBehaviour
     shieldTimer = 0f;
     swapActive = false;
     swapTimer = 0f;
+    invincibilityActive = false;
+    invincibilityTimer = 0f;
   }
 
   // ---- Bootstrap ----------------------------------------------------------
@@ -260,6 +277,8 @@ public class PowerUpManager : MonoBehaviour
     shieldTimer = 0f;
     swapActive = false;
     swapTimer = 0f;
+    invincibilityActive = false;
+    invincibilityTimer = 0f;
     OnActivated = null;
     OnExpired = null;
     OnShieldConsumed = null;
@@ -315,6 +334,19 @@ public class PowerUpManager : MonoBehaviour
         swapActive = false;
         swapTimer = 0f;
         OnExpired?.Invoke(PowerUpType.Swap);
+        if (SoundManager.Instance != null)
+          SoundManager.Instance.Play("MagnetOff");
+      }
+    }
+
+    if (invincibilityActive)
+    {
+      invincibilityTimer -= Time.deltaTime;
+      if (invincibilityTimer <= 0f)
+      {
+        invincibilityActive = false;
+        invincibilityTimer = 0f;
+        OnExpired?.Invoke(PowerUpType.Invincibility);
         if (SoundManager.Instance != null)
           SoundManager.Instance.Play("MagnetOff");
       }

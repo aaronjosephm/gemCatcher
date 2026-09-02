@@ -103,6 +103,17 @@ public class CatchZone : MonoBehaviour
         // Hazards (rocks) hurt — same as bombs.
         if (fo.isHazard)
         {
+            // MasterGem invincibility: catch rocks for points.
+            if (PowerUpManager.InvincibilityActive)
+            {
+                rm.AddScore(50);
+                UIManager.Instance?.SpawnFloatingText("+50", new Color(1f, 0.85f, 0.2f), catchPosition);
+                CatchBurst.Spawn(catchPosition, new Color(0.6f, 0.6f, 0.6f));
+                if (SoundManager.Instance != null)
+                    SoundManager.Instance.PlayWithPitch("RockBreak", 1f);
+                fo.gameObject.SetActive(false);
+                return;
+            }
             if (isInvincible || isShieldGrace)
             {
                 fo.gameObject.SetActive(false);
@@ -197,6 +208,35 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
+        // Rush Mode MasterGem (invincibility) power-up pickup.
+        if (fo.isRushMasterGem)
+        {
+            PowerUpManager.Activate(PowerUpType.Invincibility);
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.Play("MagnetOn");
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
+        // Rush Mode key pickup — unlock next level.
+        if (fo.isRushKey)
+        {
+            var nextLevel = LevelManager.GetNextLockedLevel();
+            if (nextLevel != null)
+            {
+                LevelManager.UnlockLevel(nextLevel.Value);
+                var nextConfig = LevelManager.GetConfig(nextLevel.Value);
+                if (UIManager.Instance != null)
+                    UIManager.Instance.SpawnBannerNotification($"{nextConfig.displayName} UNLOCKED!", new Color(1f, 0.85f, 0.2f));
+            }
+            PlayCatchEffect(fo);
+            if (SoundManager.Instance != null)
+                SoundManager.Instance.PlayWithPitch("GemCaught", 1.8f);
+            fo.gameObject.SetActive(false);
+            return;
+        }
+
         // Power-up gems short-circuit variant routing — no points, no combo change.
         if (fo.isPowerUp)
         {
@@ -264,7 +304,7 @@ public class CatchZone : MonoBehaviour
         {
             case SpecialGemType.Golden:  basePoints = RoundManager.POINTS_PER_GOLDEN_CATCH; break;
             default:
-                basePoints = fo.isRushGoldenGem ? 160 : (fo.isRushDiamondGem ? 80 : (fo.isRushRedGem ? 40 : RoundManager.POINTS_PER_CATCH));
+                basePoints = fo.isRushPlatinumGem ? 320 : (fo.isRushGoldenGem ? 160 : (fo.isRushDiamondGem ? 80 : (fo.isRushRedGem ? 40 : RoundManager.POINTS_PER_CATCH)));
                 break;
         }
 
@@ -295,6 +335,12 @@ public class CatchZone : MonoBehaviour
         if (rm.IsGameOver) return false;
 
         if (PowerUpManager.TryConsumeShield(worldPosition))
+        {
+            return true;
+        }
+
+        // Invincibility absorbs bomb hits (non-rock hazards).
+        if (PowerUpManager.InvincibilityActive)
         {
             return true;
         }

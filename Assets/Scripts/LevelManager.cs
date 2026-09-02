@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space }
+    public enum LevelId { Cave, Jungle, Space, Lava }
 
     [System.Serializable]
     public struct LevelConfig
@@ -18,10 +18,11 @@ public static class LevelManager
         public string displayName;
         public string sceneName;             // Scene to load for this level
         public string backgroundResource;   // Resources/ path to background texture
+        public string backgroundMaterialResource; // Resources/ path to a Material (overrides texture)
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
         public string musicResource;         // Resources/ path to background music
         public string[] extraGemPrefabs;     // Additional gem prefab names (from Resources/Gems/) for this level
-        public int unlockScore;              // Best score required to unlock (0 = always unlocked)
+        public int unlockScore;              // Score threshold to drop the key during gameplay (0 = always unlocked)
         public Color cameraColor;            // Camera.backgroundColor for this level
 
         // Difficulty overrides
@@ -32,7 +33,8 @@ public static class LevelManager
         public float dailyMaxFallSpeed;
         public float dailyMinSpawnInterval;
         public float catcherYOffset;         // Extra downward offset for catcher position (0 = default)
-        public float placementDuration;      // Seconds the gem blinks before going solid (0 = use default 3s)
+        public float placementDuration;
+        public float backgroundWallZ;        // Override for background plane Z (0 = use default 2)      // Seconds the gem blinks before going solid (0 = use default 3s)
     }
 
     private static readonly LevelConfig[] levels = new[]
@@ -95,6 +97,28 @@ public static class LevelManager
             catcherYOffset = 0f,
             placementDuration = 3.0f,
         },
+        new LevelConfig
+        {
+            id = LevelId.Lava,
+            displayName = "Bay Lookout",
+            sceneName = "LavaLamp",
+            backgroundResource = "Backgrounds/BayLookoutBackground",
+            backgroundMaterialResource = null,
+            midgroundResource = null,
+            musicResource = "Audio/BayLookoutMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22" },
+            unlockScore = 100,
+            cameraColor = new Color(0.02f, 0.08f, 0.18f, 1f),
+            initialFallSpeed = 5.0f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.18f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 9.0f,
+            dailyMinSpawnInterval = 1.0f,
+            catcherYOffset = 0f,
+            placementDuration = 2.5f,
+            backgroundWallZ = 500f,
+        },
     };
 
     private const string SelectedKey = "SelectedLevel";
@@ -151,20 +175,48 @@ public static class LevelManager
     }
 
     /// <summary>
-    /// A level is unlocked if its unlockScore is 0, or if the preceding
-    /// level's best score meets the threshold.
+    /// A level is unlocked if its unlockScore is 0, or if the player has
+    /// caught the key to unlock it (persisted in PlayerPrefs).
     /// </summary>
     public static bool IsUnlocked(LevelId id)
     {
         if (AllLevelsUnlocked) return true;
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
+        return PlayerPrefs.GetInt("KeyUnlocked_" + id, 0) == 1;
+    }
 
-        // Find the preceding level's best score.
-        int idx = System.Array.FindIndex(levels, l => l.id == id);
-        if (idx <= 0) return true; // First level is always unlocked
-        LevelId precedingLevel = levels[idx - 1].id;
-        return GetLevelBestScore(precedingLevel) >= config.unlockScore;
+    /// <summary>
+    /// Permanently unlock a level (called when the player catches the key).
+    /// </summary>
+    public static void UnlockLevel(LevelId id)
+    {
+        PlayerPrefs.SetInt("KeyUnlocked_" + id, 1);
+        PlayerPrefs.Save();
+    }
+
+    /// <summary>
+    /// Returns the LevelId of the next locked level that the current level's
+    /// key would unlock, or null if there's nothing to unlock.
+    /// </summary>
+    public static LevelId? GetNextLockedLevel()
+    {
+        int idx = System.Array.FindIndex(levels, l => l.id == SelectedLevel);
+        if (idx < 0 || idx >= levels.Length - 1) return null;
+        var next = levels[idx + 1];
+        if (IsUnlocked(next.id)) return null;
+        return next.id;
+    }
+
+    /// <summary>
+    /// Returns the score threshold at which the key should drop for the
+    /// current level, or 0 if there's no next level to unlock.
+    /// </summary>
+    public static int GetKeyDropScore()
+    {
+        var next = GetNextLockedLevel();
+        if (next == null) return 0;
+        return GetConfig(next.Value).unlockScore;
     }
 
     /// <summary>

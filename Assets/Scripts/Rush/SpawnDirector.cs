@@ -52,6 +52,24 @@ public class SpawnDirector : MonoBehaviour
     private bool pendingDice;
     private bool diceEnabled; // only levels 2+
 
+    // MasterGem (invincibility) power-up drop
+    private float nextMasterGemDropTime;
+    private const float MasterGemDropInterval = 180f; // every 3 minutes
+    private bool pendingMasterGem;
+
+    // Key drop (level unlock)
+    private GameObject keyPrefab;
+    private bool pendingKey;
+    private bool keyDropped; // only one key per round
+    private int keyDropScore; // score threshold to trigger key drop
+
+    // Tutorial intro
+    private int tutorialStep; // 0 = move right, 1 = move left, 2+ = done
+    private bool tutorialActive;
+    private float tutorialWaveSpawnTime;
+    private bool tutorialWaveInFlight;
+    private TutorialOverlay tutorialOverlay;
+
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
 
@@ -108,8 +126,42 @@ public class SpawnDirector : MonoBehaviour
         dicePrefab = Resources.Load<GameObject>("PowerUps/Dice_V3_0");
         nextDiceDropTime = 60f;
 
+        // MasterGem (invincibility) — only levels 3+.
+        bool masterGemEnabled = LevelManager.SelectedLevel == LevelManager.LevelId.Space
+                             || LevelManager.SelectedLevel == LevelManager.LevelId.Lava;
+        if (!masterGemEnabled)
+            nextMasterGemDropTime = float.MaxValue;
+        else
+            nextMasterGemDropTime = MasterGemDropInterval;
+
+        // Key drop — load prefab and determine score threshold.
+        keyPrefab = Resources.Load<GameObject>("PowerUps/Key_V3_0");
+        keyDropScore = LevelManager.GetKeyDropScore();
+        keyDropped = keyDropScore <= 0; // no key needed if nothing to unlock
+        pendingKey = false;
+
+        // Subscribe to score changes to trigger key drop.
+        if (!keyDropped && RoundManager.Instance != null)
+        {
+            RoundManager.Instance.OnScoreChanged += OnScoreChangedForKey;
+        }
+
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
+
+        // Tutorial intro — only on first-ever play.
+        if (LevelManager.SelectedLevel == LevelManager.LevelId.Cave
+            && PlayerPrefs.GetInt("TutorialCompleted", 0) == 0)
+        {
+            tutorialActive = true;
+            tutorialStep = 0;
+            tutorialWaveInFlight = false;
+            tutorialWaveSpawnTime = Time.time + 1.5f; // short delay before first tutorial wave
+
+            // Create the arrow overlay.
+            GameObject overlayGo = new GameObject("TutorialOverlay", typeof(TutorialOverlay));
+            tutorialOverlay = overlayGo.GetComponent<TutorialOverlay>();
+        }
     }
 
     void BuildRockPool()
@@ -165,6 +217,13 @@ public class SpawnDirector : MonoBehaviour
     {
         if (!GameState.IsPlaying || GemCatcher.IsGameOver) return;
 
+        // --- Tutorial phase: scripted intro waves before normal gameplay ---
+        if (tutorialActive)
+        {
+            UpdateTutorial();
+            return; // skip normal wave generation during tutorial
+        }
+
         float elapsed = Time.time - roundStartTime;
         RushConfig.DifficultyTier tier = config.GetTier(elapsed);
 
@@ -191,6 +250,11 @@ public class SpawnDirector : MonoBehaviour
             {
                 nextDiceDropTime = float.MaxValue;
             }
+        }
+        if (elapsed >= nextMasterGemDropTime)
+        {
+            nextMasterGemDropTime = elapsed + MasterGemDropInterval;
+            pendingMasterGem = true;
         }
 
         // If no active wave, generate a new one.
@@ -333,6 +397,18 @@ public class SpawnDirector : MonoBehaviour
         {
             pendingDice = false;
             SpawnDicePowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingMasterGem)
+        {
+            pendingMasterGem = false;
+            SpawnMasterGemPowerUp(x, y, fallSpeed);
+            return;
+        }
+        if (pendingKey)
+        {
+            pendingKey = false;
+            SpawnKeyDrop(x, y, fallSpeed);
             return;
         }
 
@@ -585,8 +661,236 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log($"[SpawnDirector] Dice (swap) power-up spawned at ({x:F2}, {y:F2})");
     }
 
+    void SpawnMasterGemPowerUp(float x, float y, float fallSpeed)
+    {
+        GameObject masterPrefab = Resources.Load<GameObject>("Gems/MasterGem");
+        if (masterPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] MasterGem prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(masterPrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 4f;
+
+        // Center all child meshes so rotation doesn't orbit them off-screen.
+        foreach (Transform child in obj.transform)
+        {
+            child.localPosition = Vector3.zero;
+        }
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fallSpeed);
+        fo.isRushMasterGem = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 90f, 0f);
+
+        // White glow aura.
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = Color.white;
+        glow.glowAlpha = 0.9f;
+        glow.glowRadius = 2f;
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
+    }
+
+    void OnScoreChangedForKey(int score)
+    {
+        if (keyDropped) return;
+        if (score >= keyDropScore)
+        {
+            keyDropped = true;
+            pendingKey = true;
+            if (RoundManager.Instance != null)
+                RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
+            Debug.Log($"[SpawnDirector] Key drop triggered at score {score} (threshold {keyDropScore})");
+        }
+    }
+
+    void SpawnKeyDrop(float x, float y, float fallSpeed)
+    {
+        if (keyPrefab == null)
+        {
+            Debug.LogWarning("[SpawnDirector] Key prefab not loaded!");
+            return;
+        }
+
+        GameObject obj = Instantiate(keyPrefab);
+        obj.transform.position = new Vector3(x, y, 0f);
+        obj.transform.localScale = Vector3.one * 1.15f; // same size as other power-ups
+
+        // Zero child mesh offsets to prevent orbiting when spinning.
+        foreach (Transform child in obj.transform)
+            child.localPosition = Vector3.zero;
+
+        FallingObject fo = obj.GetComponent<FallingObject>();
+        if (fo == null) fo = obj.AddComponent<FallingObject>();
+        fo.ResetObject();
+        fo.verticalOnly = true;
+        fo.horizontalSpeed = 0f;
+        fo.fallSpeed = fallSpeed;
+        fo.InitializeMovement(fo.fallSpeed);
+        fo.isRushKey = true;
+
+        var spinner = obj.AddComponent<SimpleSpinner>();
+        spinner.speed = new Vector3(0f, 120f, 0f);
+
+        if (obj.GetComponent<Collider>() == null)
+        {
+            SphereCollider sc = obj.AddComponent<SphereCollider>();
+            sc.radius = 0.5f;
+            sc.isTrigger = true;
+        }
+
+        // Golden glow
+        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
+        foreach (Renderer r in renderers)
+        {
+            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
+            r.GetPropertyBlock(mpb);
+            mpb.SetColor("_EmissionColor", new Color(1f, 0.85f, 0.2f) * 3f);
+            r.SetPropertyBlock(mpb);
+        }
+
+        // Add glow aura
+        var glow = obj.AddComponent<GemGlowVolume>();
+        glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
+        glow.glowRadius = 2f;
+
+        obj.SetActive(true);
+
+        if (config.logValidation)
+            Debug.Log($"[SpawnDirector] Key drop spawned at ({x:F2}, {y:F2})");
+    }
+
+    // ─── Tutorial intro ─────────────────────────────────────────────────
+
+    private GameObject tutorialGem; // track the gem so we know when it's caught
+    private int tutorialScoreBefore; // score before tutorial wave spawned
+
+    /// <summary>
+    /// Called each frame during tutorial. Spawns scripted rock walls with a
+    /// gap and a gem, shows directional arrows, advances steps on gem catch.
+    /// </summary>
+    void UpdateTutorial()
+    {
+        // Check if the tutorial gem has been deactivated (caught or missed).
+        if (tutorialWaveInFlight && tutorialGem != null && !tutorialGem.activeInHierarchy)
+        {
+            int currentScore = RoundManager.Instance != null ? RoundManager.Instance.Score : 0;
+            bool wasCaught = currentScore > tutorialScoreBefore;
+
+            if (wasCaught)
+            {
+                // Gem was caught — advance to next step.
+                tutorialWaveInFlight = false;
+                if (tutorialOverlay != null) tutorialOverlay.HideArrows();
+                tutorialStep++;
+                if (tutorialStep >= 2)
+                {
+                    // Tutorial complete.
+                    tutorialActive = false;
+                    PlayerPrefs.SetInt("TutorialCompleted", 1);
+                    PlayerPrefs.Save();
+                    if (tutorialOverlay != null)
+                    {
+                        Destroy(tutorialOverlay.gameObject);
+                        tutorialOverlay = null;
+                    }
+                    // Reset round timer so power-up timers start from now.
+                    roundStartTime = Time.time;
+                    Debug.Log("[SpawnDirector] Tutorial complete, starting normal gameplay.");
+                    return;
+                }
+                // Pause before next tutorial wave.
+                tutorialWaveSpawnTime = Time.time + 2f;
+            }
+            else
+            {
+                // Gem was missed — retry the same step after a pause.
+                tutorialWaveInFlight = false;
+                if (tutorialOverlay != null) tutorialOverlay.HideArrows();
+                tutorialWaveSpawnTime = Time.time + 1.5f;
+            }
+        }
+
+        // Spawn next tutorial wave when timer elapses.
+        if (!tutorialWaveInFlight && Time.time >= tutorialWaveSpawnTime)
+        {
+            SpawnTutorialWave(tutorialStep);
+            tutorialWaveInFlight = true;
+        }
+    }
+
+    /// <summary>
+    /// Spawns a wall of rocks with a gap on the specified side, plus a gem
+    /// in the gap. Step 0 = gap on far right, step 1 = gap on far left.
+    /// </summary>
+    void SpawnTutorialWave(int step)
+    {
+        float left = GetPlayAreaLeft();
+        float right = GetPlayAreaRight();
+        float width = right - left;
+        float spawnY = ScreenPadding.WorldTop + 1.5f;
+        float fallSpeed = 2.5f; // slow so the player has time to react
+
+        // Gap position: far right for step 0, far left for step 1.
+        float gapCenter, gapWidth;
+        gapWidth = width * 0.2f; // 20% of screen is the gap
+        if (step == 0)
+            gapCenter = right - gapWidth * 0.5f; // far right
+        else
+            gapCenter = left + gapWidth * 0.5f;  // far left
+
+        float gapLeft = gapCenter - gapWidth * 0.5f;
+        float gapRight = gapCenter + gapWidth * 0.5f;
+
+        // Spawn rocks across the screen, skipping the gap area.
+        float rockSpacing = 1.2f; // spacing between rock centers
+        for (float x = left; x <= right; x += rockSpacing)
+        {
+            if (x >= gapLeft && x <= gapRight)
+                continue; // skip the gap
+            SpawnHazardAt(x, spawnY, fallSpeed, 0);
+        }
+
+        // Spawn a gem in the center of the gap.
+        if (pooler != null)
+            pooler.SpawnRushGemAt(gapCenter, spawnY, fallSpeed, 0f);
+
+        // Track the gem so we know when it's caught.
+        if (pooler != null && pooler.CurrentActiveGem != null)
+            tutorialGem = pooler.CurrentActiveGem;
+
+        tutorialScoreBefore = RoundManager.Instance != null ? RoundManager.Instance.Score : 0;
+
+        // Show directional arrows.
+        int arrowDir = (step == 0) ? 1 : -1;
+        if (tutorialOverlay != null)
+            tutorialOverlay.ShowArrows(arrowDir);
+
+        Debug.Log($"[SpawnDirector] Tutorial wave {step}: gap at x={gapCenter:F1}, arrows={arrowDir}");
+    }
+
     void OnDestroy()
     {
+        // Unsubscribe from score changes.
+        if (RoundManager.Instance != null)
+            RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
+
+        if (tutorialOverlay != null)
+            Destroy(tutorialOverlay.gameObject);
+
         if (rockPool != null)
         {
             foreach (GameObject obj in rockPool)

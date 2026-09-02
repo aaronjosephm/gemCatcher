@@ -94,10 +94,22 @@ public class CaveBackgroundFit : MonoBehaviour
     MeshRenderer mr = GetComponent<MeshRenderer>();
     if (mr == null) return;
 
-    Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
-    if (tex != null && mr.material != null)
+    // If the level defines a full material (e.g. water shader), apply it directly.
+    if (!string.IsNullOrEmpty(cfg.backgroundMaterialResource))
     {
-      mr.material.mainTexture = tex;
+      Material mat = Resources.Load<Material>(cfg.backgroundMaterialResource);
+      if (mat != null)
+      {
+        mr.material = mat;
+      }
+    }
+    else
+    {
+      Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
+      if (tex != null && mr.material != null)
+      {
+        mr.material.mainTexture = tex;
+      }
     }
 
     ReadAspectFromMaterial();
@@ -124,6 +136,12 @@ public class CaveBackgroundFit : MonoBehaviour
     if (cam == null) cam = Camera.main;
     if (cam == null) return;
 
+    // When using a material override (e.g. water shader), let the scene
+    // transform stay as-is so it can be positioned manually in the Editor.
+    var cfg = LevelManager.CurrentConfig;
+    if (!string.IsNullOrEmpty(cfg.backgroundMaterialResource))
+      return;
+
     float aspect = cam.aspect;
     float ortho = cam.orthographicSize;
     lastAspect = aspect;
@@ -142,7 +160,9 @@ public class CaveBackgroundFit : MonoBehaviour
     }
 
     transform.localScale = new Vector3(worldW / PlaneMeshSize, 1f, worldH / PlaneMeshSize);
-    transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, wallZ);
+    float z = wallZ;
+    if (cfg.backgroundWallZ > 0f) z = cfg.backgroundWallZ;
+    transform.position = new Vector3(cam.transform.position.x, cam.transform.position.y, z);
     transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
   }
 }

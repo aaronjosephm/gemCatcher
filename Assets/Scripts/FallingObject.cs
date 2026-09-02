@@ -95,8 +95,11 @@ public class FallingObject : MonoBehaviour
     public bool isRushMagnet { get; set; } = false;
     public bool isRushShield { get; set; } = false;
     public bool isRushDice { get; set; } = false;
+    public bool isRushMasterGem { get; set; } = false;
+    public bool isRushKey { get; set; } = false;
     public bool isRushDiamondGem { get; set; } = false;
     public bool isRushGoldenGem { get; set; } = false;
+    public bool isRushPlatinumGem { get; set; } = false;
 
     /// <summary>
     /// When true, the object falls straight down with no horizontal drift.
@@ -144,6 +147,7 @@ public class FallingObject : MonoBehaviour
         if (isRushDiamondGem) return new Color(1f, 1f, 1f, 1f);
 
         // Rush golden gems (Level 3 upgrade) glow gold.
+        if (isRushPlatinumGem) return new Color(1f, 0.55f, 0.1f, 1f);
         if (isRushGoldenGem) return new Color(1f, 0.85f, 0.35f, 1f);
 
         if (burstColor != Color.clear) return burstColor;
@@ -207,8 +211,11 @@ public class FallingObject : MonoBehaviour
         isRushMagnet = false;
         isRushShield = false;
         isRushDice = false;
+        isRushMasterGem = false;
+        isRushKey = false;
         isRushDiamondGem = false;
         isRushGoldenGem = false;
+        isRushPlatinumGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
@@ -600,7 +607,7 @@ public class FallingObject : MonoBehaviour
         transform.Translate(movementDirection * dt, Space.World);
 
         // Magnet attraction: pull gems toward the catcher when magnet is active.
-        if (!isHazard && !isRushMagnet && !isRushShield && !isRushDice && PowerUpManager.MagnetActive)
+        if (!isHazard && !isRushMagnet && !isRushShield && !isRushDice && !isRushMasterGem && !isRushKey && PowerUpManager.MagnetActive)
         {
             GameObject catcher = CatcherManager.Instance != null ? CatcherManager.Instance.CatcherInstance : null;
             if (catcher != null)
@@ -674,6 +681,20 @@ public class FallingObject : MonoBehaviour
 
             // Dice (swap) power-up missed — no penalty.
             if (isRushDice)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // MasterGem power-up missed — no penalty.
+            if (isRushMasterGem)
+            {
+                gameObject.SetActive(false);
+                return;
+            }
+
+            // Key missed — no penalty.
+            if (isRushKey)
             {
                 gameObject.SetActive(false);
                 return;

@@ -44,7 +44,7 @@ public class CatcherManager : MonoBehaviour
 
     [Header("Catcher Appearance")]
     [Tooltip("Tint of the catcher.")]
-    public Color glassColor = new Color(0.65f, 0.85f, 1.00f, 1.00f);
+    public Color glassColor = new Color(1f, 1f, 1f, 1f);
     [Range(0f, 1f)]
     [Tooltip("Catcher transparency. 0 = fully transparent, 1 = fully opaque.")]
     public float glassOpacity = 1f;
@@ -213,6 +213,7 @@ public class CatcherManager : MonoBehaviour
         UpdateMagnetGlow();
         UpdateShieldBubble();
         UpdateSwapBubble();
+        UpdateInvincibilityBubble();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -497,6 +498,96 @@ public class CatcherManager : MonoBehaviour
             Color c = sr.material.GetColor("_BaseColor");
             c.a = 0.2f * alpha * fadeFactor;
             sr.material.SetColor("_BaseColor", c);
+        }
+    }
+
+    private GameObject invincibilityBubble;
+    private Color[] originalCatcherColors;
+    private Renderer[] catcherSkinnedRenderers;
+
+    void UpdateInvincibilityBubble()
+    {
+        if (catcherInstance == null) return;
+        bool shouldShow = PowerUpManager.InvincibilityActive;
+
+        if (shouldShow && invincibilityBubble == null)
+        {
+            // Cache original catchy colors so we can restore later.
+            // Skip face parts (eyes, mouth) so they stay black.
+            catcherSkinnedRenderers = catcherInstance.GetComponentsInChildren<Renderer>();
+            originalCatcherColors = new Color[catcherSkinnedRenderers.Length];
+            for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
+            {
+                Material m = catcherSkinnedRenderers[i].material;
+                originalCatcherColors[i] = m.HasProperty("_BaseColor")
+                    ? m.GetColor("_BaseColor")
+                    : m.HasProperty("_Color") ? m.GetColor("_Color") : Color.white;
+            }
+
+            // Tint starts at normal — the pulse in the update loop
+            // will smoothly ease between normal and gold.
+
+            // Gold glow aura on the catcher.
+            if (catcherInstance.GetComponent<GemGlowVolume>() == null)
+            {
+                var glow = catcherInstance.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
+                glow.glowAlpha = 0.9f;
+                glow.glowRadius = 2f;
+            }
+
+            // Dummy marker so we know we're active (reuse the field).
+            invincibilityBubble = catcherInstance;
+        }
+        else if (!shouldShow && invincibilityBubble != null)
+        {
+            // Restore original catchy colors.
+            if (catcherSkinnedRenderers != null && originalCatcherColors != null)
+            {
+                for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
+                {
+                    if (catcherSkinnedRenderers[i] == null) continue;
+                    Material m = catcherSkinnedRenderers[i].material;
+                    if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", originalCatcherColors[i]);
+                    else if (m.HasProperty("_Color")) m.SetColor("_Color", originalCatcherColors[i]);
+                }
+            }
+            catcherSkinnedRenderers = null;
+            originalCatcherColors = null;
+            invincibilityBubble = null;
+
+            // Remove gold glow.
+            GemGlowVolume glow = catcherInstance.GetComponent<GemGlowVolume>();
+            if (glow != null) Destroy(glow);
+        }
+
+        if (!shouldShow) return;
+
+        // Smooth ease pulse: normal → gold (0.5s) → normal (0.5s), full cycle = 1s.
+        // SmoothStep gives the ease-in/ease-out feel.
+        if (catcherSkinnedRenderers != null)
+        {
+            float cycle = Time.time % 1f; // 0→1 over 1 second
+            float t;
+            if (cycle < 0.5f)
+                t = Mathf.SmoothStep(0f, 1f, cycle / 0.5f);       // normal → gold
+            else
+                t = Mathf.SmoothStep(1f, 0f, (cycle - 0.5f) / 0.5f); // gold → normal
+
+            Color gold = new Color(1f, 0.85f, 0.2f, 1f);
+            for (int i = 0; i < catcherSkinnedRenderers.Length; i++)
+            {
+                if (catcherSkinnedRenderers[i] == null) continue;
+                // Skip dark face parts (eyes/mouth).
+                if (originalCatcherColors[i].r < 0.15f
+                    && originalCatcherColors[i].g < 0.15f
+                    && originalCatcherColors[i].b < 0.15f)
+                    continue;
+                Color blended = Color.Lerp(originalCatcherColors[i], gold, t);
+                Material m = catcherSkinnedRenderers[i].material;
+                if (m.HasProperty("_BaseColor")) m.SetColor("_BaseColor", blended);
+                else if (m.HasProperty("_Color")) m.SetColor("_Color", blended);
+            }
         }
     }
 
@@ -815,6 +906,7 @@ public class CatcherManager : MonoBehaviour
             rb.useGravity = false;
 
             ApplyGlassAppearance(catcherInstance);
+            SkinManager.ApplyEquippedSkin(catcherInstance);
             AddSparkleEffect(catcherInstance);
             // Ensure CatchZone is attached for trigger-based catch detection.
             if (catcherInstance.GetComponent<CatchZone>() == null)
@@ -825,6 +917,11 @@ public class CatcherManager : MonoBehaviour
             if (catcherInstance.GetComponent<CatchyFace>() == null)
             {
                 catcherInstance.AddComponent<CatchyFace>();
+            }
+            // Attach wearable system for cosmetic items.
+            if (catcherInstance.GetComponent<WearableAttachment>() == null)
+            {
+                catcherInstance.AddComponent<WearableAttachment>();
             }
             catcherBaseScale = catcherInstance.transform.localScale;
             feedbackScale = Vector3.one;
@@ -864,7 +961,7 @@ public class CatcherManager : MonoBehaviour
 
     // Swaps every Renderer on the catcher prefab over to the solid catcher material.
     // Called once when the catcher is first instantiated.
-    void ApplyGlassAppearance(GameObject catcherObject)
+    public void ApplyGlassAppearance(GameObject catcherObject)
     {
         if (catcherObject == null) return;
 
@@ -873,10 +970,24 @@ public class CatcherManager : MonoBehaviour
         Renderer[] renderers = catcherObject.GetComponentsInChildren<Renderer>(true);
         foreach (Renderer r in renderers)
         {
+            string partName = r.gameObject.name;
+            if (partName.Contains("Sunglass") || partName.Contains("Eyepatch") || partName.Contains("Strap")
+                || IsUnderWearable(r.transform))
+                continue;
             Material[] mats = new Material[r.sharedMaterials.Length];
             for (int i = 0; i < mats.Length; i++) mats[i] = glass;
             r.sharedMaterials = mats;
         }
+    }
+
+    static bool IsUnderWearable(Transform t)
+    {
+        while (t != null)
+        {
+            if (t.gameObject.name.StartsWith("Wearable_")) return true;
+            t = t.parent;
+        }
+        return false;
     }
 
     // Adds a sparkle particle system to the catcher with a procedural 4-point
