@@ -138,6 +138,7 @@ public class UIManager : MonoBehaviour
   private GameObject bestScoreMenuGo;
   private TextMeshProUGUI totalPointsMenuTmp;
   private GameObject totalPointsMenuGo;
+  private Button removeAdsMenuButton;
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -306,6 +307,10 @@ public class UIManager : MonoBehaviour
     // Bomb special-gem events — distinct floating text +
     // extra fx beyond the standard catch / miss visuals.
     GemCatcher.OnBombHit += HandleBombHit;
+
+    // Remove-Ads purchase/restore — hide the main-menu button the instant
+    // ads are removed, without waiting for the player to reopen the menu.
+    IAPManager.OnAdsRemoved += HandleAdsRemoved;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
     // a game-over panel even if nothing was wired up in the Inspector.
@@ -1465,6 +1470,8 @@ public class UIManager : MonoBehaviour
     BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
     BuildStackedMenuButton(stackGo.transform, "ShopButton",        "Shop",         new Color(0.55f, 0.25f, 0.55f), OnShopClicked);
     BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
+    removeAdsMenuButton = BuildStackedMenuButton(stackGo.transform, "RemoveAdsButton", "Remove Ads - $2", new Color(0.75f, 0.55f, 0.15f), OnRemoveAdsClicked);
+    removeAdsMenuButton.gameObject.SetActive(!IAPManager.AdsRemoved);
 
     // High Score — per-level, below buttons.
     {
@@ -1989,6 +1996,10 @@ public class UIManager : MonoBehaviour
     {
       totalPointsMenuTmp.text = "Total Points  " + totalPoints.ToString("N0");
       totalPointsMenuGo.SetActive(totalPoints > 0);
+    }
+    if (removeAdsMenuButton != null)
+    {
+      removeAdsMenuButton.gameObject.SetActive(!IAPManager.AdsRemoved);
     }
     FadePanel(mainMenuPanel, true, 0.25f);
 
@@ -3450,7 +3461,24 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;
     GameState.Mode = GameState.GameMode.Normal;
-    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    ShowInterstitialThenLoadScene(LevelManager.CurrentConfig.sceneName);
+  }
+
+  // Shows an interstitial ad (if one is preloaded, and the player hasn't
+  // bought Remove Ads) before loading the given scene, then loads it either
+  // way once the ad closes/fails or is skipped. Shared by "Try Again" and
+  // "Main Menu" on the game-over screen — the two natural spots to show an
+  // ad between rounds without interrupting the score-reveal moment itself.
+  void ShowInterstitialThenLoadScene(string sceneName)
+  {
+    if (AdsManager.Instance != null)
+    {
+      AdsManager.Instance.ShowInterstitial(() => SceneManager.LoadScene(sceneName));
+    }
+    else
+    {
+      SceneManager.LoadScene(sceneName);
+    }
   }
 
   // Spawn a "+20" / "-N" numeric pop-up at the given world position, on the HUD canvas.
@@ -3827,7 +3855,7 @@ public class UIManager : MonoBehaviour
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.
     GameState.SkipMainMenuOnLoad = true;
-    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    ShowInterstitialThenLoadScene(LevelManager.CurrentConfig.sceneName);
   }
 
   // Called by ObjectPooler when a new placement phase starts
@@ -4036,6 +4064,8 @@ public class UIManager : MonoBehaviour
         v => SoundManager.SfxVolume = v);
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
+    BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
+        new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
 
     BuildTopBarBackArrow(contentParent, "SETTINGS", OnSettingsBackClicked);
 
@@ -4262,6 +4292,69 @@ public class UIManager : MonoBehaviour
     CrystalButtonStyle.Apply(btnGo, initColor);
   }
 
+  // "Purchases  [ Restore ]" — same row layout as BuildSettingsToggleRow, but
+  // a plain action button instead of an ON/OFF toggle (used for Restore
+  // Purchases, which has no persistent on/off state of its own).
+  void BuildSettingsActionRow(Transform parent, string label, string buttonText, Color btnColor, UnityAction onClick)
+  {
+    GameObject row = new GameObject(label + "Row",
+        typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+    row.transform.SetParent(parent, false);
+    RectTransform rowRect = row.GetComponent<RectTransform>();
+    rowRect.sizeDelta = new Vector2(720f, 110f);
+    LayoutElement le = row.GetComponent<LayoutElement>();
+    le.preferredWidth = 720f;
+    le.preferredHeight = 110f;
+    HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
+    hlg.childAlignment = TextAnchor.MiddleCenter;
+    hlg.spacing = 28f;
+    hlg.childControlWidth = false;
+    hlg.childControlHeight = false;
+    hlg.childForceExpandWidth = false;
+    hlg.childForceExpandHeight = false;
+
+    GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
+    labelGo.transform.SetParent(row.transform, false);
+    LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
+    labelLe.preferredWidth = 300f;
+    labelLe.preferredHeight = 110f;
+    TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
+    labelTmp.text = label;
+    labelTmp.alignment = TextAlignmentOptions.MidlineRight;
+    labelTmp.fontStyle = FontStyles.Bold;
+    labelTmp.color = Color.white;
+    labelTmp.fontSize = 46f;
+
+    GameObject btnGo = new GameObject(label + "Button",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
+    btnGo.transform.SetParent(row.transform, false);
+    LayoutElement btnLe = btnGo.GetComponent<LayoutElement>();
+    btnLe.preferredWidth = 260f;
+    btnLe.preferredHeight = 110f;
+    Image bg = btnGo.GetComponent<Image>();
+    bg.color = btnColor;
+
+    GameObject lblGo = new GameObject("Label", typeof(RectTransform));
+    lblGo.transform.SetParent(btnGo.transform, false);
+    RectTransform lblRect = lblGo.GetComponent<RectTransform>();
+    lblRect.anchorMin = Vector2.zero;
+    lblRect.anchorMax = Vector2.one;
+    lblRect.offsetMin = Vector2.zero;
+    lblRect.offsetMax = Vector2.zero;
+    TextMeshProUGUI lblTmp = lblGo.AddComponent<TextMeshProUGUI>();
+    lblTmp.text = buttonText;
+    lblTmp.fontSize = 38f;
+    lblTmp.fontStyle = FontStyles.Bold;
+    lblTmp.alignment = TextAlignmentOptions.Center;
+    lblTmp.color = Color.white;
+
+    Button btn = btnGo.GetComponent<Button>();
+    btn.targetGraphic = bg;
+    btn.onClick.AddListener(onClick);
+
+    CrystalButtonStyle.Apply(btnGo, btnColor);
+  }
+
   void OnSettingsButtonClicked()
   {
     EnsureSettingsPanel();
@@ -4273,6 +4366,39 @@ public class UIManager : MonoBehaviour
   {
     FadePanel(settingsPanel, false, 0.15f);
     ShowMainMenu();
+  }
+
+  // "Remove Ads - $2" on the main menu. IAPManager handles store
+  // communication; the button hides itself via HandleAdsRemoved once the
+  // purchase (or a restore) completes.
+  void OnRemoveAdsClicked()
+  {
+    if (IAPManager.Instance != null)
+    {
+      IAPManager.Instance.BuyRemoveAds();
+    }
+  }
+
+  // Required by App Store review guidelines for any non-consumable IAP —
+  // re-derives ownership from the store's own records (handles reinstalls
+  // and new devices where local PlayerPrefs has no purchase history).
+  void OnRestorePurchasesClicked()
+  {
+    if (IAPManager.Instance != null)
+    {
+      IAPManager.Instance.RestorePurchases();
+    }
+  }
+
+  // Fired once by IAPManager right after ads are removed (purchase or
+  // restore). Hides the main-menu button immediately, wherever the player
+  // currently is, instead of waiting for the next menu visit.
+  void HandleAdsRemoved()
+  {
+    if (removeAdsMenuButton != null)
+    {
+      removeAdsMenuButton.gameObject.SetActive(false);
+    }
   }
 
   // Builds a small "Settings" pill anchored to the top-right of the main-menu
@@ -4333,6 +4459,7 @@ public class UIManager : MonoBehaviour
     ComboManager.OnComboBroken -= HandleComboBroken;
     MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
+    IAPManager.OnAdsRemoved -= HandleAdsRemoved;
 
     if (objectPooler != null)
     {
