@@ -100,6 +100,20 @@ public class AdsManager : MonoBehaviour
 
     private void InitializeAndPreload()
     {
+#if UNITY_EDITOR
+        // The Google Mobile Ads Unity plugin has no real ad network in the
+        // Editor - InterstitialAd.Show() there instantiates a placeholder
+        // prefab and sets Time.timeScale = 0 to simulate a pause, but the
+        // prefab isn't parented under our own UI canvases, so it renders
+        // behind them and is invisible. The player then has no visible way
+        // to dismiss it and the timeScale = 0 never gets undone, which looks
+        // exactly like the game freezing with no ad on screen. Skip the ads
+        // SDK entirely in the Editor; ShowInterstitial() below always falls
+        // through to onComplete when no ad is loaded. Ads (including the
+        // real Google test ad units) only need to be verified on an actual
+        // Android/iOS Development Build - see docs/monetization-setup.md.
+        return;
+#else
         // Ads already removed (restored from a previous purchase) - never
         // touch the ads SDK at all.
         if (IAPManager.AdsRemoved) return;
@@ -121,10 +135,14 @@ public class AdsManager : MonoBehaviour
                 LoadInterstitial();
             }
         });
+#endif
     }
 
     private void LoadInterstitial()
     {
+#if UNITY_EDITOR
+        return;
+#else
         if (IAPManager.AdsRemoved) return;
 
         var adRequest = new AdRequest();
@@ -140,6 +158,7 @@ public class AdsManager : MonoBehaviour
             RegisterEventHandlers(interstitialAd);
             Debug.Log("[AdsManager] Interstitial preloaded.");
         });
+#endif
     }
 
     private void RegisterEventHandlers(InterstitialAd ad)
