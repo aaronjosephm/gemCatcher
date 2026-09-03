@@ -27,14 +27,30 @@ ID, iOS ad unit ID.
 ## 2. Enter the App ID in Unity
 
 The Google Mobile Ads Unity Plugin needs the **App ID** (not the ad unit ID)
-configured in the Editor — this can't be done from a script:
+configured in `Assets/GoogleMobileAds/Resources/GoogleMobileAdsSettings.asset`
+before it will let you build — this is a separate, per-app identifier from
+the ad unit IDs in step 3, and the plugin's build hook fails the build with
+`[GoogleMobileAds] Android Google Mobile Ads app ID is empty` if it's blank.
 
-1. Open the project in Unity Editor (packages must have resolved first —
-   see step 5).
+This repo ships with **Google's sample App IDs** pre-filled so the project
+builds out of the box during development:
+
+```yaml
+adMobAndroidAppId: ca-app-pub-3940256099942544~3347511713
+adMobIOSAppId: ca-app-pub-3940256099942544~1458002511
+```
+
+These are the same well-known test publisher ID (`3940256099942544`) used
+for the sample ad units in step 3 — safe to build and test with, never
+associated with a real account. **Before submitting to either store**,
+replace them with your real App IDs:
+
+1. Open the project in Unity Editor.
 2. Menu: **Assets > Google Mobile Ads > Settings**.
-3. Paste the Android App ID and iOS App ID into the matching fields.
-4. This writes `Assets/GoogleMobileAds/Resources/GoogleMobileAdsSettings.asset`
-   — commit that file once it's created.
+3. Paste the real Android App ID and iOS App ID (from step 1) into the
+   matching fields, replacing the sample ones.
+4. This overwrites `Assets/GoogleMobileAds/Resources/GoogleMobileAdsSettings.asset`
+   — commit that change.
 
 ## 3. Put the real ad unit IDs in code
 
