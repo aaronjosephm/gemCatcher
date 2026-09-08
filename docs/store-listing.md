@@ -83,8 +83,8 @@ KEY FEATURES
 • Built for mobile — adaptive UI fits any phone, supports notches and
   cutouts, and runs offline.
 
-• 100 percent offline — no ads, no in-app purchases, no account, no
-  data collection.
+• Free to play, with an optional one-time "Remove Ads" purchase. No
+  account, no data collection beyond standard ad serving.
 
 HOW TO PLAY
 
@@ -113,7 +113,7 @@ Initial release of Gem Catcher!
 * Milestone rewards every 500-10000 points
 * Daily challenge with deterministic seed
 * Adaptive UI for notched / cutout displays
-* 100 percent offline, no ads, no data collection
+* Free to play with an optional one-time "Remove Ads" purchase
 ```
 *(~370 chars)*
 
@@ -141,6 +141,24 @@ Initial release of Gem Catcher!
 TODO https://<your-github-username>.github.io/<repo-name>/privacy-policy
 ```
 *(See `docs/privacy-policy.md` and the Phase 2 walkthrough for hosting steps.)*
+
+---
+
+## Ads and Data safety declarations (required once AdMob ships)
+
+Adding ads/IAP means two Play Console forms must be filled out accurately
+before submission, or the release can be rejected or suspended later:
+
+- **App content > Ads**: answer "Yes, my app contains ads."
+- **App content > Data safety**: declare that Advertising ID and other
+  identifiers are collected/shared via Google AdMob for advertising
+  purposes, and that purchase data is handled by Google Play Billing.
+  Use `docs/privacy-policy.md` as the source of truth for what to declare.
+- App Store Connect has an equivalent **App Privacy** questionnaire —
+  declare "Identifiers" and "Usage Data" linked to advertising for the
+  AdMob SDK, per Apple's privacy nutrition label requirements.
+
+See `docs/monetization-setup.md` for the full AdMob/IAP account setup steps.
 
 ---
 
