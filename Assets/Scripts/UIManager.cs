@@ -134,11 +134,15 @@ public class UIManager : MonoBehaviour
   private Button dailyChallengeMenuButton;
   private TextMeshProUGUI dailyChallengeButtonLabel;
   private Image dailyChallengeButtonBg;
+  private const bool ShowMainMenuHighScore = false;
   private TextMeshProUGUI bestScoreMenuTmp;
   private GameObject bestScoreMenuGo;
   private TextMeshProUGUI totalPointsMenuTmp;
   private GameObject totalPointsMenuGo;
   private Button removeAdsMenuButton;
+  private const float SettingsContentWidth = 940f;
+  private const float SettingsRowHeight = 116f;
+  private const float SettingsActionButtonWidth = 380f;
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -199,13 +203,11 @@ public class UIManager : MonoBehaviour
     if (Instance != null && Instance != this) return;
     Instance = this;
 
-    // Redirect to the correct scene immediately if we're on the wrong one.
-    // This runs before the first frame renders, avoiding a flash of the wrong
-    // level's visuals (e.g. DeepSpace rocks when loading Jungle Falls).
+    // Redirect legacy or non-gameplay entry points to the unified gameplay scene.
     string currentScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
     if (currentScene != "Tutorial")
     {
-      string expectedScene = LevelManager.CurrentConfig.sceneName;
+      string expectedScene = LevelManager.GameplaySceneName;
       if (currentScene != expectedScene)
       {
         UnityEngine.SceneManagement.SceneManager.LoadScene(expectedScene);
@@ -246,7 +248,7 @@ public class UIManager : MonoBehaviour
       // Hide the main Plane (cave background) so it doesn't show behind white
       GameObject mainPlane = GameObject.Find("Plane");
       if (mainPlane != null) mainPlane.SetActive(false);
-      // Hide decorative rocks and gems from the SampleScene copy
+      // Hide decorative rocks and gems from the standalone tutorial scene.
       foreach (string objName in new[] {
           "Rock2", "Rock5A",
           "Magic_Gem_9", "Magic_Gem_9 (1)",
@@ -1098,7 +1100,7 @@ public class UIManager : MonoBehaviour
       GemCatcher.ResetLives();
       GemCatcher.ResetScore();
       GameState.SkipMainMenuOnLoad = false;
-      SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+      SceneManager.LoadScene(LevelManager.GameplaySceneName);
     });
   }
 
@@ -1466,12 +1468,18 @@ public class UIManager : MonoBehaviour
     vlg.childForceExpandWidth = false;
     vlg.childForceExpandHeight = false;
 
-    BuildStackedMenuButton(stackGo.transform, "PlayButton",        "Play",        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
-    BuildStackedMenuButton(stackGo.transform, "LevelsButton",      "Levels",       new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
-    BuildStackedMenuButton(stackGo.transform, "ShopButton",        "Shop",         new Color(0.55f, 0.25f, 0.55f), OnShopClicked);
-    BuildStackedMenuButton(stackGo.transform, "SettingsButton",     "Settings",    new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
-    removeAdsMenuButton = BuildStackedMenuButton(stackGo.transform, "RemoveAdsButton", "Remove Ads - $2", new Color(0.75f, 0.55f, 0.15f), OnRemoveAdsClicked);
-    removeAdsMenuButton.gameObject.SetActive(!IAPManager.AdsRemoved);
+    BuildImageMenuButton(stackGo.transform, "PlayButton", "Play", "UI/PlayButton",
+        new Color(0.20f, 0.60f, 0.35f), OnPlayClicked);
+    BuildImageMenuButton(stackGo.transform, "LevelsButton", "Levels", "UI/LevelsButton",
+        new Color(0.15f, 0.45f, 0.65f), OnLevelsClicked);
+    BuildImageMenuButton(stackGo.transform, "ShopButton", "Shop", "UI/ShopButton",
+        new Color(0.55f, 0.25f, 0.55f), OnShopClicked);
+    BuildImageMenuButton(stackGo.transform, "SettingsButton", "Settings", "UI/SettingsButton",
+        new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
+    removeAdsMenuButton = BuildImageMenuButton(
+        stackGo.transform, "RemoveAdsButton", "Remove Ads - $2", "UI/RemoveAdsButton",
+        new Color(0.75f, 0.55f, 0.15f), OnRemoveAdsClicked);
+    RefreshRemoveAdsButton();
 
     // High Score — per-level, below buttons.
     {
@@ -1493,7 +1501,7 @@ public class UIManager : MonoBehaviour
       best.enableWordWrapping = false;
       bestScoreMenuTmp = best;
       bestScoreMenuGo = bestGo;
-      bestGo.SetActive(highScore > 0);
+      bestGo.SetActive(ShowMainMenuHighScore && highScore > 0);
     }
 
     // Total Points — lifetime currency across all levels.
@@ -1728,9 +1736,7 @@ public class UIManager : MonoBehaviour
     body.richText = true;
     body.text = text;
 
-    // Use Nunito font if available (generated via Tools → Generate Nunito SDF Font).
-    TMP_FontAsset nunito = Resources.Load<TMP_FontAsset>("Fonts/Nunito SDF");
-    if (nunito != null) body.font = nunito;
+    GameTextStyle.Apply(body);
 
     ScrollRect sr = scrollGo.GetComponent<ScrollRect>();
     sr.viewport = viewportRect;
@@ -1922,9 +1928,7 @@ public class UIManager : MonoBehaviour
     tmp.fontSizeMax = 96f;
     tmp.enableWordWrapping = false;
 
-    // Use Nunito if available.
-    TMP_FontAsset nunito = Resources.Load<TMP_FontAsset>("Fonts/Nunito SDF");
-    if (nunito != null) tmp.font = nunito;
+    GameTextStyle.Apply(tmp);
   }
 
   // Stacked menu buttons share width/height so they line up nicely under VerticalLayoutGroup.
@@ -1966,6 +1970,62 @@ public class UIManager : MonoBehaviour
     return btn;
   }
 
+  Button BuildImageMenuButton(
+      Transform parent,
+      string name,
+      string fallbackLabel,
+      string resourcePath,
+      Color fallbackColor,
+      UnityAction onClick)
+  {
+    Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+    if (texture == null)
+    {
+      Debug.LogError(
+          $"{fallbackLabel} button artwork is missing at Resources/{resourcePath}.");
+      return BuildStackedMenuButton(
+          parent, name, fallbackLabel, fallbackColor, onClick);
+    }
+
+    const float width = 560f;
+    float height = width * texture.height / texture.width;
+
+    GameObject buttonGo = new GameObject(name,
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
+        typeof(Button), typeof(LayoutElement));
+    buttonGo.transform.SetParent(parent, false);
+
+    RectTransform rect = buttonGo.GetComponent<RectTransform>();
+    rect.sizeDelta = new Vector2(width, height);
+
+    LayoutElement layout = buttonGo.GetComponent<LayoutElement>();
+    layout.preferredWidth = width;
+    layout.preferredHeight = height;
+    layout.minWidth = width;
+    layout.minHeight = height;
+
+    Image image = buttonGo.GetComponent<Image>();
+    image.sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height),
+        new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+    image.type = Image.Type.Simple;
+    image.preserveAspect = true;
+    image.color = Color.white;
+
+    Button button = buttonGo.GetComponent<Button>();
+    button.targetGraphic = image;
+    ColorBlock colors = button.colors;
+    colors.normalColor = Color.white;
+    colors.highlightedColor = new Color(1.1f, 1.1f, 1.1f, 1f);
+    colors.pressedColor = new Color(0.75f, 0.75f, 0.75f, 1f);
+    colors.selectedColor = Color.white;
+    colors.disabledColor = new Color(1f, 1f, 1f, 0.65f);
+    colors.fadeDuration = 0.1f;
+    button.colors = colors;
+    button.onClick.AddListener(onClick);
+
+    return button;
+  }
+
   // ---------------------------------------------------------------------------
   // Menu navigation
   // ---------------------------------------------------------------------------
@@ -1990,17 +2050,14 @@ public class UIManager : MonoBehaviour
     if (bestScoreMenuTmp != null)
     {
       bestScoreMenuTmp.text = "High Score  " + highScore;
-      bestScoreMenuGo.SetActive(highScore > 0);
+      bestScoreMenuGo.SetActive(ShowMainMenuHighScore && highScore > 0);
     }
     if (totalPointsMenuTmp != null)
     {
       totalPointsMenuTmp.text = "Total Points  " + totalPoints.ToString("N0");
       totalPointsMenuGo.SetActive(totalPoints > 0);
     }
-    if (removeAdsMenuButton != null)
-    {
-      removeAdsMenuButton.gameObject.SetActive(!IAPManager.AdsRemoved);
-    }
+    RefreshRemoveAdsButton();
     FadePanel(mainMenuPanel, true, 0.25f);
 
     // Check if a new level was just unlocked and announce it.
@@ -2040,7 +2097,7 @@ public class UIManager : MonoBehaviour
     GameState.Mode = GameState.GameMode.Rush;
     GameState.SkipMainMenuOnLoad = true;
     // Reload so ObjectPooler.Start() builds the hazard pool with Rush active.
-    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    SceneManager.LoadScene(LevelManager.GameplaySceneName);
   }
 
   void OnTutorialClicked()
@@ -2213,7 +2270,7 @@ public class UIManager : MonoBehaviour
   {
     LevelManager.SelectedLevel = id;
     s_returnToLevelSelect = true;
-    StartCoroutine(FadeAndLoadScene(LevelManager.CurrentConfig.sceneName));
+    StartCoroutine(FadeAndLoadScene(LevelManager.GameplaySceneName));
   }
 
   // ---------------------------------------------------------------------------
@@ -3293,7 +3350,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.Mode = GameState.GameMode.Daily;
     GameState.SkipMainMenuOnLoad = true;
-    SceneManager.LoadScene(LevelManager.CurrentConfig.sceneName);
+    SceneManager.LoadScene(LevelManager.GameplaySceneName);
   }
 
   // Show the "come back tomorrow" panel (built lazily on first show).
@@ -3461,7 +3518,7 @@ public class UIManager : MonoBehaviour
     GemCatcher.ResetLives();
     GameState.SkipMainMenuOnLoad = false;
     GameState.Mode = GameState.GameMode.Normal;
-    ShowInterstitialThenLoadScene(LevelManager.CurrentConfig.sceneName);
+    ShowInterstitialThenLoadScene(LevelManager.GameplaySceneName);
   }
 
   // Shows an interstitial ad (if one is preloaded, and the player hasn't
@@ -3855,7 +3912,7 @@ public class UIManager : MonoBehaviour
     // "Try Again": skip the main menu on the next scene start and drop the player
     // straight into a fresh round.
     GameState.SkipMainMenuOnLoad = true;
-    ShowInterstitialThenLoadScene(LevelManager.CurrentConfig.sceneName);
+    ShowInterstitialThenLoadScene(LevelManager.GameplaySceneName);
   }
 
   // Called by ObjectPooler when a new placement phase starts
@@ -4048,11 +4105,11 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMin = new Vector2(0.5f, 0.5f);
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
-    stackRect.anchoredPosition = new Vector2(0f, 80f);
-    stackRect.sizeDelta = new Vector2(800f, 500f);
+    stackRect.anchoredPosition = new Vector2(0f, -10f);
+    stackRect.sizeDelta = new Vector2(SettingsContentWidth, 560f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
-    vlg.spacing = 36f;
+    vlg.spacing = 20f;
     vlg.childControlWidth = false;
     vlg.childControlHeight = false;
     vlg.childForceExpandWidth = false;
@@ -4073,70 +4130,94 @@ public class UIManager : MonoBehaviour
     settingsPanel.SetActive(false);
   }
 
+  GameObject BuildSettingsRow(
+      Transform parent,
+      string name,
+      out HorizontalLayoutGroup layout)
+  {
+    GameObject row = new GameObject(name,
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image),
+        typeof(HorizontalLayoutGroup), typeof(LayoutElement));
+    row.transform.SetParent(parent, false);
+
+    RectTransform rowRect = row.GetComponent<RectTransform>();
+    rowRect.sizeDelta = new Vector2(SettingsContentWidth, SettingsRowHeight);
+
+    LayoutElement rowLayout = row.GetComponent<LayoutElement>();
+    rowLayout.preferredWidth = SettingsContentWidth;
+    rowLayout.preferredHeight = SettingsRowHeight;
+
+    Image background = row.GetComponent<Image>();
+    background.sprite = CreateUiRoundedSprite();
+    background.type = Image.Type.Sliced;
+    background.color = new Color(0.08f, 0.11f, 0.16f, 0.88f);
+    background.raycastTarget = false;
+
+    layout = row.GetComponent<HorizontalLayoutGroup>();
+    layout.padding = new RectOffset(32, 32, 8, 8);
+    layout.childAlignment = TextAnchor.MiddleCenter;
+    layout.spacing = 24f;
+    layout.childControlWidth = true;
+    layout.childControlHeight = true;
+    layout.childForceExpandWidth = false;
+    layout.childForceExpandHeight = false;
+
+    return row;
+  }
+
   // "Music  [========·---]  70%" — label, slider, percent readout.
   void BuildSettingsVolumeRow(Transform parent, string label, float initial, System.Action<float> onChange)
   {
-    GameObject row = new GameObject(label + "VolumeRow",
-        typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-    row.transform.SetParent(parent, false);
-    RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(800f, 110f);
-    LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 800f;
-    le.preferredHeight = 110f;
-    HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
-    hlg.childAlignment = TextAnchor.MiddleCenter;
-    hlg.spacing = 16f;
-    hlg.childControlWidth = false;
-    hlg.childControlHeight = false;
-    hlg.childForceExpandWidth = false;
-    hlg.childForceExpandHeight = false;
+    GameObject row = BuildSettingsRow(
+        parent, label + "VolumeRow", out HorizontalLayoutGroup hlg);
+    hlg.spacing = 24f;
 
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
-    labelLe.preferredWidth = 240f;
-    labelLe.preferredHeight = 110f;
+    labelLe.preferredWidth = 220f;
+    labelLe.preferredHeight = 100f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
-    labelTmp.alignment = TextAlignmentOptions.MidlineRight;
+    labelTmp.alignment = TextAlignmentOptions.MidlineLeft;
     labelTmp.fontStyle = FontStyles.Bold;
     labelTmp.color = Color.white;
-    labelTmp.fontSize = 46f;
+    labelTmp.fontSize = 42f;
+    labelTmp.enableWordWrapping = false;
 
     // Slider root
     GameObject sliderGo = new GameObject(label + "Slider",
         typeof(RectTransform), typeof(Slider), typeof(LayoutElement));
     sliderGo.transform.SetParent(row.transform, false);
     LayoutElement sliderLe = sliderGo.GetComponent<LayoutElement>();
-    sliderLe.preferredWidth = 400f;
-    sliderLe.preferredHeight = 56f;
+    sliderLe.preferredWidth = 460f;
+    sliderLe.preferredHeight = 64f;
     RectTransform sliderRect = sliderGo.GetComponent<RectTransform>();
-    sliderRect.sizeDelta = new Vector2(400f, 56f);
+    sliderRect.sizeDelta = new Vector2(460f, 64f);
 
-    Sprite whiteSprite = CreateUiWhiteSprite();
+    Sprite roundedSprite = CreateUiRoundedSprite();
 
     // Background track
     GameObject bgGo = new GameObject("Background", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     bgGo.transform.SetParent(sliderGo.transform, false);
     RectTransform bgRect = bgGo.GetComponent<RectTransform>();
-    bgRect.anchorMin = new Vector2(0f, 0.25f);
-    bgRect.anchorMax = new Vector2(1f, 0.75f);
-    bgRect.offsetMin = Vector2.zero;
-    bgRect.offsetMax = Vector2.zero;
+    bgRect.anchorMin = new Vector2(0f, 0.5f);
+    bgRect.anchorMax = new Vector2(1f, 0.5f);
+    bgRect.offsetMin = new Vector2(0f, -15f);
+    bgRect.offsetMax = new Vector2(0f, 15f);
     Image bgImg = bgGo.GetComponent<Image>();
-    bgImg.sprite = whiteSprite;
-    bgImg.color = new Color(0.15f, 0.17f, 0.22f, 0.9f);
-    bgImg.type = Image.Type.Simple;
+    bgImg.sprite = roundedSprite;
+    bgImg.color = new Color(0.12f, 0.15f, 0.21f, 1f);
+    bgImg.type = Image.Type.Sliced;
 
     // Fill area + fill
     GameObject fillArea = new GameObject("Fill Area", typeof(RectTransform));
     fillArea.transform.SetParent(sliderGo.transform, false);
     RectTransform fillAreaRect = fillArea.GetComponent<RectTransform>();
-    fillAreaRect.anchorMin = new Vector2(0f, 0.25f);
-    fillAreaRect.anchorMax = new Vector2(1f, 0.75f);
-    fillAreaRect.offsetMin = new Vector2(6f, 0f);
-    fillAreaRect.offsetMax = new Vector2(-6f, 0f);
+    fillAreaRect.anchorMin = new Vector2(0f, 0.5f);
+    fillAreaRect.anchorMax = new Vector2(1f, 0.5f);
+    fillAreaRect.offsetMin = new Vector2(4f, -11f);
+    fillAreaRect.offsetMax = new Vector2(-4f, 11f);
 
     GameObject fillGo = new GameObject("Fill", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     fillGo.transform.SetParent(fillArea.transform, false);
@@ -4146,8 +4227,9 @@ public class UIManager : MonoBehaviour
     fillRect.offsetMin = Vector2.zero;
     fillRect.offsetMax = Vector2.zero;
     Image fillImg = fillGo.GetComponent<Image>();
-    fillImg.sprite = whiteSprite;
-    fillImg.color = new Color(0.30f, 0.70f, 0.95f, 1f);
+    fillImg.sprite = roundedSprite;
+    fillImg.type = Image.Type.Sliced;
+    fillImg.color = new Color(0.20f, 0.68f, 1f, 1f);
 
     // Handle
     GameObject handleArea = new GameObject("Handle Slide Area", typeof(RectTransform));
@@ -4155,28 +4237,33 @@ public class UIManager : MonoBehaviour
     RectTransform handleAreaRect = handleArea.GetComponent<RectTransform>();
     handleAreaRect.anchorMin = Vector2.zero;
     handleAreaRect.anchorMax = Vector2.one;
-    handleAreaRect.offsetMin = new Vector2(12f, 0f);
-    handleAreaRect.offsetMax = new Vector2(-12f, 0f);
+    handleAreaRect.offsetMin = new Vector2(16f, 0f);
+    handleAreaRect.offsetMax = new Vector2(-16f, 0f);
 
     GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
     handleGo.transform.SetParent(handleArea.transform, false);
     RectTransform handleRect = handleGo.GetComponent<RectTransform>();
-    handleRect.sizeDelta = new Vector2(44f, 44f);
+    handleRect.sizeDelta = new Vector2(52f, 52f);
     Image handleImg = handleGo.GetComponent<Image>();
-    handleImg.sprite = whiteSprite;
-    handleImg.color = new Color(0.95f, 0.88f, 0.55f);
+    handleImg.sprite = roundedSprite;
+    handleImg.type = Image.Type.Simple;
+    handleImg.color = new Color(1f, 0.93f, 0.62f);
+    Shadow handleShadow = handleGo.AddComponent<Shadow>();
+    handleShadow.effectColor = new Color(0f, 0f, 0f, 0.35f);
+    handleShadow.effectDistance = new Vector2(0f, -3f);
 
     // Percent label
     GameObject pctGo = new GameObject("Percent", typeof(RectTransform), typeof(LayoutElement));
     pctGo.transform.SetParent(row.transform, false);
     LayoutElement pctLe = pctGo.GetComponent<LayoutElement>();
-    pctLe.preferredWidth = 120f;
-    pctLe.preferredHeight = 110f;
+    pctLe.preferredWidth = 110f;
+    pctLe.preferredHeight = 100f;
     TextMeshProUGUI pctTmp = pctGo.AddComponent<TextMeshProUGUI>();
     pctTmp.alignment = TextAlignmentOptions.MidlineLeft;
     pctTmp.fontStyle = FontStyles.Bold;
     pctTmp.color = new Color(0.85f, 0.85f, 0.9f);
-    pctTmp.fontSize = 42f;
+    pctTmp.fontSize = 38f;
+    pctTmp.enableWordWrapping = false;
 
     Slider slider = sliderGo.GetComponent<Slider>();
     slider.targetGraphic = handleImg;
@@ -4201,57 +4288,74 @@ public class UIManager : MonoBehaviour
     });
   }
 
-  static Sprite s_uiWhiteSprite;
-  static Sprite CreateUiWhiteSprite()
+  static Sprite s_uiRoundedSprite;
+  static Sprite CreateUiRoundedSprite()
   {
-    if (s_uiWhiteSprite != null) return s_uiWhiteSprite;
-    Texture2D tex = new Texture2D(4, 4, TextureFormat.RGBA32, false);
-    Color[] pixels = new Color[16];
-    for (int i = 0; i < 16; i++) pixels[i] = Color.white;
+    if (s_uiRoundedSprite != null) return s_uiRoundedSprite;
+
+    const int size = 64;
+    const float radius = 30f;
+    Texture2D tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
+    tex.name = "Settings Rounded UI";
+    tex.filterMode = FilterMode.Bilinear;
+    tex.wrapMode = TextureWrapMode.Clamp;
+
+    Color[] pixels = new Color[size * size];
+    for (int y = 0; y < size; y++)
+    {
+      for (int x = 0; x < size; x++)
+      {
+        float px = x + 0.5f;
+        float py = y + 0.5f;
+        float dx = Mathf.Max(radius - px, px - (size - radius), 0f);
+        float dy = Mathf.Max(radius - py, py - (size - radius), 0f);
+        float distance = Mathf.Sqrt(dx * dx + dy * dy) - radius;
+        pixels[y * size + x] = new Color(1f, 1f, 1f, Mathf.Clamp01(0.5f - distance));
+      }
+    }
+
     tex.SetPixels(pixels);
     tex.Apply(false, true);
-    s_uiWhiteSprite = Sprite.Create(tex, new Rect(0, 0, 4, 4), new Vector2(0.5f, 0.5f), 4f);
-    return s_uiWhiteSprite;
+
+    const float border = 28f;
+    s_uiRoundedSprite = Sprite.Create(
+        tex,
+        new Rect(0f, 0f, size, size),
+        new Vector2(0.5f, 0.5f),
+        64f,
+        0,
+        SpriteMeshType.FullRect,
+        new Vector4(border, border, border, border));
+    return s_uiRoundedSprite;
   }
 
   // Visual: "Haptics  [ ON ]" / "Haptics  [ OFF ]" — a label and a toggle button
   // colored green when on, gray when off. Cheap and reads instantly.
   void BuildSettingsToggleRow(Transform parent, string label, bool initial, System.Action<bool> onChange)
   {
-    GameObject row = new GameObject(label + "Row",
-        typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-    row.transform.SetParent(parent, false);
-    RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(720f, 110f);
-    LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 720f;
-    le.preferredHeight = 110f;
-    HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
-    hlg.childAlignment = TextAnchor.MiddleCenter;
-    hlg.spacing = 28f;
-    hlg.childControlWidth = false;
-    hlg.childControlHeight = false;
-    hlg.childForceExpandWidth = false;
-    hlg.childForceExpandHeight = false;
+    GameObject row = BuildSettingsRow(
+        parent, label + "Row", out HorizontalLayoutGroup hlg);
+    hlg.spacing = 36f;
 
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
     labelLe.preferredWidth = 300f;
-    labelLe.preferredHeight = 110f;
+    labelLe.preferredHeight = 100f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
-    labelTmp.alignment = TextAlignmentOptions.MidlineRight;
+    labelTmp.alignment = TextAlignmentOptions.MidlineLeft;
     labelTmp.fontStyle = FontStyles.Bold;
     labelTmp.color = Color.white;
-    labelTmp.fontSize = 46f;
+    labelTmp.fontSize = 42f;
+    labelTmp.enableWordWrapping = false;
 
     GameObject btnGo = new GameObject(label + "Toggle",
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
     btnGo.transform.SetParent(row.transform, false);
     LayoutElement btnLe = btnGo.GetComponent<LayoutElement>();
-    btnLe.preferredWidth = 260f;
-    btnLe.preferredHeight = 110f;
+    btnLe.preferredWidth = SettingsActionButtonWidth;
+    btnLe.preferredHeight = 96f;
     Image bg = btnGo.GetComponent<Image>();
 
     GameObject lblGo = new GameObject("Label", typeof(RectTransform));
@@ -4262,10 +4366,14 @@ public class UIManager : MonoBehaviour
     lblRect.offsetMin = Vector2.zero;
     lblRect.offsetMax = Vector2.zero;
     TextMeshProUGUI lblTmp = lblGo.AddComponent<TextMeshProUGUI>();
-    lblTmp.fontSize = 42f;
+    lblTmp.enableAutoSizing = true;
+    lblTmp.fontSizeMin = 30f;
+    lblTmp.fontSizeMax = 42f;
     lblTmp.fontStyle = FontStyles.Bold;
     lblTmp.alignment = TextAlignmentOptions.Center;
     lblTmp.color = Color.white;
+    lblTmp.margin = new Vector4(28f, 8f, 28f, 8f);
+    lblTmp.enableWordWrapping = false;
 
     bool current = initial;
     System.Action apply = () =>
@@ -4297,40 +4405,29 @@ public class UIManager : MonoBehaviour
   // Purchases, which has no persistent on/off state of its own).
   void BuildSettingsActionRow(Transform parent, string label, string buttonText, Color btnColor, UnityAction onClick)
   {
-    GameObject row = new GameObject(label + "Row",
-        typeof(RectTransform), typeof(HorizontalLayoutGroup), typeof(LayoutElement));
-    row.transform.SetParent(parent, false);
-    RectTransform rowRect = row.GetComponent<RectTransform>();
-    rowRect.sizeDelta = new Vector2(720f, 110f);
-    LayoutElement le = row.GetComponent<LayoutElement>();
-    le.preferredWidth = 720f;
-    le.preferredHeight = 110f;
-    HorizontalLayoutGroup hlg = row.GetComponent<HorizontalLayoutGroup>();
-    hlg.childAlignment = TextAnchor.MiddleCenter;
-    hlg.spacing = 28f;
-    hlg.childControlWidth = false;
-    hlg.childControlHeight = false;
-    hlg.childForceExpandWidth = false;
-    hlg.childForceExpandHeight = false;
+    GameObject row = BuildSettingsRow(
+        parent, label + "Row", out HorizontalLayoutGroup hlg);
+    hlg.spacing = 36f;
 
     GameObject labelGo = new GameObject("Label", typeof(RectTransform), typeof(LayoutElement));
     labelGo.transform.SetParent(row.transform, false);
     LayoutElement labelLe = labelGo.GetComponent<LayoutElement>();
     labelLe.preferredWidth = 300f;
-    labelLe.preferredHeight = 110f;
+    labelLe.preferredHeight = 100f;
     TextMeshProUGUI labelTmp = labelGo.AddComponent<TextMeshProUGUI>();
     labelTmp.text = label;
-    labelTmp.alignment = TextAlignmentOptions.MidlineRight;
+    labelTmp.alignment = TextAlignmentOptions.MidlineLeft;
     labelTmp.fontStyle = FontStyles.Bold;
     labelTmp.color = Color.white;
-    labelTmp.fontSize = 46f;
+    labelTmp.fontSize = 42f;
+    labelTmp.enableWordWrapping = false;
 
     GameObject btnGo = new GameObject(label + "Button",
         typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Button), typeof(LayoutElement));
     btnGo.transform.SetParent(row.transform, false);
     LayoutElement btnLe = btnGo.GetComponent<LayoutElement>();
-    btnLe.preferredWidth = 260f;
-    btnLe.preferredHeight = 110f;
+    btnLe.preferredWidth = SettingsActionButtonWidth;
+    btnLe.preferredHeight = 96f;
     Image bg = btnGo.GetComponent<Image>();
     bg.color = btnColor;
 
@@ -4343,10 +4440,14 @@ public class UIManager : MonoBehaviour
     lblRect.offsetMax = Vector2.zero;
     TextMeshProUGUI lblTmp = lblGo.AddComponent<TextMeshProUGUI>();
     lblTmp.text = buttonText;
-    lblTmp.fontSize = 38f;
+    lblTmp.enableAutoSizing = true;
+    lblTmp.fontSizeMin = 30f;
+    lblTmp.fontSizeMax = 40f;
     lblTmp.fontStyle = FontStyles.Bold;
     lblTmp.alignment = TextAlignmentOptions.Center;
     lblTmp.color = Color.white;
+    lblTmp.margin = new Vector4(28f, 8f, 28f, 8f);
+    lblTmp.enableWordWrapping = false;
 
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
@@ -4369,8 +4470,8 @@ public class UIManager : MonoBehaviour
   }
 
   // "Remove Ads - $2" on the main menu. IAPManager handles store
-  // communication; the button hides itself via HandleAdsRemoved once the
-  // purchase (or a restore) completes.
+  // communication; the button remains visible but becomes non-interactable
+  // once the purchase (or a restore) completes.
   void OnRemoveAdsClicked()
   {
     if (IAPManager.Instance != null)
@@ -4390,15 +4491,20 @@ public class UIManager : MonoBehaviour
     }
   }
 
+  void RefreshRemoveAdsButton()
+  {
+    if (removeAdsMenuButton == null) return;
+
+    removeAdsMenuButton.gameObject.SetActive(true);
+    removeAdsMenuButton.interactable = !IAPManager.AdsRemoved;
+  }
+
   // Fired once by IAPManager right after ads are removed (purchase or
-  // restore). Hides the main-menu button immediately, wherever the player
+  // restore). Refreshes the completed state immediately, wherever the player
   // currently is, instead of waiting for the next menu visit.
   void HandleAdsRemoved()
   {
-    if (removeAdsMenuButton != null)
-    {
-      removeAdsMenuButton.gameObject.SetActive(false);
-    }
+    RefreshRemoveAdsButton();
   }
 
   // Builds a small "Settings" pill anchored to the top-right of the main-menu

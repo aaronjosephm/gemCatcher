@@ -48,20 +48,6 @@ public class CaveBackgroundFit : MonoBehaviour
     {
       plane.GetComponent<CaveBackgroundFit>().ApplyLevelBackground();
     }
-
-    // Show/hide decorative rocks and their gems based on level.
-    bool isCave = LevelManager.SelectedLevel == LevelManager.LevelId.Cave;
-    string[] decorativeObjects = new[] {
-        "Rock2", "Rock5A",
-        "Magic_Gem_9", "Magic_Gem_9 (1)",
-        "Magic_Gem_13", "Magic_Gem_13 (1)", "Magic_Gem_13 (2)",
-        "Magic_Gem_14", "Magic_Gem_14 (1)",
-    };
-    foreach (string objName in decorativeObjects)
-    {
-      GameObject obj = GameObject.Find(objName);
-      if (obj != null) obj.SetActive(isCave);
-    }
   }
 
   void Awake()

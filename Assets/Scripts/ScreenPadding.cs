@@ -36,6 +36,25 @@ public class ScreenPadding : MonoBehaviour
   public static float ExtraTop = 1.2f;
   public static float ExtraSide = 0.0f;
 
+  private static Camera cachedCamera;
+  private static Rect cachedSafeArea;
+  private static int cachedScreenWidth;
+  private static int cachedScreenHeight;
+  private static bool cachedOrthographic;
+  private static float cachedOrthographicSize;
+  private static float cachedFieldOfView;
+  private static float cachedAspect;
+  private static float cachedNearClipPlane;
+  private static float cachedExtraBottom;
+  private static float cachedExtraTop;
+  private static float cachedExtraSide;
+  private static float cachedWorldBottom;
+  private static float cachedWorldTop;
+  private static float cachedWorldLeft;
+  private static float cachedWorldRight;
+  private static bool boundsValid;
+  private static int lastBoundsCheckFrame = -1;
+
   void Awake()
   {
     Apply();
@@ -52,6 +71,7 @@ public class ScreenPadding : MonoBehaviour
     ExtraBottom = Mathf.Max(0f, extraBottom);
     ExtraTop = Mathf.Max(0f, extraTop);
     ExtraSide = Mathf.Max(0f, extraSide);
+    InvalidateBounds();
   }
 
   // Auto-bootstrap a default instance so other scripts always have padding values
@@ -72,22 +92,124 @@ public class ScreenPadding : MonoBehaviour
     ExtraBottom = 0.6f;
     ExtraTop = 1.2f;
     ExtraSide = 0.0f;
+    cachedCamera = null;
+    boundsValid = false;
+    lastBoundsCheckFrame = -1;
   }
 
   // ---------------------------------------------------------------------------
   // World-space bounds derived from Screen.safeArea + extra padding.
   // ---------------------------------------------------------------------------
 
+  /// <summary>
+  /// Invalidates the cached bounds after a deliberate camera-layout change.
+  /// Screen, safe-area, projection, and padding changes are detected automatically.
+  /// </summary>
+  public static void InvalidateBounds()
+  {
+    boundsValid = false;
+    lastBoundsCheckFrame = -1;
+  }
+
+  /// <summary>Returns all cached world-space play bounds in one call.</summary>
+  public static void GetWorldBounds(
+    out float left,
+    out float right,
+    out float bottom,
+    out float top)
+  {
+    EnsureBounds();
+    left = cachedWorldLeft;
+    right = cachedWorldRight;
+    bottom = cachedWorldBottom;
+    top = cachedWorldTop;
+  }
+
+  private static void EnsureBounds()
+  {
+    int frame = Time.frameCount;
+    if (boundsValid && lastBoundsCheckFrame == frame) return;
+    lastBoundsCheckFrame = frame;
+
+    Camera cam = cachedCamera;
+    if (cam == null || !cam.isActiveAndEnabled)
+    {
+      cam = Camera.main;
+    }
+
+    Rect safeArea = Screen.safeArea;
+    int screenWidth = Screen.width;
+    int screenHeight = Screen.height;
+
+    bool projectionChanged =
+      cam != cachedCamera
+      || (cam != null
+        && (cam.orthographic != cachedOrthographic
+          || !Mathf.Approximately(cam.orthographicSize, cachedOrthographicSize)
+          || !Mathf.Approximately(cam.fieldOfView, cachedFieldOfView)
+          || !Mathf.Approximately(cam.aspect, cachedAspect)
+          || !Mathf.Approximately(cam.nearClipPlane, cachedNearClipPlane)));
+
+    bool displayChanged =
+      screenWidth != cachedScreenWidth
+      || screenHeight != cachedScreenHeight
+      || safeArea != cachedSafeArea;
+
+    bool paddingChanged =
+      !Mathf.Approximately(ExtraBottom, cachedExtraBottom)
+      || !Mathf.Approximately(ExtraTop, cachedExtraTop)
+      || !Mathf.Approximately(ExtraSide, cachedExtraSide);
+
+    if (boundsValid && !projectionChanged && !displayChanged && !paddingChanged)
+    {
+      return;
+    }
+
+    cachedCamera = cam;
+    cachedSafeArea = safeArea;
+    cachedScreenWidth = screenWidth;
+    cachedScreenHeight = screenHeight;
+    cachedExtraBottom = ExtraBottom;
+    cachedExtraTop = ExtraTop;
+    cachedExtraSide = ExtraSide;
+
+    if (cam == null)
+    {
+      const float fallbackHalfHeight = 5f;
+      const float fallbackAspect = 1.78f;
+      cachedWorldBottom = -fallbackHalfHeight + ExtraBottom;
+      cachedWorldTop = fallbackHalfHeight - ExtraTop;
+      cachedWorldLeft = -(fallbackAspect * fallbackHalfHeight) + ExtraSide;
+      cachedWorldRight = (fallbackAspect * fallbackHalfHeight) - ExtraSide;
+      boundsValid = true;
+      return;
+    }
+
+    cachedOrthographic = cam.orthographic;
+    cachedOrthographicSize = cam.orthographicSize;
+    cachedFieldOfView = cam.fieldOfView;
+    cachedAspect = cam.aspect;
+    cachedNearClipPlane = cam.nearClipPlane;
+
+    Vector3 bottomLeft = cam.ScreenToWorldPoint(
+      new Vector3(safeArea.xMin, safeArea.yMin, cam.nearClipPlane));
+    Vector3 topRight = cam.ScreenToWorldPoint(
+      new Vector3(safeArea.xMax, safeArea.yMax, cam.nearClipPlane));
+
+    cachedWorldBottom = bottomLeft.y + ExtraBottom;
+    cachedWorldTop = topRight.y - ExtraTop;
+    cachedWorldLeft = bottomLeft.x + ExtraSide;
+    cachedWorldRight = topRight.x - ExtraSide;
+    boundsValid = true;
+  }
+
   /// <summary>World-space Y coordinate of the bottom of the playable area.</summary>
   public static float WorldBottom
   {
     get
     {
-      Camera cam = Camera.main;
-      if (cam == null) return -5f + ExtraBottom;
-      Rect safe = Screen.safeArea;
-      Vector3 world = cam.ScreenToWorldPoint(new Vector3(safe.xMin, safe.yMin, cam.nearClipPlane));
-      return world.y + ExtraBottom;
+      EnsureBounds();
+      return cachedWorldBottom;
     }
   }
 
@@ -96,11 +218,8 @@ public class ScreenPadding : MonoBehaviour
   {
     get
     {
-      Camera cam = Camera.main;
-      if (cam == null) return 5f - ExtraTop;
-      Rect safe = Screen.safeArea;
-      Vector3 world = cam.ScreenToWorldPoint(new Vector3(safe.xMax, safe.yMax, cam.nearClipPlane));
-      return world.y - ExtraTop;
+      EnsureBounds();
+      return cachedWorldTop;
     }
   }
 
@@ -109,14 +228,8 @@ public class ScreenPadding : MonoBehaviour
   {
     get
     {
-      Camera cam = Camera.main;
-      if (cam == null)
-      {
-        return -((cam != null ? cam.aspect : 1.78f) * 5f) + ExtraSide;
-      }
-      Rect safe = Screen.safeArea;
-      Vector3 world = cam.ScreenToWorldPoint(new Vector3(safe.xMin, safe.yMin, cam.nearClipPlane));
-      return world.x + ExtraSide;
+      EnsureBounds();
+      return cachedWorldLeft;
     }
   }
 
@@ -125,17 +238,26 @@ public class ScreenPadding : MonoBehaviour
   {
     get
     {
-      Camera cam = Camera.main;
-      if (cam == null)
-      {
-        return ((cam != null ? cam.aspect : 1.78f) * 5f) - ExtraSide;
-      }
-      Rect safe = Screen.safeArea;
-      Vector3 world = cam.ScreenToWorldPoint(new Vector3(safe.xMax, safe.yMax, cam.nearClipPlane));
-      return world.x - ExtraSide;
+      EnsureBounds();
+      return cachedWorldRight;
     }
   }
 
-  public static float WorldWidth => WorldRight - WorldLeft;
-  public static float WorldHeight => WorldTop - WorldBottom;
+  public static float WorldWidth
+  {
+    get
+    {
+      EnsureBounds();
+      return cachedWorldRight - cachedWorldLeft;
+    }
+  }
+
+  public static float WorldHeight
+  {
+    get
+    {
+      EnsureBounds();
+      return cachedWorldTop - cachedWorldBottom;
+    }
+  }
 }

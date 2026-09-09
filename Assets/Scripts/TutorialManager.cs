@@ -407,7 +407,7 @@ public class TutorialManager : MonoBehaviour
         GameState.IsTutorial = false;
         GameState.IsPlaying = false;
         GameState.SkipMainMenuOnLoad = false;
-        SceneManager.LoadScene("SampleScene");
+        SceneManager.LoadScene(LevelManager.GameplaySceneName);
     }
 
     // ---- Event handlers ----

@@ -32,6 +32,8 @@ public class SpawnDirector : MonoBehaviour
     private WaveGeneratorV2.GenerateResult lastResult; // for debug details
     private WaveDefinition.Row lastWaveFinalRow; // for cross-wave reachability
     private float activeTierPause; // current tier's wave pause
+    private readonly RushConfig.DifficultyTier currentTier =
+        new RushConfig.DifficultyTier();
 
     // Magnet power-up drop
     private float nextMagnetDropTime;
@@ -225,7 +227,8 @@ public class SpawnDirector : MonoBehaviour
         }
 
         float elapsed = Time.time - roundStartTime;
-        RushConfig.DifficultyTier tier = config.GetTier(elapsed);
+        config.EvaluateTier(elapsed, currentTier);
+        RushConfig.DifficultyTier tier = currentTier;
 
         // Mark power-ups as pending when timers elapse.
         // They'll replace the next gem slot in the wave grid.
@@ -413,9 +416,7 @@ public class SpawnDirector : MonoBehaviour
         }
 
         if (pooler == null) return;
-        float elapsed = Time.time - roundStartTime;
-        float redChance = config.GetTier(elapsed).redGemChance;
-        pooler.SpawnRushGemAt(x, y, fallSpeed, redChance);
+        pooler.SpawnRushGemAt(x, y, fallSpeed, currentTier.redGemChance);
     }
 
     void SpawnPoisonGemAt(float x, float y, float fallSpeed)

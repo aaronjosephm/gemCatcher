@@ -1,130 +1,341 @@
+using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 /// <summary>
-/// Spawns a 3D lightning bolt effect that strikes a target point from below.
-/// Uses multiple overlapping LineRenderers at different widths and colors
-/// to create a glowing, volumetric look with depth, plus spark particles
-/// that burst outward from the strike point.
+/// Pooled 3D lightning strike. Bolt layers, sparks, materials, and audio sources
+/// are prewarmed so spawning a gem does not create short-lived rendering objects.
 /// </summary>
-public class LightningSpawnEffect : MonoBehaviour
+public sealed class LightningSpawnEffect : MonoBehaviour
 {
     private const int Segments = 12;
     private const float Duration = 0.18f;
     private const float BoltLength = 4f;
     private const float Jitter = 0.45f;
-
-    // Multiple layers for 3D depth
     private const int LayerCount = 4;
+    private const int InitialBoltPoolSize = 2;
+    private const int InitialSparkPoolSize = 20;
+    private const int AudioSourcePoolSize = 2;
+
+    private static readonly float[] LayerWidths = { 3.5f, 1.8f, 0.8f, 0.4f };
+    private static readonly Color[] LayerColors =
+    {
+        new Color(0.3f, 0.4f, 1f, 0.25f),
+        new Color(0.5f, 0.7f, 1f, 0.5f),
+        new Color(0.8f, 0.9f, 1f, 0.85f),
+        new Color(1f, 1f, 1f, 1f),
+    };
+    private static readonly float[] LayerZ = { 0.02f, 0.01f, 0f, -0.01f };
+
+    private static readonly List<LightningSpawnEffect> BoltPool =
+        new List<LightningSpawnEffect>(InitialBoltPoolSize);
+    private static readonly List<LightningSpark> SparkPool =
+        new List<LightningSpark>(InitialSparkPoolSize);
+
+    private static GameObject poolRoot;
+    private static Transform boltPoolRoot;
+    private static Transform sparkPoolRoot;
+    private static Material[] boltMaterials;
+    private static Material sparkMaterial;
+    private static AudioClip zapClip;
+    private static AudioSource[] zapSources;
+    private static int nextZapSource;
 
     private LineRenderer[] layers;
+    private Vector3[] basePoints;
     private float timer;
     private Vector3 strikePoint;
     private Vector3 origin;
     private int flickerFrames;
-    private Vector3[] basePoints;
+    private bool initialized;
 
-    // Layer configs: width multiplier, color, z-offset
-    private static readonly float[] layerWidths = { 3.5f, 1.8f, 0.8f, 0.4f };
-    private static readonly Color[] layerColors =
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
     {
-        new Color(0.3f, 0.4f, 1f, 0.25f),   // outer glow (wide, faint blue)
-        new Color(0.5f, 0.7f, 1f, 0.5f),    // mid glow
-        new Color(0.8f, 0.9f, 1f, 0.85f),   // bright core
-        new Color(1f, 1f, 1f, 1f),           // white-hot center
-    };
-    private static readonly float[] layerZ = { 0.02f, 0.01f, 0f, -0.01f };
+        BoltPool.Clear();
+        SparkPool.Clear();
+        poolRoot = null;
+        boltPoolRoot = null;
+        sparkPoolRoot = null;
+        boltMaterials = null;
+        sparkMaterial = null;
+        zapClip = null;
+        zapSources = null;
+        nextZapSource = 0;
+    }
 
-    /// <summary>
-    /// Create a lightning bolt that strikes the given world position from below.
-    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void Prewarm()
+    {
+        EnsurePool();
+    }
+
+    /// <summary>Create a lightning bolt that strikes the given world position.</summary>
     public static void Strike(Vector3 targetPosition)
     {
-        // Lightning bolt
-        GameObject go = new GameObject("LightningBolt");
-        LightningSpawnEffect effect = go.AddComponent<LightningSpawnEffect>();
-        effect.strikePoint = targetPosition;
+        EnsurePool();
 
-        float offsetX = Random.Range(-1.2f, 1.2f);
-        effect.origin = new Vector3(
-            targetPosition.x + offsetX,
-            targetPosition.y - BoltLength,
-            targetPosition.z
-        );
-
-        // Spark burst at strike point
-        SpawnSparks(targetPosition);
-
-        // Play zap sound
-        if (zapClip == null)
-            zapClip = Resources.Load<AudioClip>("Audio/LightningZap");
-        if (zapClip != null)
+        LightningSpawnEffect effect = null;
+        for (int i = 0; i < BoltPool.Count; i++)
         {
-            AudioSource.PlayClipAtPoint(zapClip, targetPosition, 1.0f);
+            if (!BoltPool[i].gameObject.activeSelf)
+            {
+                effect = BoltPool[i];
+                break;
+            }
+        }
+
+        if (effect == null)
+        {
+            effect = CreateBolt();
+        }
+
+        effect.Activate(targetPosition);
+        SpawnSparks(targetPosition);
+        PlayZap(targetPosition);
+    }
+
+    private static void EnsurePool()
+    {
+        if (poolRoot != null) return;
+
+        poolRoot = new GameObject("Lightning Effect Pool");
+        poolRoot.hideFlags = HideFlags.DontSave;
+        DontDestroyOnLoad(poolRoot);
+
+        boltPoolRoot = CreatePoolChild("Bolts");
+        sparkPoolRoot = CreatePoolChild("Sparks");
+        CreateSharedMaterials();
+        CreateAudioSources();
+
+        for (int i = 0; i < InitialBoltPoolSize; i++)
+        {
+            CreateBolt();
+        }
+
+        for (int i = 0; i < InitialSparkPoolSize; i++)
+        {
+            CreateSpark();
+        }
+
+        zapClip = Resources.Load<AudioClip>("Audio/LightningZap");
+    }
+
+    private static Transform CreatePoolChild(string name)
+    {
+        GameObject child = new GameObject(name);
+        child.transform.SetParent(poolRoot.transform, false);
+        return child.transform;
+    }
+
+    private static void CreateSharedMaterials()
+    {
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit")
+            ?? Shader.Find("Sprites/Default");
+        if (shader == null) return;
+
+        boltMaterials = new Material[LayerCount];
+        for (int i = 0; i < LayerCount; i++)
+        {
+            boltMaterials[i] = CreateLineMaterial(
+                shader,
+                LayerColors[i],
+                i < 2,
+                3000 + i,
+                $"Lightning Bolt Layer {i}");
+        }
+
+        sparkMaterial = CreateLineMaterial(
+            shader,
+            Color.white,
+            true,
+            3010,
+            "Lightning Spark Shared Material");
+    }
+
+    private static Material CreateLineMaterial(
+        Shader shader,
+        Color color,
+        bool additive,
+        int renderQueue,
+        string materialName)
+    {
+        Material material = new Material(shader)
+        {
+            name = materialName,
+            hideFlags = HideFlags.DontSave,
+        };
+        if (material.HasProperty("_BaseColor")) material.SetColor("_BaseColor", color);
+        if (material.HasProperty("_Color")) material.SetColor("_Color", color);
+
+        if (additive)
+        {
+            material.SetFloat("_Surface", 1f);
+            material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+            material.SetInt("_DstBlend", (int)BlendMode.One);
+            material.SetInt("_ZWrite", 0);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.renderQueue = renderQueue;
+        }
+
+        return material;
+    }
+
+    private static void CreateAudioSources()
+    {
+        zapSources = new AudioSource[AudioSourcePoolSize];
+        for (int i = 0; i < zapSources.Length; i++)
+        {
+            GameObject audioObject = new GameObject($"ZapAudio_{i + 1}");
+            audioObject.transform.SetParent(poolRoot.transform, false);
+
+            AudioSource source = audioObject.AddComponent<AudioSource>();
+            source.playOnAwake = false;
+            source.loop = false;
+            source.spatialBlend = 1f;
+            source.dopplerLevel = 0f;
+            zapSources[i] = source;
         }
     }
 
-    private static AudioClip zapClip;
+    private static LightningSpawnEffect CreateBolt()
+    {
+        GameObject go = new GameObject($"LightningBolt_{BoltPool.Count + 1}");
+        go.transform.SetParent(boltPoolRoot, false);
+        go.SetActive(false);
+
+        LightningSpawnEffect effect = go.AddComponent<LightningSpawnEffect>();
+        effect.Initialize();
+        BoltPool.Add(effect);
+        return effect;
+    }
+
+    private static LightningSpark CreateSpark()
+    {
+        GameObject go = new GameObject($"LightningSpark_{SparkPool.Count + 1}");
+        go.transform.SetParent(sparkPoolRoot, false);
+        go.SetActive(false);
+
+        LightningSpark spark = go.AddComponent<LightningSpark>();
+        spark.Initialize(sparkMaterial);
+        SparkPool.Add(spark);
+        return spark;
+    }
 
     private static void SpawnSparks(Vector3 position)
     {
         int sparkCount = Random.Range(6, 10);
         for (int i = 0; i < sparkCount; i++)
         {
-            GameObject sparkGo = new GameObject("Spark");
-            LightningSpark spark = sparkGo.AddComponent<LightningSpark>();
-            spark.Init(position);
+            LightningSpark spark = null;
+            for (int j = 0; j < SparkPool.Count; j++)
+            {
+                if (!SparkPool[j].gameObject.activeSelf)
+                {
+                    spark = SparkPool[j];
+                    break;
+                }
+            }
+
+            if (spark == null)
+            {
+                spark = CreateSpark();
+            }
+
+            spark.Activate(position);
         }
     }
 
-    void Awake()
+    private static void PlayZap(Vector3 position)
     {
-        layers = new LineRenderer[LayerCount];
+        if (zapClip == null || zapSources == null || zapSources.Length == 0) return;
 
-        for (int l = 0; l < LayerCount; l++)
+        int selectedIndex = nextZapSource;
+        for (int i = 0; i < zapSources.Length; i++)
         {
-            GameObject layerGo = (l == 0) ? gameObject : new GameObject("BoltLayer" + l);
-            if (l > 0) layerGo.transform.SetParent(transform, false);
-
-            LineRenderer lr = layerGo.AddComponent<LineRenderer>();
-            lr.positionCount = Segments;
-            lr.startWidth = layerWidths[l];
-            lr.endWidth = layerWidths[l] * 0.3f;
-            lr.useWorldSpace = true;
-            lr.sortingOrder = 50 + l;
-            lr.numCapVertices = 4;
-            lr.numCornerVertices = 4;
-
-            Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-            mat.SetColor("_BaseColor", layerColors[l]);
-            if (l < 2)
+            int candidateIndex = (nextZapSource + i) % zapSources.Length;
+            if (!zapSources[candidateIndex].isPlaying)
             {
-                mat.SetFloat("_Surface", 1);
-                mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-                mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
-                mat.SetInt("_ZWrite", 0);
-                mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-                mat.renderQueue = 3000 + l;
+                selectedIndex = candidateIndex;
+                break;
+            }
+        }
+
+        AudioSource source = zapSources[selectedIndex];
+        source.transform.position = position;
+        source.clip = zapClip;
+        source.volume = SoundManager.SfxVolume;
+        source.Play();
+        nextZapSource = (selectedIndex + 1) % zapSources.Length;
+    }
+
+    private void Initialize()
+    {
+        if (initialized) return;
+
+        layers = new LineRenderer[LayerCount];
+        basePoints = new Vector3[Segments];
+
+        for (int i = 0; i < LayerCount; i++)
+        {
+            GameObject layerObject;
+            if (i == 0)
+            {
+                layerObject = gameObject;
             }
             else
             {
-                mat.SetColor("_BaseColor", layerColors[l]);
+                layerObject = new GameObject($"BoltLayer_{i}");
+                layerObject.transform.SetParent(transform, false);
             }
-            lr.material = mat;
 
-            layers[l] = lr;
+            LineRenderer line = layerObject.AddComponent<LineRenderer>();
+            line.positionCount = Segments;
+            line.startWidth = LayerWidths[i];
+            line.endWidth = LayerWidths[i] * 0.3f;
+            line.useWorldSpace = true;
+            line.sortingOrder = 50 + i;
+            line.numCapVertices = 4;
+            line.numCornerVertices = 4;
+            if (boltMaterials != null)
+            {
+                line.sharedMaterial = boltMaterials[i];
+            }
+            layers[i] = line;
         }
 
+        initialized = true;
+    }
+
+    private void Activate(Vector3 targetPosition)
+    {
+        Initialize();
+
+        strikePoint = targetPosition;
+        transform.position = targetPosition;
+        origin = new Vector3(
+            targetPosition.x + Random.Range(-1.2f, 1.2f),
+            targetPosition.y - BoltLength,
+            targetPosition.z);
         timer = Duration;
-        basePoints = new Vector3[Segments];
+        flickerFrames = 0;
+
+        for (int i = 0; i < LayerCount; i++)
+        {
+            layers[i].startWidth = LayerWidths[i];
+            layers[i].endWidth = LayerWidths[i] * 0.3f;
+        }
+
+        gameObject.SetActive(true);
         GenerateBolt();
     }
 
-    void Update()
+    private void Update()
     {
         timer -= Time.deltaTime;
         if (timer <= 0f)
         {
-            Destroy(gameObject);
+            gameObject.SetActive(false);
             return;
         }
 
@@ -136,15 +347,14 @@ public class LightningSpawnEffect : MonoBehaviour
         }
 
         float alpha = timer / Duration;
-        for (int l = 0; l < LayerCount; l++)
+        for (int i = 0; i < LayerCount; i++)
         {
-            if (layers[l] == null) continue;
-            layers[l].startWidth = layerWidths[l] * alpha;
-            layers[l].endWidth = layerWidths[l] * 0.3f * alpha;
+            layers[i].startWidth = LayerWidths[i] * alpha;
+            layers[i].endWidth = LayerWidths[i] * 0.3f * alpha;
         }
     }
 
-    void GenerateBolt()
+    private void GenerateBolt()
     {
         for (int i = 0; i < Segments; i++)
         {
@@ -159,116 +369,121 @@ public class LightningSpawnEffect : MonoBehaviour
             basePoints[i] = point;
         }
 
-        for (int l = 0; l < LayerCount; l++)
+        for (int layer = 0; layer < LayerCount; layer++)
         {
-            if (layers[l] == null) continue;
             for (int i = 0; i < Segments; i++)
             {
-                Vector3 p = basePoints[i];
-                p.z += layerZ[l];
-                if (l < 2 && i > 0 && i < Segments - 1)
+                Vector3 point = basePoints[i];
+                point.z += LayerZ[layer];
+                if (layer < 2 && i > 0 && i < Segments - 1)
                 {
-                    p.x += Random.Range(-0.05f, 0.05f);
+                    point.x += Random.Range(-0.05f, 0.05f);
                 }
-                layers[l].SetPosition(i, p);
+                layers[layer].SetPosition(i, point);
             }
         }
     }
 }
 
-/// <summary>
-/// A single spark particle that flies outward from the lightning strike point.
-/// Uses a short LineRenderer to create a glowing streak that moves, shrinks, and fades.
-/// </summary>
-public class LightningSpark : MonoBehaviour
+/// <summary>A pooled glowing streak emitted from a lightning strike.</summary>
+public sealed class LightningSpark : MonoBehaviour
 {
     private const float SparkDuration = 0.35f;
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
 
     private Vector3 velocity;
     private float life;
-    private LineRenderer lr;
+    private LineRenderer line;
     private float startWidth;
     private Color startColor;
+    private MaterialPropertyBlock propertyBlock;
+    private bool initialized;
 
-    public void Init(Vector3 position)
+    public void Initialize(Material material)
+    {
+        if (initialized) return;
+
+        line = gameObject.AddComponent<LineRenderer>();
+        line.positionCount = 2;
+        line.useWorldSpace = true;
+        line.sortingOrder = 55;
+        line.numCapVertices = 3;
+        line.sharedMaterial = material;
+        line.startColor = Color.white;
+        line.endColor = Color.white;
+        propertyBlock = new MaterialPropertyBlock();
+        initialized = true;
+    }
+
+    public void Activate(Vector3 position)
     {
         transform.position = position;
 
-        // Random outward direction (biased upward and to sides)
         float angle = Random.Range(0f, 360f) * Mathf.Deg2Rad;
         float speed = Random.Range(3f, 8f);
-        velocity = new Vector3(Mathf.Cos(angle) * speed, Mathf.Sin(angle) * speed * 0.7f, 0f);
-        // Add slight gravity pull
+        velocity = new Vector3(
+            Mathf.Cos(angle) * speed,
+            Mathf.Sin(angle) * speed * 0.7f,
+            0f);
         velocity.y += Random.Range(0.5f, 2f);
 
-        life = SparkDuration * Random.Range(0.6f, 1.0f);
+        life = SparkDuration * Random.Range(0.6f, 1f);
 
-        // Vary between white-hot and electric blue
-        float colorBlend = Random.Range(0f, 1f);
+        float colorBlend = Random.value;
         if (colorBlend < 0.4f)
-            startColor = new Color(1f, 1f, 1f, 1f);           // white-hot
+            startColor = Color.white;
         else if (colorBlend < 0.7f)
-            startColor = new Color(0.7f, 0.85f, 1f, 1f);      // blue-white
+            startColor = new Color(0.7f, 0.85f, 1f, 1f);
         else
-            startColor = new Color(1f, 0.9f, 0.4f, 1f);       // golden
+            startColor = new Color(1f, 0.9f, 0.4f, 1f);
 
         startWidth = Random.Range(0.08f, 0.2f);
+        line.startWidth = startWidth;
+        line.endWidth = startWidth * 0.3f;
+        SetColor(startColor);
 
-        lr = gameObject.AddComponent<LineRenderer>();
-        lr.positionCount = 2;
-        lr.startWidth = startWidth;
-        lr.endWidth = startWidth * 0.3f;
-        lr.useWorldSpace = true;
-        lr.sortingOrder = 55;
-        lr.numCapVertices = 3;
-
-        // Additive material for bright glow
-        Material mat = new Material(Shader.Find("Universal Render Pipeline/Unlit"));
-        mat.SetColor("_BaseColor", startColor);
-        mat.SetFloat("_Surface", 1);
-        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
-        mat.SetInt("_ZWrite", 0);
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        mat.renderQueue = 3010;
-        lr.material = mat;
-
+        gameObject.SetActive(true);
         UpdatePositions();
     }
 
-    void Update()
+    private void Update()
     {
         life -= Time.deltaTime;
         if (life <= 0f)
         {
-            Destroy(gameObject);
+            gameObject.SetActive(false);
             return;
         }
 
-        // Gravity and drag
         velocity.y -= 12f * Time.deltaTime;
-        velocity *= (1f - 2.5f * Time.deltaTime);
-
+        velocity *= 1f - 2.5f * Time.deltaTime;
         transform.position += velocity * Time.deltaTime;
 
-        float frac = life / SparkDuration;
-        lr.startWidth = startWidth * frac;
-        lr.endWidth = startWidth * 0.3f * frac;
+        float fraction = life / SparkDuration;
+        line.startWidth = startWidth * fraction;
+        line.endWidth = startWidth * 0.3f * fraction;
 
-        // Fade color
-        Color c = startColor;
-        c.a = frac;
-        lr.material.SetColor("_BaseColor", c);
+        Color fadedColor = startColor;
+        fadedColor.a = fraction;
+        SetColor(fadedColor);
 
         UpdatePositions();
     }
 
-    void UpdatePositions()
+    private void UpdatePositions()
     {
-        // Streak: head at current pos, tail trailing behind along velocity
         Vector3 head = transform.position;
         Vector3 tail = head - velocity.normalized * (startWidth * 3f);
-        lr.SetPosition(0, tail);
-        lr.SetPosition(1, head);
+        line.SetPosition(0, tail);
+        line.SetPosition(1, head);
+    }
+
+    private void SetColor(Color color)
+    {
+        propertyBlock.Clear();
+        propertyBlock.SetColor(BaseColorId, color);
+        propertyBlock.SetColor(ColorId, color);
+        line.SetPropertyBlock(propertyBlock);
     }
 }

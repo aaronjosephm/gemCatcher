@@ -68,8 +68,7 @@ public class TutorialOverlay : MonoBehaviour
         pressLabel.alignment = TextAlignmentOptions.Center;
         pressLabel.color = Color.white;
         pressLabel.raycastTarget = false;
-        pressLabel.outlineWidth = 0.25f;
-        pressLabel.outlineColor = new Color(0f, 0f, 0f, 0.7f);
+        GameTextStyle.Apply(pressLabel);
 
         // White circle below the label.
         GameObject circleGo = new GameObject("Circle", typeof(RectTransform));
@@ -154,4 +153,3 @@ public class TutorialOverlay : MonoBehaviour
         pressLabel.color = new Color(1f, 1f, 1f, alpha);
     }
 }
-

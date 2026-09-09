@@ -1,5 +1,5 @@
 fileFormatVersion: 2
-guid: c8f672fb5e8eb4046a932f502a2ed0f2
+guid: c749ddef31f004d5dba022f7a5404311
 TrueTypeFontImporter:
   externalObjects: {}
   serializedVersion: 4
@@ -9,7 +9,7 @@ TrueTypeFontImporter:
   characterPadding: 1
   includeFontData: 1
   fontNames:
-  - Nunito
+  - Fredoka One
   fallbackFontReferences: []
   customCharacters: 
   fontRenderingMode: 0
