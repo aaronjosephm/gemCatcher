@@ -315,7 +315,7 @@ public class CatcherManager : MonoBehaviour
         if (rushConfig == null) return RushBaseFallSpeed;
 
         float elapsed = Time.time - rushRoundStartTime;
-        return rushConfig.GetTier(elapsed).fallSpeed;
+        return rushConfig.GetFallSpeed(elapsed);
     }
 
     private float rushRoundStartTime;

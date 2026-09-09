@@ -80,9 +80,7 @@ public class CatchZone : MonoBehaviour
     {
         Vector3 gemPosition = fo.transform.position;
 
-        // Use SphereCollider radius if available, same fallback as original.
-        SphereCollider sc = fo.GetComponent<SphereCollider>();
-        float gemRadius = sc != null ? sc.radius * fo.transform.localScale.x : 0.1f;
+        float gemRadius = fo.CatchRadius;
 
         bool withinX = Mathf.Abs(gemPosition.x - catcherCenter.x) <= (catcherSize.x / 2 + gemRadius);
         bool withinY = Mathf.Abs(gemPosition.y - catcherCenter.y) <= (catcherSize.y / 2 + gemRadius);

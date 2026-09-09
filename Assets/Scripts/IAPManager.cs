@@ -60,7 +60,7 @@ public class IAPManager : MonoBehaviour, IStoreListener
         }
     }
 
-    /// <summary>Raised once, right after ads are removed (purchase or restore), so UI can refresh (e.g. hide the "Remove Ads" button).</summary>
+    /// <summary>Raised once, right after ads are removed (purchase or restore), so purchase UI can refresh its owned state.</summary>
     public static event Action OnAdsRemoved;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]

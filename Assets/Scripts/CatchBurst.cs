@@ -1,80 +1,171 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// One-shot particle pop spawned when a gem is caught. Rendered procedurally so no
-/// asset setup is required; just call <see cref="Spawn(Vector3, Color)"/>.
-///
-/// The burst lives for ~0.6s, scales with screen size via the orthographic camera, and
-/// destroys itself when the particle system finishes.
+/// Reusable particle pop played when a gem is caught. Instances and their material
+/// are prewarmed so catches do not construct or destroy rendering objects at runtime.
 /// </summary>
-public static class CatchBurst
+public sealed class CatchBurst : MonoBehaviour
 {
+  private const int InitialPoolSize = 12;
+
+  private static readonly List<CatchBurst> Pool = new List<CatchBurst>(16);
+  private static GameObject poolRoot;
+  private static Material sharedMaterial;
+
+  private ParticleSystem particles;
+  private bool initialized;
+
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+  private static void ResetStaticState()
+  {
+    Pool.Clear();
+    poolRoot = null;
+    sharedMaterial = null;
+  }
+
+  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+  private static void Prewarm()
+  {
+    EnsurePool();
+  }
+
   public static void Spawn(Vector3 worldPosition, Color color)
   {
-    GameObject go = new GameObject("CatchBurst");
-    go.transform.position = worldPosition;
+    EnsurePool();
 
-    ParticleSystem ps = go.AddComponent<ParticleSystem>();
-    // Stop before configuring so the changes apply atomically.
-    ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+    CatchBurst burst = null;
+    for (int i = 0; i < Pool.Count; i++)
+    {
+      if (!Pool[i].gameObject.activeSelf)
+      {
+        burst = Pool[i];
+        break;
+      }
+    }
 
-    var main = ps.main;
+    if (burst == null)
+    {
+      burst = CreateBurst();
+    }
+
+    burst.Play(worldPosition, color);
+  }
+
+  private static void EnsurePool()
+  {
+    if (poolRoot != null) return;
+
+    poolRoot = new GameObject("Catch Burst Pool");
+    poolRoot.hideFlags = HideFlags.DontSave;
+    DontDestroyOnLoad(poolRoot);
+
+    Shader shader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
+      ?? Shader.Find("Sprites/Default");
+    if (shader != null)
+    {
+      sharedMaterial = new Material(shader)
+      {
+        name = "Catch Burst Shared Material",
+        hideFlags = HideFlags.DontSave,
+      };
+    }
+
+    for (int i = 0; i < InitialPoolSize; i++)
+    {
+      CreateBurst();
+    }
+  }
+
+  private static CatchBurst CreateBurst()
+  {
+    GameObject go = new GameObject($"CatchBurst_{Pool.Count + 1}");
+    go.transform.SetParent(poolRoot.transform, false);
+    go.SetActive(false);
+
+    ParticleSystem particleSystem = go.AddComponent<ParticleSystem>();
+    CatchBurst burst = go.AddComponent<CatchBurst>();
+    burst.Initialize(particleSystem);
+    Pool.Add(burst);
+    return burst;
+  }
+
+  private void Initialize(ParticleSystem particleSystem)
+  {
+    if (initialized) return;
+
+    particles = particleSystem;
+    particles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+    ParticleSystem.MainModule main = particles.main;
     main.duration = 0.6f;
     main.loop = false;
     main.startLifetime = 0.55f;
     main.startSpeed = 4.5f;
     main.startSize = 0.18f;
-    main.startColor = color;
+    main.startColor = Color.white;
     main.maxParticles = 60;
     main.simulationSpace = ParticleSystemSimulationSpace.World;
     main.gravityModifier = 1.4f;
     main.playOnAwake = false;
-    main.stopAction = ParticleSystemStopAction.Destroy;
+    main.stopAction = ParticleSystemStopAction.Callback;
 
-    var emission = ps.emission;
+    ParticleSystem.EmissionModule emission = particles.emission;
     emission.rateOverTime = 0f;
     emission.SetBursts(new[] { new ParticleSystem.Burst(0f, 28) });
 
-    var shape = ps.shape;
+    ParticleSystem.ShapeModule shape = particles.shape;
     shape.shapeType = ParticleSystemShapeType.Sphere;
     shape.radius = 0.05f;
 
-    var sizeOverLifetime = ps.sizeOverLifetime;
+    ParticleSystem.SizeOverLifetimeModule sizeOverLifetime = particles.sizeOverLifetime;
     sizeOverLifetime.enabled = true;
-    AnimationCurve sizeCurve = new AnimationCurve(
+    sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(
+      1f,
+      new AnimationCurve(
         new Keyframe(0f, 1f),
         new Keyframe(0.4f, 0.85f),
-        new Keyframe(1f, 0f));
-    sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+        new Keyframe(1f, 0f)));
 
-    var colorOverLifetime = ps.colorOverLifetime;
+    ParticleSystem.ColorOverLifetimeModule colorOverLifetime = particles.colorOverLifetime;
     colorOverLifetime.enabled = true;
-    Gradient g = new Gradient();
-    g.SetKeys(
-        new[]
-        {
-            new GradientColorKey(color, 0f),
-            new GradientColorKey(color, 0.7f),
-            new GradientColorKey(new Color(color.r, color.g, color.b, 0f), 1f)
-        },
-        new[]
-        {
-            new GradientAlphaKey(1f, 0f),
-            new GradientAlphaKey(0.85f, 0.5f),
-            new GradientAlphaKey(0f, 1f)
-        });
-    colorOverLifetime.color = g;
+    Gradient fade = new Gradient();
+    fade.SetKeys(
+      new[]
+      {
+        new GradientColorKey(Color.white, 0f),
+        new GradientColorKey(Color.white, 1f),
+      },
+      new[]
+      {
+        new GradientAlphaKey(1f, 0f),
+        new GradientAlphaKey(0.85f, 0.5f),
+        new GradientAlphaKey(0f, 1f),
+      });
+    colorOverLifetime.color = fade;
 
-    // Built-in particle material — small bright sprites that work in the BiRP and URP
-    // without dragging in any project assets.
-    ParticleSystemRenderer renderer = go.GetComponent<ParticleSystemRenderer>();
-    if (renderer != null)
+    ParticleSystemRenderer particleRenderer = GetComponent<ParticleSystemRenderer>();
+    if (particleRenderer != null && sharedMaterial != null)
     {
-      Shader spriteShader = Shader.Find("Universal Render Pipeline/Particles/Unlit")
-                        ?? Shader.Find("Sprites/Default");
-      if (spriteShader != null) renderer.material = new Material(spriteShader);
+      particleRenderer.sharedMaterial = sharedMaterial;
     }
 
-    ps.Play();
+    initialized = true;
+  }
+
+  private void Play(Vector3 worldPosition, Color color)
+  {
+    transform.position = worldPosition;
+
+    ParticleSystem.MainModule main = particles.main;
+    main.startColor = color;
+
+    gameObject.SetActive(true);
+    particles.Play(true);
+  }
+
+  private void OnParticleSystemStopped()
+  {
+    gameObject.SetActive(false);
   }
 }

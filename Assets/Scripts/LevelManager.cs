@@ -11,12 +11,13 @@ public static class LevelManager
 {
     public enum LevelId { Cave, Jungle, Space, Lava }
 
+    public const string GameplaySceneName = "Gameplay";
+
     [System.Serializable]
     public struct LevelConfig
     {
         public LevelId id;
         public string displayName;
-        public string sceneName;             // Scene to load for this level
         public string backgroundResource;   // Resources/ path to background texture
         public string backgroundMaterialResource; // Resources/ path to a Material (overrides texture)
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
@@ -43,7 +44,6 @@ public static class LevelManager
         {
             id = LevelId.Cave,
             displayName = "Crystal Cave",
-            sceneName = "SampleScene",
             backgroundResource = "Backgrounds/CaveBackground",
             midgroundResource = "Backgrounds/MidgroundCave",
             musicResource = "Audio/BackgroundMusic",
@@ -62,7 +62,6 @@ public static class LevelManager
         {
             id = LevelId.Jungle,
             displayName = "Jungle Falls",
-            sceneName = "JungleFalls",
             backgroundResource = "Backgrounds/WaterfallBackground",
             midgroundResource = null,
             musicResource = "Audio/JungleMusic",
@@ -81,7 +80,6 @@ public static class LevelManager
         {
             id = LevelId.Space,
             displayName = "Deep Space",
-            sceneName = "DeepSpace",
             backgroundResource = "Backgrounds/SpaceBackground",
             midgroundResource = null,
             musicResource = "Audio/SpaceMusic",
@@ -101,7 +99,6 @@ public static class LevelManager
         {
             id = LevelId.Lava,
             displayName = "Bay Lookout",
-            sceneName = "LavaLamp",
             backgroundResource = "Backgrounds/BayLookoutBackground",
             backgroundMaterialResource = null,
             midgroundResource = null,

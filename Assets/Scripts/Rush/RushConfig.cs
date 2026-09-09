@@ -167,6 +167,73 @@ public class RushConfig : ScriptableObject
         return difficultyTiers[0];
     }
 
+    /// <summary>
+    /// Evaluates the current tier into caller-owned storage, avoiding the allocation
+    /// performed by interpolated <see cref="GetTier"/> calls.
+    /// </summary>
+    public void EvaluateTier(float elapsedTime, DifficultyTier result)
+    {
+        if (result == null)
+            throw new System.ArgumentNullException(nameof(result));
+
+        if (difficultyTiers == null || difficultyTiers.Length == 0)
+        {
+            SetDefaultTier(result);
+            return;
+        }
+
+        if (difficultyTiers.Length == 1)
+        {
+            CopyTier(difficultyTiers[0], result);
+            return;
+        }
+
+        for (int i = difficultyTiers.Length - 1; i >= 0; i--)
+        {
+            if (elapsedTime < difficultyTiers[i].startTime) continue;
+
+            if (i == difficultyTiers.Length - 1)
+            {
+                CopyTier(difficultyTiers[i], result);
+                return;
+            }
+
+            DifficultyTier a = difficultyTiers[i];
+            DifficultyTier b = difficultyTiers[i + 1];
+            float range = b.startTime - a.startTime;
+            float t = range > 0f
+                ? Mathf.Clamp01((elapsedTime - a.startTime) / range)
+                : 0f;
+            LerpTierInto(a, b, t, result);
+            return;
+        }
+
+        CopyTier(difficultyTiers[0], result);
+    }
+
+    /// <summary>Allocation-free fall-speed lookup for per-frame movement code.</summary>
+    public float GetFallSpeed(float elapsedTime)
+    {
+        if (difficultyTiers == null || difficultyTiers.Length == 0) return 3f;
+        if (difficultyTiers.Length == 1) return difficultyTiers[0].fallSpeed;
+
+        for (int i = difficultyTiers.Length - 1; i >= 0; i--)
+        {
+            if (elapsedTime < difficultyTiers[i].startTime) continue;
+            if (i == difficultyTiers.Length - 1) return difficultyTiers[i].fallSpeed;
+
+            DifficultyTier a = difficultyTiers[i];
+            DifficultyTier b = difficultyTiers[i + 1];
+            float range = b.startTime - a.startTime;
+            float t = range > 0f
+                ? Mathf.Clamp01((elapsedTime - a.startTime) / range)
+                : 0f;
+            return Mathf.Lerp(a.fallSpeed, b.fallSpeed, t);
+        }
+
+        return difficultyTiers[0].fallSpeed;
+    }
+
     /// <summary>Linearly interpolate all numeric fields between two tiers.</summary>
     static DifficultyTier LerpTier(DifficultyTier a, DifficultyTier b, float t)
     {
@@ -181,5 +248,45 @@ public class RushConfig : ScriptableObject
             wavePauseOverride      = Mathf.Lerp(a.wavePauseOverride, b.wavePauseOverride, t),
             redGemChance           = Mathf.Lerp(a.redGemChance, b.redGemChance, t),
         };
+    }
+
+    static void LerpTierInto(
+        DifficultyTier a,
+        DifficultyTier b,
+        float t,
+        DifficultyTier result)
+    {
+        result.startTime = Mathf.Lerp(a.startTime, b.startTime, t);
+        result.fallSpeed = Mathf.Lerp(a.fallSpeed, b.fallSpeed, t);
+        result.maxRows = Mathf.RoundToInt(Mathf.Lerp(a.maxRows, b.maxRows, t));
+        result.safeCorridorFraction = Mathf.Lerp(a.safeCorridorFraction, b.safeCorridorFraction, t);
+        result.complexPatternWeight = Mathf.Lerp(a.complexPatternWeight, b.complexPatternWeight, t);
+        result.poisonGemChance = Mathf.Lerp(a.poisonGemChance, b.poisonGemChance, t);
+        result.wavePauseOverride = Mathf.Lerp(a.wavePauseOverride, b.wavePauseOverride, t);
+        result.redGemChance = Mathf.Lerp(a.redGemChance, b.redGemChance, t);
+    }
+
+    static void CopyTier(DifficultyTier source, DifficultyTier result)
+    {
+        result.startTime = source.startTime;
+        result.fallSpeed = source.fallSpeed;
+        result.maxRows = source.maxRows;
+        result.safeCorridorFraction = source.safeCorridorFraction;
+        result.complexPatternWeight = source.complexPatternWeight;
+        result.poisonGemChance = source.poisonGemChance;
+        result.wavePauseOverride = source.wavePauseOverride;
+        result.redGemChance = source.redGemChance;
+    }
+
+    static void SetDefaultTier(DifficultyTier result)
+    {
+        result.startTime = 0f;
+        result.fallSpeed = 3f;
+        result.maxRows = 2;
+        result.safeCorridorFraction = 0.6f;
+        result.complexPatternWeight = 0f;
+        result.poisonGemChance = 0f;
+        result.wavePauseOverride = 0f;
+        result.redGemChance = 0f;
     }
 }

@@ -54,9 +54,7 @@ public static class CrystalButtonStyle
         {
             tmp.color = Color.white;
             tmp.fontStyle = TMPro.FontStyles.Bold;
-            // Add a subtle shadow to the text for readability.
-            tmp.outlineWidth = 0.15f;
-            tmp.outlineColor = new Color32(0, 0, 0, 100);
+            GameTextStyle.Apply(tmp);
         }
     }
 

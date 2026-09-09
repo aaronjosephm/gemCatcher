@@ -38,10 +38,25 @@ public class FallingObject : MonoBehaviour
     private Vector3 rotationSpeed;
     private float objectHalfWidth;
     private float objectHalfHeight;
-    private Camera mainCamera;
     private float leftBoundary;
     private float rightBoundary;
     private float bottomBoundary;
+    private SphereCollider catchCollider;
+
+    /// <summary>World-space catch radius cached from the optional sphere collider.</summary>
+    public float CatchRadius
+    {
+        get
+        {
+            if (catchCollider == null)
+            {
+                catchCollider = GetComponent<SphereCollider>();
+            }
+            return catchCollider != null
+                ? catchCollider.radius * transform.localScale.x
+                : 0.1f;
+        }
+    }
 
     // Collision settings
     public float bounceFactor = 0.8f; // How much velocity is preserved after bouncing
@@ -558,9 +573,6 @@ public class FallingObject : MonoBehaviour
             movementDirection = new Vector3(initialHorizontalSpeed, -fallSpeed, 0f);
         }
 
-#if UNITY_EDITOR
-        Debug.Log($"Gem initialized with fall speed: {fallSpeed}, horizontal speed: {initialHorizontalSpeed}");
-#endif
     }
 
     // Helper method to initialize components and cache values
@@ -580,9 +592,12 @@ public class FallingObject : MonoBehaviour
             objectHalfHeight = GetComponent<Renderer>().bounds.extents.y;
         }
 
-        // Cache camera and calculate boundaries
-        mainCamera = Camera.main;
+        // Cache the current play-area bounds.
         CalculateBoundaries();
+        if (catchCollider == null)
+        {
+            catchCollider = GetComponent<SphereCollider>();
+        }
 
         // Get trail renderer if it exists
         trailRenderer = GetComponent<TrailRenderer>();
@@ -594,8 +609,8 @@ public class FallingObject : MonoBehaviour
 
     void Update()
     {
-        // Recompute boundaries each frame so they track Screen.safeArea (changes on
-        // device rotation / multitasking on mobile). Cheap to recompute.
+        // ScreenPadding performs the display/projection change detection centrally,
+        // so all active objects share the same cached conversion.
         CalculateBoundaries();
 
         float dt = Time.deltaTime;
@@ -625,8 +640,12 @@ public class FallingObject : MonoBehaviour
         // Check and enforce boundaries
         EnforceBoundaries();
 
-        // Check for collisions with obstacles
-        CheckObstacleCollisions();
+        // A zero mask cannot hit anything. Most current prefabs use that default,
+        // so avoid issuing a no-op physics query for every falling object.
+        if (obstacleLayer.value != 0)
+        {
+            CheckObstacleCollisions();
+        }
 
         // Check if the object has fallen past the catcher line — this can only happen
         // if the gem was NOT caught (CatchZone deactivates caught gems via OnTriggerEnter),
@@ -718,14 +737,13 @@ public class FallingObject : MonoBehaviour
 
     void CalculateBoundaries()
     {
-        if (mainCamera != null)
-        {
-            // Bounce / miss inside the safe play area so gems never disappear behind a
-            // notch or gesture bar.
-            rightBoundary = ScreenPadding.WorldRight;
-            leftBoundary = ScreenPadding.WorldLeft;
-            bottomBoundary = ScreenPadding.WorldBottom;
-        }
+        // Bounce / miss inside the safe play area so gems never disappear behind a
+        // notch or gesture bar.
+        ScreenPadding.GetWorldBounds(
+            out leftBoundary,
+            out rightBoundary,
+            out bottomBoundary,
+            out _);
     }
 
     void EnforceBoundaries()
@@ -762,6 +780,8 @@ public class FallingObject : MonoBehaviour
 
     void CheckObstacleCollisions()
     {
+        if (movementDirection.sqrMagnitude <= Mathf.Epsilon) return;
+
         // Cast a ray in the movement direction to detect obstacles. Length is
         // scaled to the actual per-frame movement so we don't over-cast.
         RaycastHit hit;
@@ -837,8 +857,5 @@ public class FallingObject : MonoBehaviour
         float scaledHorizontalSpeed = Mathf.Abs(initialHorizontalSpeed) * speedMultiplier;
         movementDirection.x = currentHorizontalDirection * scaledHorizontalSpeed;
 
-#if UNITY_EDITOR
-        Debug.Log($"Speed updated - Vertical: {fallSpeed}, Horizontal: {movementDirection.x}, Multiplier: {speedMultiplier}");
-#endif
     }
 }
