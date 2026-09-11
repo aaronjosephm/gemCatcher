@@ -77,6 +77,7 @@ public class SpawnDirector : MonoBehaviour
 
     // Single rock pool (all same size).
     private List<GameObject> rockPool;
+    private readonly List<GameObject> standaloneDrops = new List<GameObject>();
 
     // Pre-loaded rock prefabs.
     private GameObject[] rockPrefabs;
@@ -254,6 +255,7 @@ public class SpawnDirector : MonoBehaviour
                 nextDiceDropTime = float.MaxValue;
             }
         }
+
         if (elapsed >= nextMasterGemDropTime)
         {
             nextMasterGemDropTime = elapsed + MasterGemDropInterval;
@@ -316,6 +318,29 @@ public class SpawnDirector : MonoBehaviour
                 activeWave = null;
             }
         }
+    }
+
+    public void ClearActiveRushObjects()
+    {
+        if (rockPool != null)
+        {
+            for (int i = 0; i < rockPool.Count; i++)
+            {
+                if (rockPool[i] != null && rockPool[i].activeSelf)
+                {
+                    rockPool[i].SetActive(false);
+                }
+            }
+        }
+
+        for (int i = standaloneDrops.Count - 1; i >= 0; i--)
+        {
+            GameObject drop = standaloneDrops[i];
+            if (drop == null) continue;
+            drop.SetActive(false);
+            Destroy(drop);
+        }
+        standaloneDrops.Clear();
     }
 
     void SpawnRow(WaveDefinition.Row row, float fallSpeed)
@@ -560,6 +585,7 @@ public class SpawnDirector : MonoBehaviour
         }
 
         obj.SetActive(true);
+        standaloneDrops.Add(obj);
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Magnet power-up spawned at ({x:F2}, {y:F2})");
@@ -603,6 +629,7 @@ public class SpawnDirector : MonoBehaviour
         glow.glowRadius = 1.5f;
 
         obj.SetActive(true);
+        standaloneDrops.Add(obj);
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Shield power-up spawned at ({x:F2}, {y:F2})");
@@ -657,6 +684,7 @@ public class SpawnDirector : MonoBehaviour
         glow.glowRadius = 1.5f;
 
         obj.SetActive(true);
+        standaloneDrops.Add(obj);
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Dice (swap) power-up spawned at ({x:F2}, {y:F2})");
@@ -700,6 +728,7 @@ public class SpawnDirector : MonoBehaviour
         glow.glowRadius = 2f;
 
         obj.SetActive(true);
+        standaloneDrops.Add(obj);
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
@@ -769,6 +798,7 @@ public class SpawnDirector : MonoBehaviour
         glow.glowRadius = 2f;
 
         obj.SetActive(true);
+        standaloneDrops.Add(obj);
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Key drop spawned at ({x:F2}, {y:F2})");

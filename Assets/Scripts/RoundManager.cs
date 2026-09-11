@@ -40,6 +40,17 @@ public class RoundManager : MonoBehaviour
     public int Score { get; private set; }
     public int Lives { get; private set; } = STARTING_LIVES;
     public bool IsGameOver { get; private set; }
+    public bool HasOfferedRewardedContinue { get; private set; }
+    public bool HasUsedRewardedContinue { get; private set; }
+    public bool IsRewardedContinuePending { get; private set; }
+
+    public bool CanOfferRewardedContinue =>
+        IsGameOver
+        && IsRewardedContinuePending
+        && !HasOfferedRewardedContinue
+        && !HasUsedRewardedContinue
+        && !GameState.IsTutorial
+        && GameState.Mode != GameState.GameMode.Daily;
 
     /// <summary>
     /// Per-gem catch counts keyed by prefab name (with "(Clone)" stripped).
@@ -56,6 +67,12 @@ public class RoundManager : MonoBehaviour
 
     /// <summary>Fired exactly once when the player runs out of lives or EndGame is called.</summary>
     public event System.Action OnGameOver;
+
+    /// <summary>
+    /// Fired when a game over becomes final and gameplay objects can be retired.
+    /// The first rewarded-continue offer delays this until the player declines.
+    /// </summary>
+    public event System.Action OnGameOverFinalized;
 
     /// <summary>Fired when the player catches the MasterGem and wins the game.</summary>
     public event System.Action OnGameWon;
@@ -135,8 +152,47 @@ public class RoundManager : MonoBehaviour
     public void EndGame()
     {
         if (IsGameOver) return;
-        IsGameOver = true;
-        OnGameOver?.Invoke();
+        BeginGameOver();
+    }
+
+    public bool TryMarkRewardedContinueOffered()
+    {
+        if (!CanOfferRewardedContinue) return false;
+        HasOfferedRewardedContinue = true;
+        return true;
+    }
+
+    /// <summary>
+    /// Resumes the current run after a verified rewarded-ad completion.
+    /// Score, catch totals, mode progression, and run seed remain unchanged.
+    /// </summary>
+    public bool ContinueAfterRewardedAd()
+    {
+        if (!IsGameOver
+            || !IsRewardedContinuePending
+            || !HasOfferedRewardedContinue
+            || HasUsedRewardedContinue
+            || GameState.IsTutorial
+            || GameState.Mode == GameState.GameMode.Daily)
+        {
+            return false;
+        }
+
+        HasUsedRewardedContinue = true;
+        IsRewardedContinuePending = false;
+        Lives = Mathf.Min(STARTING_LIVES, EffectiveMaxLives);
+        IsGameOver = false;
+        OnLivesChanged?.Invoke(Lives);
+        return true;
+    }
+
+    public bool FinalizeRewardedContinueDecline()
+    {
+        if (!IsGameOver || !IsRewardedContinuePending) return false;
+
+        IsRewardedContinuePending = false;
+        OnGameOverFinalized?.Invoke();
+        return true;
     }
 
     /// <summary>
@@ -175,6 +231,7 @@ public class RoundManager : MonoBehaviour
     {
         Score = 0;
         CatchesByGemName.Clear();
+        ResetRewardedContinueState();
         OnScoreChanged?.Invoke(Score);
     }
 
@@ -182,6 +239,7 @@ public class RoundManager : MonoBehaviour
     {
         Lives = STARTING_LIVES;
         IsGameOver = false;
+        ResetRewardedContinueState();
         OnLivesChanged?.Invoke(Lives);
     }
 
@@ -198,10 +256,32 @@ public class RoundManager : MonoBehaviour
 
         if (Lives <= 0 && previousLives > 0 && !IsGameOver)
         {
-            IsGameOver = true;
             CameraShake.Shake(0.35f, 0.55f);
-            OnGameOver?.Invoke();
+            BeginGameOver();
         }
+    }
+
+    private void BeginGameOver()
+    {
+        IsGameOver = true;
+        IsRewardedContinuePending =
+            !HasOfferedRewardedContinue
+            && !HasUsedRewardedContinue
+            && !GameState.IsTutorial
+            && GameState.Mode != GameState.GameMode.Daily;
+
+        OnGameOver?.Invoke();
+        if (!IsRewardedContinuePending)
+        {
+            OnGameOverFinalized?.Invoke();
+        }
+    }
+
+    private void ResetRewardedContinueState()
+    {
+        HasOfferedRewardedContinue = false;
+        HasUsedRewardedContinue = false;
+        IsRewardedContinuePending = false;
     }
 
     // ---- Bootstrap ---------------------------------------------------------

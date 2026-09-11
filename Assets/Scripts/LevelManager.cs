@@ -4,14 +4,18 @@ using UnityEngine;
 /// Central level/theme management. Tracks which level is selected, which
 /// levels are unlocked, and provides difficulty parameters to ObjectPooler.
 ///
-/// Levels unlock based on best score thresholds. The selected level persists
-/// in PlayerPrefs so the player returns to their last choice.
+/// Each locked level is unlocked by catching the key that drops at its score
+/// threshold in the preceding level. The selected level and unlocks persist in
+/// PlayerPrefs so the player returns to their last choice.
 /// </summary>
 public static class LevelManager
 {
     public enum LevelId { Cave, Jungle, Space, Lava }
 
     public const string GameplaySceneName = "Gameplay";
+    public const int JungleUnlockScore = 10_000;
+    public const int SpaceUnlockScore = 25_000;
+    public const int LavaUnlockScore = 50_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -66,7 +70,7 @@ public static class LevelManager
             midgroundResource = null,
             musicResource = "Audio/JungleMusic",
             extraGemPrefabs = new[] { "Gems/BlueGem" },
-            unlockScore = 100,
+            unlockScore = JungleUnlockScore,
             cameraColor = new Color(0.08f, 0.15f, 0.10f, 1f),
             initialFallSpeed = 4.0f,
             initialSpawnInterval = 2.4f,
@@ -84,7 +88,7 @@ public static class LevelManager
             midgroundResource = null,
             musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = new[] { "Gems/BlueGem" },
-            unlockScore = 100,
+            unlockScore = SpaceUnlockScore,
             cameraColor = new Color(0.01f, 0.02f, 0.06f, 1f),
             initialFallSpeed = 4.5f,
             initialSpawnInterval = 2.0f,
@@ -104,7 +108,7 @@ public static class LevelManager
             midgroundResource = null,
             musicResource = "Audio/BayLookoutMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_22" },
-            unlockScore = 100,
+            unlockScore = LavaUnlockScore,
             cameraColor = new Color(0.02f, 0.08f, 0.18f, 1f),
             initialFallSpeed = 5.0f,
             initialSpawnInterval = 1.8f,
@@ -120,6 +124,9 @@ public static class LevelManager
 
     private const string SelectedKey = "SelectedLevel";
     private const string UnlockNotifiedKey = "LevelUnlockNotified_";
+    private const string UnlockProgressionVersionKey = "LevelUnlockProgressionVersion";
+    private const int CurrentUnlockProgressionVersion = 1;
+    private static bool unlockProgressionInitialized;
 
     public static LevelConfig[] AllLevels => levels;
 
@@ -127,13 +134,24 @@ public static class LevelManager
     {
         get
         {
+            EnsureUnlockProgressionInitialized();
             string saved = PlayerPrefs.GetString(SelectedKey, LevelId.Cave.ToString());
-            if (System.Enum.TryParse<LevelId>(saved, out var id)) return id;
+
+            if (System.Enum.TryParse<LevelId>(saved, out var id)
+                && System.Enum.IsDefined(typeof(LevelId), id)
+                && IsUnlocked(id))
+                return id;
+
+            PlayerPrefs.SetString(SelectedKey, LevelId.Cave.ToString());
+            PlayerPrefs.Save();
             return LevelId.Cave;
         }
         set
         {
-            PlayerPrefs.SetString(SelectedKey, value.ToString());
+            EnsureUnlockProgressionInitialized();
+            bool valid = System.Enum.IsDefined(typeof(LevelId), value);
+            LevelId selected = valid && IsUnlocked(value) ? value : LevelId.Cave;
+            PlayerPrefs.SetString(SelectedKey, selected.ToString());
             PlayerPrefs.Save();
         }
     }
@@ -177,6 +195,7 @@ public static class LevelManager
     /// </summary>
     public static bool IsUnlocked(LevelId id)
     {
+        EnsureUnlockProgressionInitialized();
         if (AllLevelsUnlocked) return true;
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
@@ -188,6 +207,7 @@ public static class LevelManager
     /// </summary>
     public static void UnlockLevel(LevelId id)
     {
+        EnsureUnlockProgressionInitialized();
         PlayerPrefs.SetInt("KeyUnlocked_" + id, 1);
         PlayerPrefs.Save();
     }
@@ -222,6 +242,7 @@ public static class LevelManager
     /// </summary>
     public static LevelId? CheckNewUnlock()
     {
+        EnsureUnlockProgressionInitialized();
         foreach (var l in levels)
         {
             if (l.unlockScore <= 0) continue;
@@ -235,5 +256,41 @@ public static class LevelManager
             }
         }
         return null;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticState()
+    {
+        unlockProgressionInitialized = false;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    private static void InitializeUnlockProgression()
+    {
+        EnsureUnlockProgressionInitialized();
+    }
+
+    private static void EnsureUnlockProgressionInitialized()
+    {
+        if (unlockProgressionInitialized) return;
+        unlockProgressionInitialized = true;
+
+        int savedVersion = PlayerPrefs.GetInt(UnlockProgressionVersionKey, 0);
+        if (savedVersion >= CurrentUnlockProgressionVersion) return;
+
+        // Pre-release builds used a 100-point threshold for every key. Reset
+        // only that obsolete unlock state so installed test builds start the
+        // new progression with Crystal Cave while preserving scores, points,
+        // cosmetics, settings, and purchase entitlements.
+        foreach (var level in levels)
+        {
+            if (level.unlockScore <= 0) continue;
+            PlayerPrefs.DeleteKey("KeyUnlocked_" + level.id);
+            PlayerPrefs.DeleteKey(UnlockNotifiedKey + level.id);
+        }
+
+        PlayerPrefs.SetString(SelectedKey, LevelId.Cave.ToString());
+        PlayerPrefs.SetInt(UnlockProgressionVersionKey, CurrentUnlockProgressionVersion);
+        PlayerPrefs.Save();
     }
 }

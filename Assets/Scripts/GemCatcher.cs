@@ -58,6 +58,12 @@ public class GemCatcher : MonoBehaviour
         remove { if (RM != null) RM.OnGameOver -= value; }
     }
 
+    public static event System.Action OnGameOverFinalized
+    {
+        add { if (RM != null) RM.OnGameOverFinalized += value; }
+        remove { if (RM != null) RM.OnGameOverFinalized -= value; }
+    }
+
     public static event System.Action OnGameWon
     {
         add { if (RM != null) RM.OnGameWon += value; }

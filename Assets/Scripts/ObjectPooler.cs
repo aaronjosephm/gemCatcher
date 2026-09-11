@@ -333,7 +333,7 @@ public class ObjectPooler : MonoBehaviour
 
         // Subscribe to score change events to update difficulty
         GemCatcher.OnScoreChanged += CheckDifficultyProgression;
-        GemCatcher.OnGameOver += HandleGameOver;
+        GemCatcher.OnGameOverFinalized += HandleGameOver;
 
         // Start the spawning process
         nextSpawnTime = Time.time + currentSpawnInterval;
@@ -388,6 +388,12 @@ public class ObjectPooler : MonoBehaviour
                 if (objectPool[i] != null && objectPool[i].activeInHierarchy)
                     objectPool[i].SetActive(false);
             }
+        }
+
+        SpawnDirector director = GetComponent<SpawnDirector>();
+        if (director != null && director.isActiveAndEnabled)
+        {
+            director.ClearActiveRushObjects();
         }
     }
 
@@ -1235,7 +1241,7 @@ public class ObjectPooler : MonoBehaviour
     {
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= CheckDifficultyProgression;
-        GemCatcher.OnGameOver -= HandleGameOver;
+        GemCatcher.OnGameOverFinalized -= HandleGameOver;
     }
 
     // ---- Tutorial API -------------------------------------------------------

@@ -8,6 +8,13 @@ public class CatcherManager : MonoBehaviour
     private GameObject catcherInstance;
     public GameObject CatcherInstance => catcherInstance;
 
+    public void BeginRewardedContinueInvincibility()
+    {
+        if (catcherInstance == null) return;
+        CatchZone catchZone = catcherInstance.GetComponent<CatchZone>();
+        catchZone?.BeginRewardedContinueInvincibility();
+    }
+
     public int numberOfSlots = 8; // Number of sections (slots) at the bottom
     public float slotHeight = 1.0f; // Height of the slot areas at the bottom
     public float slotWidth; // Width will be dynamically calculated based on the screen size

@@ -26,6 +26,7 @@ namespace QuickSlickLabs.EditorTools
     {
         private const string OUTPUT_DIR = "Builds/Android";
         private const string MENU_ROOT = "Quick Slick Labs/Build/";
+        private const int MINIMUM_ANDROID_TARGET_API = 36;
 
         [MenuItem(MENU_ROOT + "Android AAB (Release)", priority = 100)]
         public static void BuildAndroidAab()
@@ -120,6 +121,8 @@ namespace QuickSlickLabs.EditorTools
                 EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Android, BuildTarget.Android);
             }
 
+            EnsureAndroidTargetApi();
+
             if (asAppBundle && !development && !ValidateReleaseSigning())
             {
                 return;
@@ -185,6 +188,19 @@ namespace QuickSlickLabs.EditorTools
             {
                 Debug.LogError($"[BuildScript] BUILD FAILED: {summary.result} ({summary.totalErrors} errors)");
             }
+        }
+
+        internal static void EnsureAndroidTargetApi()
+        {
+            int configuredTargetApi = (int)PlayerSettings.Android.targetSdkVersion;
+            if (configuredTargetApi >= MINIMUM_ANDROID_TARGET_API) return;
+
+            PlayerSettings.Android.targetSdkVersion =
+                (AndroidSdkVersions)MINIMUM_ANDROID_TARGET_API;
+            AssetDatabase.SaveAssets();
+            Debug.Log(
+                $"[BuildScript] Updated Android target SDK from API {configuredTargetApi} " +
+                $"to API {MINIMUM_ANDROID_TARGET_API}.");
         }
 
         private static bool ValidateReleaseSigning()
@@ -307,6 +323,19 @@ namespace QuickSlickLabs.EditorTools
                 }
             }
             return scenes.ToArray();
+        }
+    }
+
+    internal sealed class AndroidTargetApiPreprocessor : IPreprocessBuildWithReport
+    {
+        public int callbackOrder => -1000;
+
+        public void OnPreprocessBuild(BuildReport report)
+        {
+            if (report.summary.platform == BuildTarget.Android)
+            {
+                BuildScript.EnsureAndroidTargetApi();
+            }
         }
     }
 }

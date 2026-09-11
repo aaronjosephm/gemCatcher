@@ -1,82 +1,116 @@
 using System;
+using System.Collections;
+using System.Threading;
 using GoogleMobileAds.Api;
+using GoogleMobileAds.Common;
 using UnityEngine;
 
 /// <summary>
-/// Wraps the Google Mobile Ads (AdMob) Unity plugin to show a single
-/// interstitial ad at natural transition points (leaving the game-over
-/// screen). Auto-bootstraps like the other manager singletons
-/// (<see cref="PowerUpManager"/>, <see cref="SoundManager"/>,
-/// <see cref="HapticManager"/>, <see cref="IAPManager"/>) — no scene setup
-/// required.
-///
-/// Design:
-///   - If the player has purchased "Remove Ads" (<see cref="IAPManager.AdsRemoved"/>),
-///     the Ads SDK is never even initialized — zero ad-related activity at all.
-///   - One interstitial is always kept preloaded so <see cref="ShowInterstitial"/>
-///     can show it instantly; the next one starts preloading as soon as the
-///     current one closes or fails.
-///   - <see cref="ShowInterstitial"/> never blocks gameplay: if no ad is ready
-///     (still loading, failed to load, no fill, or ads removed) it invokes the
-///     completion callback immediately so the caller's scene transition still
-///     happens.
+/// Owns AdMob interstitial and rewarded-ad lifecycles. Forced interstitials
+/// are disabled by Remove Ads; optional rewarded ads remain available because
+/// they are shown only after an explicit player action and grant a direct reward.
 /// </summary>
 public class AdsManager : MonoBehaviour
 {
     public static AdsManager Instance { get; private set; }
 
-    // Google's official test ad unit IDs. Safe to use during development —
-    // they always fill and never generate real (or accidentally invalid)
-    // ad traffic. https://developers.google.com/admob/unity/test-ads
+    // Google's official test ad unit IDs. Development builds always use these.
     private const string TestInterstitialIdAndroid = "ca-app-pub-3940256099942544/1033173712";
     private const string TestInterstitialIdIOS = "ca-app-pub-3940256099942544/4411468910";
+    private const string TestRewardedIdAndroid = "ca-app-pub-3940256099942544/5224354917";
+    private const string TestRewardedIdIOS = "ca-app-pub-3940256099942544/1712485313";
 
-    // TODO: Replace with your real AdMob interstitial ad unit IDs before
-    // shipping a release build. Create these in the AdMob dashboard under
-    // Apps > (your app) > Ad units, after the app has been added to AdMob
-    // (Assets > Google Mobile Ads > Settings sets the App ID). Test IDs
-    // above are used automatically for every Editor/dev-build run, so it's
-    // safe to fill these in ahead of time without affecting local testing.
+    // Replace all four production ad unit IDs before shipping.
     private const string ProductionInterstitialIdAndroid = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_UNIT";
     private const string ProductionInterstitialIdIOS = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_UNIT";
+    private const string ProductionRewardedIdAndroid = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_REWARDED_UNIT";
+    private const string ProductionRewardedIdIOS = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_REWARDED_UNIT";
+
+    private const float RewardedRetryDelaySeconds = 10f;
+    private const int RewardedMaxAutomaticRetries = 5;
+
+    private static bool sdkInitialized;
+    private static bool sdkInitializing;
+    private static bool adUnitModeLogged;
+
+    private InterstitialAd interstitialAd;
+    private RewardedAd rewardedAd;
+    private bool rewardedAdLoading;
+    private int rewardedRetryAttempt;
+    private Coroutine rewardedRetryCoroutine;
+
+    public static event Action<bool> OnRewardedAvailabilityChanged;
+
+    public bool IsRewardedContinueReady
+    {
+        get
+        {
+#if UNITY_EDITOR
+            return true;
+#else
+            return rewardedAd != null && rewardedAd.CanShowAd();
+#endif
+        }
+    }
 
     private static string InterstitialAdUnitId
     {
         get
         {
-            // Debug.isDebugBuild is always true in the Editor and true for any
-            // Development Build — this guarantees test ads are used for every
-            // local/dev run, and only a Release build ever requests real ads.
-            // Requesting real ads from a developer's own device/editor risks
-            // AdMob flagging the account for invalid traffic.
 #if UNITY_ANDROID
-            return Debug.isDebugBuild ? TestInterstitialIdAndroid : ProductionInterstitialIdAndroid;
+            return SelectAdUnitId(TestInterstitialIdAndroid, ProductionInterstitialIdAndroid);
 #elif UNITY_IOS
-            return Debug.isDebugBuild ? TestInterstitialIdIOS : ProductionInterstitialIdIOS;
+            return SelectAdUnitId(TestInterstitialIdIOS, ProductionInterstitialIdIOS);
 #else
             return TestInterstitialIdAndroid;
 #endif
         }
     }
 
-    private static bool sdkInitialized;
-    private InterstitialAd interstitialAd;
+    private static string RewardedAdUnitId
+    {
+        get
+        {
+#if UNITY_ANDROID
+            return SelectAdUnitId(TestRewardedIdAndroid, ProductionRewardedIdAndroid);
+#elif UNITY_IOS
+            return SelectAdUnitId(TestRewardedIdIOS, ProductionRewardedIdIOS);
+#else
+            return TestRewardedIdAndroid;
+#endif
+        }
+    }
+
+    private static string SelectAdUnitId(string testId, string productionId)
+    {
+        return Debug.isDebugBuild || !IsConfiguredProductionAdUnitId(productionId)
+            ? testId
+            : productionId;
+    }
+
+    private static bool IsConfiguredProductionAdUnitId(string adUnitId)
+    {
+        return !string.IsNullOrWhiteSpace(adUnitId)
+            && adUnitId.StartsWith("ca-app-pub-", StringComparison.Ordinal)
+            && adUnitId.IndexOf('/') >= 0
+            && adUnitId.IndexOf("REPLACE", StringComparison.OrdinalIgnoreCase) < 0;
+    }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticsOnLoad()
     {
         Instance = null;
         sdkInitialized = false;
+        sdkInitializing = false;
+        adUnitModeLogged = false;
+        OnRewardedAvailabilityChanged = null;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureInstance()
     {
-        if (Instance != null) return;
-        if (FindObjectOfType<AdsManager>() != null) return;
-
-        GameObject go = new GameObject("AdsManager (auto)");
-        go.AddComponent<AdsManager>();
+        if (Instance != null || FindObjectOfType<AdsManager>() != null) return;
+        new GameObject("AdsManager (auto)").AddComponent<AdsManager>();
     }
 
     void Awake()
@@ -86,54 +120,73 @@ public class AdsManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
         Instance = this;
         DontDestroyOnLoad(gameObject);
-
         IAPManager.OnAdsRemoved += HandleAdsRemoved;
+        LogAdUnitMode();
         InitializeAndPreload();
     }
 
-    void OnDestroy()
+    private static void LogAdUnitMode()
     {
-        IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+        if (adUnitModeLogged) return;
+        adUnitModeLogged = true;
+
+#if UNITY_ANDROID
+        bool productionIdsConfigured =
+            IsConfiguredProductionAdUnitId(ProductionInterstitialIdAndroid)
+            && IsConfiguredProductionAdUnitId(ProductionRewardedIdAndroid);
+#elif UNITY_IOS
+        bool productionIdsConfigured =
+            IsConfiguredProductionAdUnitId(ProductionInterstitialIdIOS)
+            && IsConfiguredProductionAdUnitId(ProductionRewardedIdIOS);
+#else
+        bool productionIdsConfigured = false;
+#endif
+
+        if (!Debug.isDebugBuild && !productionIdsConfigured)
+        {
+            Debug.LogWarning(
+                "[AdsManager] Production ad unit IDs are not configured; "
+                + "using Google's official test units. This build cannot earn ad revenue.");
+        }
     }
 
     private void InitializeAndPreload()
     {
 #if UNITY_EDITOR
-        // The Google Mobile Ads Unity plugin has no real ad network in the
-        // Editor - InterstitialAd.Show() there instantiates a placeholder
-        // prefab and sets Time.timeScale = 0 to simulate a pause, but the
-        // prefab isn't parented under our own UI canvases, so it renders
-        // behind them and is invisible. The player then has no visible way
-        // to dismiss it and the timeScale = 0 never gets undone, which looks
-        // exactly like the game freezing with no ad on screen. Skip the ads
-        // SDK entirely in the Editor; ShowInterstitial() below always falls
-        // through to onComplete when no ad is loaded. Ads (including the
-        // real Google test ad units) only need to be verified on an actual
-        // Android/iOS Development Build - see docs/monetization-setup.md.
+        // The plugin's invisible Editor placeholder can leave Time.timeScale at
+        // zero. Device builds exercise the real SDK; the Editor safely simulates
+        // only the rewarded completion callback.
+        Debug.Log("[AdsManager] Editor mode: AdMob skipped; rewarded completion is simulated.");
+        NotifyRewardedAvailability();
         return;
 #else
-        // Ads already removed (restored from a previous purchase) - never
-        // touch the ads SDK at all.
-        if (IAPManager.AdsRemoved) return;
-
         if (sdkInitialized)
         {
-            LoadInterstitial();
+            if (!IAPManager.AdsRemoved) LoadInterstitial();
+            LoadRewarded();
             return;
         }
 
-        MobileAds.Initialize(status =>
-        {
-            sdkInitialized = true;
-            Debug.Log("[AdsManager] Google Mobile Ads initialized.");
+        if (sdkInitializing) return;
+        sdkInitializing = true;
+        MobileAds.RaiseAdEventsOnUnityMainThread = true;
 
-            // A purchase could have completed while the SDK was initializing.
-            if (!IAPManager.AdsRemoved)
+        MobileAds.Initialize(_ =>
+        {
+            MobileAdsEventExecutor.ExecuteInUpdate(() =>
             {
-                LoadInterstitial();
-            }
+                sdkInitializing = false;
+                if (this == null) return;
+
+                sdkInitialized = true;
+                Debug.Log("[AdsManager] Google Mobile Ads initialized.");
+
+                if (!IAPManager.AdsRemoved) LoadInterstitial();
+                LoadRewarded();
+            });
         });
 #endif
     }
@@ -143,63 +196,61 @@ public class AdsManager : MonoBehaviour
 #if UNITY_EDITOR
         return;
 #else
-        if (IAPManager.AdsRemoved) return;
+        if (!sdkInitialized || IAPManager.AdsRemoved || interstitialAd != null) return;
 
-        var adRequest = new AdRequest();
-        InterstitialAd.Load(InterstitialAdUnitId, adRequest, (ad, error) =>
+        InterstitialAd.Load(InterstitialAdUnitId, new AdRequest(), (ad, error) =>
         {
-            if (error != null || ad == null)
+            MobileAdsEventExecutor.ExecuteInUpdate(() =>
             {
-                Debug.LogWarning($"[AdsManager] Interstitial failed to load: {error}");
-                return;
-            }
+                if (this == null || IAPManager.AdsRemoved)
+                {
+                    ad?.Destroy();
+                    return;
+                }
 
-            interstitialAd = ad;
-            RegisterEventHandlers(interstitialAd);
-            Debug.Log("[AdsManager] Interstitial preloaded.");
+                if (error != null || ad == null)
+                {
+                    Debug.LogWarning($"[AdsManager] Interstitial failed to load: {error}");
+                    return;
+                }
+
+                interstitialAd = ad;
+                RegisterInterstitialEventHandlers(ad);
+                Debug.Log("[AdsManager] Interstitial preloaded.");
+            });
         });
 #endif
     }
 
-    private void RegisterEventHandlers(InterstitialAd ad)
+    private void RegisterInterstitialEventHandlers(InterstitialAd ad)
     {
         ad.OnAdFullScreenContentFailed += error =>
         {
             Debug.LogWarning($"[AdsManager] Interstitial failed to show: {error}");
-            RetireAndPreloadNext(ad);
+            MobileAdsEventExecutor.ExecuteInUpdate(() => RetireAndPreloadNext(ad));
         };
-        ad.OnAdFullScreenContentClosed += () => RetireAndPreloadNext(ad);
+        ad.OnAdFullScreenContentClosed += () =>
+        {
+            MobileAdsEventExecutor.ExecuteInUpdate(() => RetireAndPreloadNext(ad));
+        };
     }
 
     private void RetireAndPreloadNext(InterstitialAd ad)
     {
         ad.Destroy();
-        if (interstitialAd == ad)
-        {
-            interstitialAd = null;
-        }
+        if (interstitialAd == ad) interstitialAd = null;
         LoadInterstitial();
     }
 
     /// <summary>
-    /// Shows a preloaded interstitial if one is ready, then invokes
-    /// <paramref name="onComplete"/>. If ads are removed or no ad is
-    /// currently available, <paramref name="onComplete"/> fires immediately
-    /// so the caller's scene transition is never blocked waiting on an ad.
+    /// Shows a preloaded interstitial, then always invokes the completion callback.
     /// </summary>
     public void ShowInterstitial(Action onComplete)
     {
         if (IAPManager.AdsRemoved || interstitialAd == null || !interstitialAd.CanShowAd())
         {
             onComplete?.Invoke();
-
-            // Make sure one is in flight for next time (e.g. the previous
-            // load failed, or this is the very first call and preloading is
-            // still in progress).
-            if (!IAPManager.AdsRemoved && interstitialAd == null)
-            {
-                LoadInterstitial();
-            }
+            if (!IAPManager.AdsRemoved && interstitialAd == null) LoadInterstitial();
             return;
         }
 
@@ -214,8 +265,166 @@ public class AdsManager : MonoBehaviour
 
         adToShow.OnAdFullScreenContentClosed += Complete;
         adToShow.OnAdFullScreenContentFailed += _ => Complete();
-
         adToShow.Show();
+    }
+
+    /// <summary>
+    /// Ensures an opt-in rewarded continue ad is being prepared.
+    /// </summary>
+    public void PrepareRewardedContinue()
+    {
+#if UNITY_EDITOR
+        NotifyRewardedAvailability();
+#else
+        rewardedRetryAttempt = 0;
+        if (!sdkInitialized)
+        {
+            InitializeAndPreload();
+            return;
+        }
+
+        LoadRewarded();
+#endif
+    }
+
+    /// <summary>
+    /// Shows the rewarded ad and reports true only after the SDK grants the
+    /// reward and the full-screen content closes. Returns false if no ad was ready.
+    /// </summary>
+    public bool TryShowRewardedContinue(Action<bool> onComplete)
+    {
+#if UNITY_EDITOR
+        StartCoroutine(SimulateRewardedContinue(onComplete));
+        return true;
+#else
+        if (!IsRewardedContinueReady)
+        {
+            PrepareRewardedContinue();
+            return false;
+        }
+
+        RewardedAd adToShow = rewardedAd;
+        rewardedAd = null;
+        NotifyRewardedAvailability();
+
+        int rewardEarned = 0;
+        int completionSent = 0;
+
+        Action<bool> finish = granted =>
+        {
+            if (Interlocked.Exchange(ref completionSent, 1) != 0) return;
+
+            MobileAdsEventExecutor.ExecuteInUpdate(() =>
+            {
+                adToShow.Destroy();
+                onComplete?.Invoke(granted);
+                LoadRewarded();
+            });
+        };
+
+        adToShow.OnAdFullScreenContentClosed += () =>
+        {
+            finish(Volatile.Read(ref rewardEarned) == 1);
+        };
+        adToShow.OnAdFullScreenContentFailed += error =>
+        {
+            Debug.LogWarning($"[AdsManager] Rewarded ad failed to open: {error}");
+            finish(false);
+        };
+
+        adToShow.Show(_ => Interlocked.Exchange(ref rewardEarned, 1));
+        return true;
+#endif
+    }
+
+    private void LoadRewarded()
+    {
+#if UNITY_EDITOR
+        return;
+#else
+        if (!sdkInitialized || rewardedAdLoading || IsRewardedContinueReady) return;
+
+        CancelRewardedRetry();
+        rewardedAdLoading = true;
+        RewardedAd.Load(RewardedAdUnitId, new AdRequest(), (ad, error) =>
+        {
+            MobileAdsEventExecutor.ExecuteInUpdate(() =>
+            {
+                if (this == null)
+                {
+                    ad?.Destroy();
+                    return;
+                }
+
+                rewardedAdLoading = false;
+                if (error != null || ad == null)
+                {
+                    Debug.LogWarning($"[AdsManager] Rewarded ad failed to load: {error}");
+                    NotifyRewardedAvailability();
+                    ScheduleRewardedRetry();
+                    return;
+                }
+
+                CancelRewardedRetry();
+                rewardedRetryAttempt = 0;
+                DestroyRewarded();
+                rewardedAd = ad;
+                NotifyRewardedAvailability();
+                Debug.Log("[AdsManager] Rewarded continue ad preloaded.");
+            });
+        });
+#endif
+    }
+
+    private void ScheduleRewardedRetry()
+    {
+        if (rewardedRetryCoroutine != null
+            || rewardedRetryAttempt >= RewardedMaxAutomaticRetries)
+        {
+            return;
+        }
+
+        float delay = Mathf.Min(
+            RewardedRetryDelaySeconds * Mathf.Pow(2f, rewardedRetryAttempt),
+            120f);
+        rewardedRetryAttempt++;
+        rewardedRetryCoroutine = StartCoroutine(RetryRewardedAfterDelay(delay));
+    }
+
+    private IEnumerator RetryRewardedAfterDelay(float delay)
+    {
+        yield return new WaitForSecondsRealtime(delay);
+        rewardedRetryCoroutine = null;
+        LoadRewarded();
+    }
+
+    private void CancelRewardedRetry()
+    {
+        if (rewardedRetryCoroutine == null) return;
+        StopCoroutine(rewardedRetryCoroutine);
+        rewardedRetryCoroutine = null;
+    }
+
+#if UNITY_EDITOR
+    private static IEnumerator SimulateRewardedContinue(Action<bool> onComplete)
+    {
+        yield return new WaitForSecondsRealtime(0.25f);
+        Debug.Log("[AdsManager] Simulated rewarded continue completed in the Editor.");
+        onComplete?.Invoke(true);
+    }
+#endif
+
+    private void NotifyRewardedAvailability()
+    {
+        OnRewardedAvailabilityChanged?.Invoke(IsRewardedContinueReady);
+    }
+
+    private void DestroyRewarded()
+    {
+        if (rewardedAd == null) return;
+        rewardedAd.Destroy();
+        rewardedAd = null;
+        NotifyRewardedAvailability();
     }
 
     private void HandleAdsRemoved()
@@ -225,6 +434,22 @@ public class AdsManager : MonoBehaviour
             interstitialAd.Destroy();
             interstitialAd = null;
         }
-        Debug.Log("[AdsManager] Ads removed — interstitials disabled.");
+
+        Debug.Log("[AdsManager] Remove Ads applied; forced interstitials are disabled.");
+    }
+
+    void OnDestroy()
+    {
+        IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+        if (Instance != this) return;
+
+        CancelRewardedRetry();
+        if (interstitialAd != null)
+        {
+            interstitialAd.Destroy();
+            interstitialAd = null;
+        }
+        DestroyRewarded();
+        Instance = null;
     }
 }
