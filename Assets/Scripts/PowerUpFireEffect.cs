@@ -22,6 +22,7 @@ public static class PowerUpFireEffect
   // again without storing a back-reference on the gem. Picked specifically
   // so it can't collide with anything an artist would name in a prefab.
   private const string ChildName = "__PowerUpFire";
+  private static Material sharedMaterial;
 
   /// <summary>
   /// Attach (or refresh) a fiery aura to <paramref name="gem"/>, tinted with
@@ -144,19 +145,7 @@ public static class PowerUpFireEffect
                    ?? Shader.Find("Sprites/Default");
     if (additive != null)
     {
-      Material mat = new Material(additive);
-      // Enable additive blending mode if the shader supports it. Particles/
-      // Standard Unlit uses _Mode = 4 for Additive in Built-in RP; on URP/HDRP
-      // the keyword path differs but the fallback (Sprites/Default) still
-      // looks acceptable.
-      if (mat.HasProperty("_Mode"))      mat.SetFloat("_Mode", 4f); // Additive
-      if (mat.HasProperty("_BlendOp"))   mat.SetFloat("_BlendOp", 0f);
-      if (mat.HasProperty("_SrcBlend"))  mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-      if (mat.HasProperty("_DstBlend"))  mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
-      mat.EnableKeyword("_ALPHABLEND_ON");
-      mat.EnableKeyword("_EMISSION");
-      if (mat.HasProperty("_EmissionColor")) mat.SetColor("_EmissionColor", body * 1.4f);
-      psr.material = mat;
+      psr.sharedMaterial = GetSharedMaterial(additive);
     }
 
     psr.renderMode = ParticleSystemRenderMode.Billboard;
@@ -167,6 +156,26 @@ public static class PowerUpFireEffect
     psr.sortingOrder = 5;
 
     ps.Play();
+  }
+
+  private static Material GetSharedMaterial(Shader shader)
+  {
+    if (sharedMaterial != null) return sharedMaterial;
+
+    sharedMaterial = new Material(shader)
+    {
+      name = "Power-Up Fire Shared Material",
+      hideFlags = HideFlags.DontSave,
+    };
+    if (sharedMaterial.HasProperty("_Mode"))      sharedMaterial.SetFloat("_Mode", 4f);
+    if (sharedMaterial.HasProperty("_BlendOp"))   sharedMaterial.SetFloat("_BlendOp", 0f);
+    if (sharedMaterial.HasProperty("_SrcBlend"))  sharedMaterial.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+    if (sharedMaterial.HasProperty("_DstBlend"))  sharedMaterial.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+    sharedMaterial.EnableKeyword("_ALPHABLEND_ON");
+    sharedMaterial.EnableKeyword("_EMISSION");
+    if (sharedMaterial.HasProperty("_EmissionColor"))
+      sharedMaterial.SetColor("_EmissionColor", Color.white * 1.4f);
+    return sharedMaterial;
   }
 
   /// <summary>

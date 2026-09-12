@@ -21,6 +21,12 @@ public class CatchZone : MonoBehaviour
     private Renderer[] catcherRenderers;
     private float flashTimer = 0f;
 
+    // ProcessCatch can deactivate one or every falling object, which mutates
+    // FallingObject.ActiveInstances through OnDisable. Keep iteration stable
+    // without allocating a new collection every frame.
+    private readonly System.Collections.Generic.List<FallingObject> catchCandidates =
+        new System.Collections.Generic.List<FallingObject>(32);
+
     // Shield grace: blocks rocks but still allows gem catching
     private bool isShieldGrace = false;
     private float shieldGraceTimer = 0f;
@@ -38,6 +44,8 @@ public class CatchZone : MonoBehaviour
 
     void Update()
     {
+        if (RoundManager.Instance != null && RoundManager.Instance.IsGameOver) return;
+
         if (isInvincible)
         {
             invincibilityTimer -= Time.deltaTime;
@@ -58,15 +66,15 @@ public class CatchZone : MonoBehaviour
                 isShieldGrace = false;
         }
 
-        // Use static registry — zero allocations, no scene scan.
-        var activeList = FallingObject.ActiveInstances;
+        catchCandidates.Clear();
+        catchCandidates.AddRange(FallingObject.ActiveInstances);
 
         Vector3 catcherCenter = transform.TransformPoint(catcherCollider.center);
         Vector3 catcherSize = Vector3.Scale(catcherCollider.size, transform.lossyScale);
 
-        for (int i = activeList.Count - 1; i >= 0; i--)
+        for (int i = catchCandidates.Count - 1; i >= 0; i--)
         {
-            FallingObject fo = activeList[i];
+            FallingObject fo = catchCandidates[i];
             if (fo == null || !fo.gameObject.activeInHierarchy) continue;
 
             if (IsWithinBounds(fo, catcherCenter, catcherSize))
@@ -369,6 +377,12 @@ public class CatchZone : MonoBehaviour
         flashTimer = 0f;
         if (catcherRenderers == null || catcherRenderers.Length == 0)
             catcherRenderers = GetComponentsInChildren<Renderer>(true);
+        SetRenderersVisible(true);
+    }
+
+    public void BeginRewardedContinueInvincibility()
+    {
+        StartInvincibility();
     }
 
     private void StartShieldGrace()

@@ -1,10 +1,12 @@
 # Monetization setup — AdMob ads + Remove Ads IAP
 
 This documents the **manual, account-level steps** that can't be done from
-code. The code side (packages, `IAPManager.cs`, `AdsManager.cs`, the main
-menu button, the game-over ad hook) is already implemented — see "How it
-works" at the bottom. Everything below must be done by a human with access
-to the AdMob, App Store Connect, and Google Play Console accounts.
+code. The code side (packages, `IAPManager.cs`, `AdsManager.cs`, and the
+game-over ad hook) is already implemented — see "How it works" at the
+bottom. The main-menu purchase button is temporarily hidden for external
+gameplay testing while the entitlement and restore paths remain intact.
+Everything below must be done by a human with access to the AdMob, App Store
+Connect, and Google Play Console accounts.
 
 ---
 
@@ -20,9 +22,11 @@ to the AdMob, App Store Connect, and Google Play Console accounts.
 4. Under each app, **Ad units > Add ad unit > Interstitial**. Create one
    interstitial ad unit per platform. Note the **Ad unit ID**. Format:
    `ca-app-pub-XXXXXXXXXXXXXXXX/ZZZZZZZZZZ`
+5. Under each app, create one **Rewarded** ad unit for the game-over continue
+   offer. Note those two ad unit IDs as well.
 
-You'll end up with 4 IDs total: Android App ID, Android ad unit ID, iOS App
-ID, iOS ad unit ID.
+You'll end up with 6 IDs total: Android and iOS App IDs, two interstitial
+ad unit IDs, and two rewarded ad unit IDs.
 
 ## 2. Enter the App ID in Unity
 
@@ -59,13 +63,18 @@ Open `Assets/Scripts/AdsManager.cs` and replace the placeholder constants:
 ```csharp
 private const string ProductionInterstitialIdAndroid = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_UNIT";
 private const string ProductionInterstitialIdIOS = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_UNIT";
+private const string ProductionRewardedIdAndroid = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_REWARDED_UNIT";
+private const string ProductionRewardedIdIOS = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_REWARDED_UNIT";
 ```
 
-with the real ad unit IDs from step 1. Leave the test ad unit IDs above them
+with the matching real ad unit IDs from step 1. Leave the test ad unit IDs
 alone — those are Google's official sample IDs, used automatically whenever
 `Debug.isDebugBuild` is true (Editor and Development Builds), so you never
 need to touch them and never risk accidental invalid-traffic flags on your
-own account while developing.
+own account while developing. If a non-development build still contains a
+missing or placeholder production ad-unit ID, `AdsManager` safely falls back
+to the matching Google test unit and logs a warning. That prevents a broken
+ad flow, but the fallback impressions earn no revenue.
 
 ## 4. Create the "Remove Ads" product in each store
 
@@ -94,6 +103,18 @@ match the `RemoveAdsProductId` constant in `Assets/Scripts/IAPManager.cs`.
 
 ## 5. Let the packages resolve
 
+On macOS, install CocoaPods with Homebrew rather than Apple’s system Ruby:
+
+```bash
+brew install cocoapods
+pod --version
+```
+
+The bundled External Dependency Manager searches `/opt/homebrew/bin/pod`
+directly, so Unity Hub does not need that directory in its inherited `PATH`.
+Do not use `sudo gem install cocoapods` or `gem install --user-install` with
+macOS Ruby 2.6; current CocoaPods dependencies require a newer Ruby runtime.
+
 Reopen/focus the Unity Editor after `Packages/manifest.json` was updated
 with `com.unity.purchasing` and `com.google.ads.mobile`. Watch for:
 
@@ -107,26 +128,30 @@ with `com.unity.purchasing` and `com.google.ads.mobile`. Watch for:
   doesn't depend on any cloud catalog/Remote Config feature, but the
   package may still want a project link for its own initialization.
 - Check the **Console** window for compile errors. This code was written
-  and manually reviewed carefully, but could not be compiled this session —
-  report back anything you see here.
+  against Google Mobile Ads 11.4.0 and Unity IAP 5.4.2; treat any errors
+  after package resolution as a setup problem that must be fixed before a
+  device build.
+- After an iOS build, open the generated `.xcworkspace` in Xcode rather than
+  the `.xcodeproj`; CocoaPods dependencies are linked through the workspace.
 
 ## 6. Testing before you ship
 
-- **Ads:** Development Builds and the Editor automatically use Google's
-  test ad unit IDs, so you'll see a "Test Ad" banner — this confirms the
-  wiring works without touching your real AdMob account. Never tap your
-  own production ads to "test" them; Google can permanently ban an AdMob
-  account for self-clicks/invalid traffic.
+- **Ads:** Development Builds use Google's test interstitial and rewarded
+  ad unit IDs, so you'll see a "Test Ad" banner. In the Unity Editor, the
+  rewarded completion is simulated and AdMob UI is bypassed to avoid the
+  plugin's invisible placeholder pausing gameplay. Verify the real ad UI on
+  Android and iOS Development Builds. Never tap your own production ads to
+  test them; Google can permanently ban an AdMob account for invalid traffic.
 - **Purchases (Android):** add your Google account as a **License Tester**
   under Play Console > **Setup > License testing**, then install via an
   Internal Testing track release — test purchases won't charge real money.
 - **Purchases (iOS):** use a **Sandbox Tester** Apple ID (App Store Connect
   > Users and Access > Sandbox) signed into the device's App Store sandbox
   account, then run a Development build.
-- Verify: the "Remove Ads" button appears on the main menu, completing a
-  test purchase hides it immediately, "Restore Purchases" in Settings
-  recovers the flag on a fresh install, and no interstitial appears once
-  ads are removed.
+- Before IAP testing, re-enable `ShowRemoveAdsPurchaseButton` in
+  `Assets/Scripts/UIManager.cs`. Verify that completing a test purchase
+  disables the button, "Restore Purchases" in Settings recovers the flag on
+  a fresh install, and no interstitial appears once ads are removed.
 
 ---
 
@@ -137,12 +162,21 @@ with `com.unity.purchasing` and `com.google.ads.mobile`. Watch for:
   survives without a network call once bought; `RestorePurchases()`
   reconciles it from the store on demand (App Store restore flow on iOS,
   automatic receipt re-validation elsewhere).
-- `Assets/Scripts/AdsManager.cs` — AdMob interstitial wrapper. No-ops
-  entirely if `IAPManager.AdsRemoved` is true. Preloads one interstitial at
-  startup and after every show/failure so one is ready when needed.
-- `Assets/Scripts/UIManager.cs` — adds the "Remove Ads - $2" main menu
-  button (auto-hidden once purchased) and a "Restore Purchases" row in
-  Settings. The interstitial is shown when the player taps **Try Again** or
-  **Main Menu** from the game-over screen (not at the instant of death, so
+- `Assets/Scripts/AdsManager.cs` — owns separate preloaded interstitial and
+  rewarded ads. `IAPManager.AdsRemoved` disables forced interstitials, while
+  the player-initiated rewarded continue remains available because it grants
+  a direct gameplay reward.
+- `Assets/Scripts/UIManager.cs` — contains the gated "Remove Ads - $2"
+  main-menu button and a "Restore Purchases" row in Settings. The purchase
+  button is disabled at the release-configuration level for the current
+  gameplay test. The interstitial is shown when the player taps **Try Again**
+  or **Main Menu** from the game-over screen (not at the instant of death, so
   the score reveal isn't interrupted), then the scene loads once the ad
-  closes or fails to show.
+  closes or fails to show. On the first Normal/Rush game over in a run, a
+  one-time opt-in rewarded offer suspends the live round in place: falling
+  objects, spawn and difficulty timers, power-up timers, and the current
+  music position remain paused. Completing the ad resumes that exact state
+  with three lives and three seconds of blinking invulnerability; no wave
+  or level state is restarted. Lives are granted only after Google's reward
+  callback and the full-screen ad closes. Declining finalizes game over and
+  performs the normal object, power-up, and music cleanup.

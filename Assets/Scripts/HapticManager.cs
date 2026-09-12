@@ -3,8 +3,9 @@ using UnityEngine;
 /// <summary>
 /// Centralised haptic-feedback (vibration) controller. Listens to the same
 /// gameplay events the UI and audio systems do, and triggers a short, intent-
-/// matched vibration on each one — light tick on catch, sharper thump on miss,
-/// heavy hit on bomb, success ladder on heart / milestone, etc.
+/// matched vibration for meaningful events — sharper thump on miss, heavy hit
+/// on bomb, success ladder on heart / milestone, etc. Routine gem catches do
+/// not vibrate.
 ///
 /// Backend selection per platform:
 ///   - Android API 26+ : <c>VibrationEffect.createOneShot</c> with explicit
@@ -40,7 +41,7 @@ public class HapticManager : MonoBehaviour
     /// <summary>Intent-classified haptic strengths.</summary>
     public enum Intensity
     {
-        /// <summary>~10ms low-amplitude tap (gem caught).</summary>
+        /// <summary>~10ms low-amplitude tap (deliberate movement or power-up).</summary>
         Light,
         /// <summary>~25ms medium thump (gem missed).</summary>
         Medium,
@@ -115,7 +116,6 @@ public class HapticManager : MonoBehaviour
 
     void SubscribeToGameEvents()
     {
-        GemCatcher.OnGemCaught += HandleGemCaught;
         GemCatcher.OnGemMissed += HandleGemMissed;
         GemCatcher.OnBombHit += HandleBombHit;
         GemCatcher.OnBonusLifeAwarded += HandleBonusLife;
@@ -126,7 +126,6 @@ public class HapticManager : MonoBehaviour
 
     void UnsubscribeFromGameEvents()
     {
-        GemCatcher.OnGemCaught -= HandleGemCaught;
         GemCatcher.OnGemMissed -= HandleGemMissed;
         GemCatcher.OnBombHit -= HandleBombHit;
         GemCatcher.OnBonusLifeAwarded -= HandleBonusLife;
@@ -135,7 +134,6 @@ public class HapticManager : MonoBehaviour
         PowerUpManager.OnActivated -= HandlePowerUpActivated;
     }
 
-    void HandleGemCaught(int amount, Vector3 worldPosition) => Trigger(Intensity.Light);
     void HandleGemMissed(int amount, Vector3 worldPosition) => Trigger(Intensity.Medium);
     void HandleBombHit(Vector3 worldPosition) => Trigger(Intensity.Heavy);
     void HandleBonusLife(int newLifeTotal) => Trigger(Intensity.Success);

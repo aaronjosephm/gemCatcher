@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
 using Random = UnityEngine.Random;
 
@@ -13,6 +14,8 @@ using Random = UnityEngine.Random;
 //   "BackgroundMusic" (looping — only while GameState.IsPlaying and not game-over)
 public class SoundManager : MonoBehaviour
 {
+    private const float StartupAudioFadeInDuration = 0.15f;
+
     [Serializable]
     public class SoundEffect
     {
@@ -35,6 +38,7 @@ public class SoundManager : MonoBehaviour
 
     public const string MusicVolumePrefKey = "MusicVolume";
     public const string SfxVolumePrefKey = "SfxVolume";
+    public static event Action<float> OnSfxVolumeChanged;
 
     /// <summary>Legacy mute key — if set to 0 on first run of the new prefs, volumes start at 0.</summary>
     public const string SoundPrefKey = "SoundEnabled";
@@ -57,9 +61,11 @@ public class SoundManager : MonoBehaviour
         get => Mathf.Clamp01(PlayerPrefs.GetFloat(SfxVolumePrefKey, DefaultSfxVolume()));
         set
         {
-            PlayerPrefs.SetFloat(SfxVolumePrefKey, Mathf.Clamp01(value));
+            float normalizedVolume = Mathf.Clamp01(value);
+            PlayerPrefs.SetFloat(SfxVolumePrefKey, normalizedVolume);
             PlayerPrefs.Save();
             if (Instance != null) Instance.ApplyVolumes();
+            OnSfxVolumeChanged?.Invoke(normalizedVolume);
         }
     }
 
@@ -84,6 +90,11 @@ public class SoundManager : MonoBehaviour
 
     private Dictionary<string, SoundEffect> soundDictionary;
     private bool musicWasWanted;
+    private bool backgroundMusicPausedForContinue;
+    private static bool startupAudioGateArmed;
+    private bool startupAudioReleased;
+    private float startupAudioFadeElapsed;
+    private bool holdStartupAudioAtZeroForOneFrame;
 
     static float DefaultMusicVolume()
     {
@@ -98,6 +109,23 @@ public class SoundManager : MonoBehaviour
         if (!PlayerPrefs.HasKey(SfxVolumePrefKey) && PlayerPrefs.GetInt(SoundPrefKey, 1) == 0)
             return 0f;
         return 1f;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStaticEvents()
+    {
+        OnSfxVolumeChanged = null;
+        startupAudioGateArmed = false;
+    }
+
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
+    private static void ArmMobileStartupAudioGate()
+    {
+        if (!Application.isMobilePlatform) return;
+
+        startupAudioGateArmed = true;
+        AudioListener.pause = true;
+        AudioListener.volume = 0f;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -121,8 +149,12 @@ public class SoundManager : MonoBehaviour
         Instance = this;
         DontDestroyOnLoad(gameObject);
 
-        // Per-bus volumes — do not mute the whole AudioListener.
-        AudioListener.volume = 1f;
+        // Per-bus volumes own normal playback. The listener remains muted only
+        // while the mobile splash screen is handing off to the first scene.
+        if (!startupAudioGateArmed)
+        {
+            AudioListener.volume = 1f;
+        }
 
         soundDictionary = new Dictionary<string, SoundEffect>();
 
@@ -164,12 +196,16 @@ public class SoundManager : MonoBehaviour
         GemCatcher.OnBombHit += HandleBombHit;
         MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
         GemCatcher.OnGameOver += HandleGameOver;
+        GemCatcher.OnGameOverFinalized += HandleGameOverFinalized;
     }
 
     void Update()
     {
+        if (!PrepareStartupAudio()) return;
+
         SyncGameplayMusic();
         SyncMenuMusic();
+        TickStartupAudioFadeIn();
     }
 
     // ----- Public API -----
@@ -215,6 +251,25 @@ public class SoundManager : MonoBehaviour
         {
             if (kvp.Value.source != null) kvp.Value.source.Stop();
         }
+        Instance.backgroundMusicPausedForContinue = false;
+        Instance.musicWasWanted = false;
+    }
+
+    public void ResumeGameplayMusicAfterRewardedContinue()
+    {
+        if (soundDictionary == null
+            || !soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm)
+            || bgm.source == null)
+        {
+            return;
+        }
+
+        if (backgroundMusicPausedForContinue)
+        {
+            bgm.source.UnPause();
+        }
+        backgroundMusicPausedForContinue = false;
+        musicWasWanted = true;
     }
 
     public void PlayWithRandomPitch(string soundName, float minPitch = 0.9f, float maxPitch = 1.1f)
@@ -255,6 +310,16 @@ public class SoundManager : MonoBehaviour
 
         bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver && !GameState.IsTutorial;
         bgm.source.volume = bgm.volume * MusicVolume;
+
+        if (RoundManager.Instance != null && RoundManager.Instance.IsRewardedContinuePending)
+        {
+            if (bgm.source.isPlaying)
+            {
+                bgm.source.Pause();
+                backgroundMusicPausedForContinue = true;
+            }
+            return;
+        }
 
         if (wantMusic)
         {
@@ -306,6 +371,42 @@ public class SoundManager : MonoBehaviour
         }
     }
 
+    private bool PrepareStartupAudio()
+    {
+        if (!startupAudioGateArmed) return true;
+        if (startupAudioReleased) return true;
+        if (!SplashScreen.isFinished) return false;
+
+        AudioListener.pause = false;
+        startupAudioReleased = true;
+        startupAudioFadeElapsed = 0f;
+        holdStartupAudioAtZeroForOneFrame = true;
+        return true;
+    }
+
+    private void TickStartupAudioFadeIn()
+    {
+        if (!startupAudioGateArmed || !startupAudioReleased) return;
+
+        // Let the audio backend open while muted before introducing any signal.
+        if (holdStartupAudioAtZeroForOneFrame)
+        {
+            AudioListener.volume = 0f;
+            holdStartupAudioAtZeroForOneFrame = false;
+            return;
+        }
+
+        startupAudioFadeElapsed += Time.unscaledDeltaTime;
+        float progress = Mathf.Clamp01(startupAudioFadeElapsed / StartupAudioFadeInDuration);
+        AudioListener.volume = Mathf.SmoothStep(0f, 1f, progress);
+
+        if (progress >= 1f)
+        {
+            startupAudioGateArmed = false;
+            AudioListener.volume = 1f;
+        }
+    }
+
     // ----- Event handlers -----
 
     void HandleGemCaught(int amount, Vector3 worldPosition)
@@ -346,8 +447,24 @@ public class SoundManager : MonoBehaviour
 
     void HandleGameOver()
     {
-        // Stop BGM immediately; SyncGameplayMusic will also catch this next frame.
+        if (RoundManager.Instance == null || !RoundManager.Instance.IsRewardedContinuePending)
+        {
+            return;
+        }
+
+        if (soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm)
+            && bgm.source != null
+            && bgm.source.isPlaying)
+        {
+            bgm.source.Pause();
+            backgroundMusicPausedForContinue = true;
+        }
+    }
+
+    void HandleGameOverFinalized()
+    {
         Stop("BackgroundMusic");
+        backgroundMusicPausedForContinue = false;
         musicWasWanted = false;
     }
 
@@ -361,6 +478,15 @@ public class SoundManager : MonoBehaviour
             GemCatcher.OnBombHit -= HandleBombHit;
             MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
             GemCatcher.OnGameOver -= HandleGameOver;
+            GemCatcher.OnGameOverFinalized -= HandleGameOverFinalized;
+
+            if (startupAudioGateArmed)
+            {
+                AudioListener.pause = false;
+                AudioListener.volume = 1f;
+                startupAudioGateArmed = false;
+            }
+
             Instance = null;
         }
     }

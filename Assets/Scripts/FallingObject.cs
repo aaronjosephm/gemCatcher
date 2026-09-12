@@ -140,7 +140,10 @@ public class FallingObject : MonoBehaviour
     private Color originalAlbedo;
     private Color originalEmission;
     private bool originalColorsCaptured = false;
-    private bool emissionWasEnabled = false;
+    private MaterialPropertyBlock visualProperties;
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
+    private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
     private Color originalTrailStart;
     private Color originalTrailEnd;
     private bool originalTrailCaptured = false;
@@ -329,30 +332,15 @@ public class FallingObject : MonoBehaviour
         Renderer r = GetComponent<Renderer>();
         if (r != null)
         {
-            // .material auto-instances on first access — that's fine for pooled
-            // objects; they each get their own material instance once and reuse
-            // it for every spawn.
-            Material m = r.material;
+            Material m = r.sharedMaterial;
             CaptureOriginalColorsIfNeeded(m);
 
             VariantPalette pal = GetPalette(type);
-            if (m.HasProperty("_Color"))
-            {
-                m.color = type == SpecialGemType.Normal ? originalAlbedo : pal.albedo;
-            }
-            if (m.HasProperty("_EmissionColor"))
-            {
-                if (type == SpecialGemType.Normal)
-                {
-                    m.SetColor("_EmissionColor", originalEmission);
-                    if (!emissionWasEnabled) m.DisableKeyword("_EMISSION");
-                }
-                else
-                {
-                    m.SetColor("_EmissionColor", pal.emission);
-                    m.EnableKeyword("_EMISSION");
-                }
-            }
+            ApplyMaterialColors(
+                r,
+                m,
+                type == SpecialGemType.Normal ? originalAlbedo : pal.albedo,
+                type == SpecialGemType.Normal ? originalEmission : pal.emission);
         }
 
         TrailRenderer tr = GetComponent<TrailRenderer>();
@@ -425,18 +413,11 @@ public class FallingObject : MonoBehaviour
         Renderer r = GetComponent<Renderer>();
         if (r != null)
         {
-            Material m = r.material;
+            Material m = r.sharedMaterial;
             CaptureOriginalColorsIfNeeded(m);
-            if (m.HasProperty("_Color")) m.color = tint;
-            if (m.HasProperty("_EmissionColor"))
-            {
-                // Emission boosted ~1.4x so the gem reads as glowing under
-                // the additive flame. Below 1.0 and the fire just looks
-                // pasted on; above ~1.6 the gem itself starts to bloom out
-                // and lose its shape silhouette.
-                m.SetColor("_EmissionColor", tint * 1.4f);
-                m.EnableKeyword("_EMISSION");
-            }
+            // Emission is boosted so the gem stays legible below the additive
+            // flame without requiring a unique Material per pooled object.
+            ApplyMaterialColors(r, m, tint, tint * 1.4f);
         }
 
         TrailRenderer tr = GetComponent<TrailRenderer>();
@@ -473,11 +454,40 @@ public class FallingObject : MonoBehaviour
 
     private void CaptureOriginalColorsIfNeeded(Material m)
     {
-        if (originalColorsCaptured) return;
-        if (m.HasProperty("_Color")) originalAlbedo = m.color;
-        if (m.HasProperty("_EmissionColor")) originalEmission = m.GetColor("_EmissionColor");
-        emissionWasEnabled = m.IsKeywordEnabled("_EMISSION");
+        if (originalColorsCaptured || m == null) return;
+        if (m.HasProperty(BaseColorId))
+            originalAlbedo = m.GetColor(BaseColorId);
+        else if (m.HasProperty(ColorId))
+            originalAlbedo = m.GetColor(ColorId);
+        else
+            originalAlbedo = Color.white;
+
+        originalEmission = m.HasProperty(EmissionColorId)
+            ? m.GetColor(EmissionColorId)
+            : Color.black;
         originalColorsCaptured = true;
+    }
+
+    private void ApplyMaterialColors(Renderer target, Material sharedMaterial, Color albedo, Color emission)
+    {
+        if (target == null || sharedMaterial == null) return;
+
+        if (visualProperties == null)
+            visualProperties = new MaterialPropertyBlock();
+
+        visualProperties.Clear();
+        if (sharedMaterial.HasProperty(BaseColorId))
+            visualProperties.SetColor(BaseColorId, albedo);
+        if (sharedMaterial.HasProperty(ColorId))
+            visualProperties.SetColor(ColorId, albedo);
+        if (sharedMaterial.HasProperty(EmissionColorId))
+        {
+            // The keyword is shared by every renderer using this source material;
+            // individual emission intensity remains isolated in the property block.
+            sharedMaterial.EnableKeyword("_EMISSION");
+            visualProperties.SetColor(EmissionColorId, emission);
+        }
+        target.SetPropertyBlock(visualProperties);
     }
 
     private void CaptureOriginalTrailIfNeeded(TrailRenderer tr)

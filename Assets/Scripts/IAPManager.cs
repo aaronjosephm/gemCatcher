@@ -101,7 +101,7 @@ public class IAPManager : MonoBehaviour, IStoreListener
         }
     }
 
-    /// <summary>Called by the "Remove Ads - $2" button on the main menu.</summary>
+    /// <summary>Starts the Remove Ads purchase when the storefront UI is enabled.</summary>
     public void BuyRemoveAds()
     {
         if (AdsRemoved) return;

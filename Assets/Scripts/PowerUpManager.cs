@@ -295,7 +295,7 @@ public class PowerUpManager : MonoBehaviour
     Instance = this;
     DontDestroyOnLoad(gameObject);
 
-    GemCatcher.OnGameOver += HandleGameOver;
+    GemCatcher.OnGameOverFinalized += HandleGameOver;
   }
 
   void Update()
@@ -364,7 +364,7 @@ public class PowerUpManager : MonoBehaviour
   {
     if (Instance == this)
     {
-      GemCatcher.OnGameOver -= HandleGameOver;
+      GemCatcher.OnGameOverFinalized -= HandleGameOver;
       Instance = null;
     }
   }
