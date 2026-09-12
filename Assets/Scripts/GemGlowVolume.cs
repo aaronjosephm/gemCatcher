@@ -25,9 +25,13 @@ public class GemGlowVolume : MonoBehaviour
     public Color glowColor = Color.white;
 
     private GameObject glowQuad;
-    private Material glowMat;
+    private MeshRenderer glowRenderer;
     private static Texture2D s_glowTexture;
     private static Mesh s_quadMesh;
+    private static Material s_glowMaterial;
+    private static MaterialPropertyBlock s_colorProperties;
+    private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+    private static readonly int ColorId = Shader.PropertyToID("_Color");
 
     void Start()
     {
@@ -50,11 +54,11 @@ public class GemGlowVolume : MonoBehaviour
         MeshFilter mf = glowQuad.AddComponent<MeshFilter>();
         mf.sharedMesh = GetQuadMesh();
 
-        MeshRenderer mr = glowQuad.AddComponent<MeshRenderer>();
-        glowMat = CreateGlowMaterial();
-        mr.sharedMaterial = glowMat;
-        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        mr.receiveShadows = false;
+        glowRenderer = glowQuad.AddComponent<MeshRenderer>();
+        glowRenderer.sharedMaterial = GetGlowMaterial();
+        glowRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        glowRenderer.receiveShadows = false;
+        ApplyColor();
 
         // Hide immediately if this is a bomb — Start() runs after SetActive(true)
         // so OnEnable's check would have seen glowQuad as null and done nothing.
@@ -100,33 +104,48 @@ public class GemGlowVolume : MonoBehaviour
     public void RefreshColor(Color c)
     {
         glowColor = c;
-        if (glowMat != null)
-        {
-            c.a = glowAlpha;
-            glowMat.SetColor("_BaseColor", c);
-        }
+        ApplyColor();
     }
 
-    Material CreateGlowMaterial()
+    void ApplyColor()
     {
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null) shader = Shader.Find("Unlit/Transparent");
-        Material mat = new Material(shader);
+        if (glowRenderer == null) return;
 
-        mat.SetFloat("_Surface", 1f);
-        mat.SetFloat("_Blend", 0f);
-        mat.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
-        mat.SetFloat("_ZWrite", 0f);
-        mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
-        mat.renderQueue = 3000;
+        if (s_colorProperties == null)
+            s_colorProperties = new MaterialPropertyBlock();
 
         Color c = glowColor;
         c.a = glowAlpha;
-        mat.SetColor("_BaseColor", c);
-        mat.mainTexture = GetGlowTexture();
+        s_colorProperties.Clear();
+        s_colorProperties.SetColor(BaseColorId, c);
+        s_colorProperties.SetColor(ColorId, c);
+        glowRenderer.SetPropertyBlock(s_colorProperties);
+    }
 
-        return mat;
+    static Material GetGlowMaterial()
+    {
+        if (s_glowMaterial != null) return s_glowMaterial;
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null) shader = Shader.Find("Unlit/Transparent");
+        s_glowMaterial = new Material(shader)
+        {
+            name = "Gem Glow Shared Material",
+            hideFlags = HideFlags.DontSave,
+        };
+
+        s_glowMaterial.SetFloat("_Surface", 1f);
+        s_glowMaterial.SetFloat("_Blend", 0f);
+        s_glowMaterial.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        s_glowMaterial.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.One);
+        s_glowMaterial.SetFloat("_ZWrite", 0f);
+        s_glowMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        s_glowMaterial.renderQueue = 3000;
+        s_glowMaterial.SetColor(BaseColorId, Color.white);
+        s_glowMaterial.SetColor(ColorId, Color.white);
+        s_glowMaterial.mainTexture = GetGlowTexture();
+
+        return s_glowMaterial;
     }
 
     static Texture2D GetGlowTexture()

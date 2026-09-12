@@ -157,6 +157,8 @@ public class UIManager : MonoBehaviour
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
+  private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
+      new Dictionary<int, Sprite>();
 
   // Cooldown panel — shown when the player taps Daily Challenge but has
   // already played today.
@@ -1602,9 +1604,7 @@ public class UIManager : MonoBehaviour
     rt.localScale = new Vector3(1.6f, 1.4f, 1f);
 
     Image img = imgGo.GetComponent<Image>();
-    img.sprite = Sprite.Create(titleTex,
-        new Rect(0, 0, titleTex.width, titleTex.height),
-        new Vector2(0.5f, 0.5f), 100f);
+    img.sprite = CreateSprite(titleTex);
     img.type = Image.Type.Simple;
     img.preserveAspect = true;
     img.raycastTarget = false;
@@ -2023,8 +2023,7 @@ public class UIManager : MonoBehaviour
     layout.minHeight = height;
 
     Image image = buttonGo.GetComponent<Image>();
-    image.sprite = Sprite.Create(texture, new Rect(0f, 0f, texture.width, texture.height),
-        new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+    image.sprite = CreateSprite(texture);
     image.type = Image.Type.Simple;
     image.preserveAspect = true;
     image.color = Color.white;
@@ -3300,6 +3299,8 @@ public class UIManager : MonoBehaviour
 
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
   {
+    Time.timeScale = 1f;
+
     // Create a full-screen black overlay to hide the scene transition flash
     var fadeGo = new GameObject("SceneFade");
     var fadeCanvas = fadeGo.AddComponent<Canvas>();
@@ -4004,13 +4005,23 @@ public class UIManager : MonoBehaviour
 
   static Sprite CreateSprite(Texture2D texture)
   {
-    return Sprite.Create(
+    if (texture == null) return null;
+
+    int key = texture.GetInstanceID();
+    if (ResourceSpriteCache.TryGetValue(key, out Sprite cached) && cached != null)
+      return cached;
+
+    Sprite sprite = Sprite.Create(
         texture,
         new Rect(0f, 0f, texture.width, texture.height),
         new Vector2(0.5f, 0.5f),
         100f,
         0,
         SpriteMeshType.FullRect);
+    sprite.name = texture.name + "_RuntimeSprite";
+    sprite.hideFlags = HideFlags.DontSave;
+    ResourceSpriteCache[key] = sprite;
+    return sprite;
   }
 
   void OnRewardedContinueAccepted()

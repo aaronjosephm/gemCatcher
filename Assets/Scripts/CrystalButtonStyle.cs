@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -9,6 +10,9 @@ using UnityEngine.UI;
 /// </summary>
 public static class CrystalButtonStyle
 {
+    private static readonly Dictionary<Color32, Sprite> SpriteCache =
+        new Dictionary<Color32, Sprite>();
+
     /// <summary>
     /// Applies crystal styling to an existing button GameObject.
     /// Expects the button to have an Image component (background)
@@ -19,11 +23,7 @@ public static class CrystalButtonStyle
         Image bg = btnGo.GetComponent<Image>();
         if (bg == null) return;
 
-        // Generate a rounded-rect sprite with gradient + glow border.
-        int w = 512, h = 128;
-        Texture2D tex = GenerateCrystalTexture(w, h, baseColor);
-        bg.sprite = Sprite.Create(tex, new Rect(0, 0, w, h), new Vector2(0.5f, 0.5f), 100f,
-            0, SpriteMeshType.FullRect, new Vector4(24, 24, 24, 24));
+        bg.sprite = GetOrCreateSprite(baseColor);
         bg.type = Image.Type.Sliced;
         bg.color = Color.white; // Texture carries the color now.
 
@@ -56,6 +56,32 @@ public static class CrystalButtonStyle
             tmp.fontStyle = TMPro.FontStyles.Bold;
             GameTextStyle.Apply(tmp);
         }
+    }
+
+    static Sprite GetOrCreateSprite(Color baseColor)
+    {
+        Color32 key = baseColor;
+        if (SpriteCache.TryGetValue(key, out Sprite cached) && cached != null)
+            return cached;
+
+        const int width = 512;
+        const int height = 128;
+        Texture2D texture = GenerateCrystalTexture(width, height, key);
+        texture.name = $"CrystalButton_{key.r:X2}{key.g:X2}{key.b:X2}{key.a:X2}";
+        texture.hideFlags = HideFlags.DontSave;
+
+        Sprite sprite = Sprite.Create(
+            texture,
+            new Rect(0, 0, width, height),
+            new Vector2(0.5f, 0.5f),
+            100f,
+            0,
+            SpriteMeshType.FullRect,
+            new Vector4(24, 24, 24, 24));
+        sprite.name = texture.name;
+        sprite.hideFlags = HideFlags.DontSave;
+        SpriteCache[key] = sprite;
+        return sprite;
     }
 
     static Texture2D GenerateCrystalTexture(int w, int h, Color baseColor)
@@ -117,7 +143,7 @@ public static class CrystalButtonStyle
         }
 
         tex.SetPixels(pixels);
-        tex.Apply();
+        tex.Apply(false, true);
         return tex;
     }
 }
