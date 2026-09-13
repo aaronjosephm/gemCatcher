@@ -626,8 +626,19 @@ public class UIManager : MonoBehaviour
   {
     if (hudCanvas == null)
     {
-      Canvas existing = FindObjectOfType<Canvas>();
-      if (existing != null && existing.renderMode == RenderMode.ScreenSpaceOverlay)
+      Canvas existing = null;
+      Canvas[] sceneCanvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include);
+      foreach (Canvas candidate in sceneCanvases)
+      {
+        if (candidate.renderMode == RenderMode.ScreenSpaceOverlay
+            && candidate.gameObject.scene.handle == gameObject.scene.handle)
+        {
+          existing = candidate;
+          break;
+        }
+      }
+
+      if (existing != null)
       {
         hudCanvas = existing;
       }
