@@ -153,8 +153,9 @@ public class CatcherManager : MonoBehaviour
             }
         }
 
-        // Create initial catcher in the middle slot
-        PlaceCatcherInSlot(numberOfSlots / 2);
+        // Initial placement is setup, not player input. Keep it silent so scene
+        // loads do not emit the same confirmation sound/haptic as an actual move.
+        PlaceCatcherInSlot(numberOfSlots / 2, playFeedback: false);
 
         // In Rush Mode, snap to center column.
         if (GameState.Mode == GameState.GameMode.Rush)
@@ -883,10 +884,10 @@ public class CatcherManager : MonoBehaviour
             && Mathf.Abs(worldPos.y - catcherPos.y) <= halfH;
     }
 
-    void PlaceCatcherInSlot(int slotIndex)
+    void PlaceCatcherInSlot(int slotIndex, bool playFeedback = true)
     {
         if (slotIndex < 0 || slotIndex >= numberOfSlots) return;
-        MoveCatcherTo(slotPositions[slotIndex], playFeedback: true);
+        MoveCatcherTo(slotPositions[slotIndex], playFeedback);
     }
 
     void MoveCatcherTo(Vector3 worldPosition, bool playFeedback)

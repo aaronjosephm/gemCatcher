@@ -619,6 +619,11 @@ public class FallingObject : MonoBehaviour
 
     void Update()
     {
+        // Pooled objects can remain active behind a menu or game-over overlay.
+        // Freeze them there so they cannot move into a wall and emit a stray
+        // bounce sound while the player is navigating away from the round.
+        if (!GameState.IsPlaying || GemCatcher.IsGameOver) return;
+
         // ScreenPadding performs the display/projection change detection centrally,
         // so all active objects share the same cached conversion.
         CalculateBoundaries();

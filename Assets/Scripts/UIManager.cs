@@ -367,6 +367,7 @@ public class UIManager : MonoBehaviour
     if (GameState.SkipMainMenuOnLoad)
     {
       GameState.SkipMainMenuOnLoad = false;
+      if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
       ShowGameplay();
     }
     else if (s_returnToLevelSelect)
@@ -1421,11 +1422,7 @@ public class UIManager : MonoBehaviour
   // toggles it on.
   void EnsureMainMenuPanel()
   {
-    if (mainMenuPanel != null)
-    {
-      mainMenuPanel.SetActive(false);
-      return;
-    }
+    if (mainMenuPanel != null) return;
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
@@ -3300,26 +3297,8 @@ public class UIManager : MonoBehaviour
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
   {
     Time.timeScale = 1f;
-
-    // Create a full-screen black overlay to hide the scene transition flash
-    var fadeGo = new GameObject("SceneFade");
-    var fadeCanvas = fadeGo.AddComponent<Canvas>();
-    fadeCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-    fadeCanvas.sortingOrder = 9999;
-    var img = fadeGo.AddComponent<UnityEngine.UI.Image>();
-    img.color = new Color(0f, 0f, 0f, 0f);
-    img.raycastTarget = false;
-
-    // Fade to black over 0.2s
-    float t = 0f;
-    while (t < 0.2f)
-    {
-      t += Time.unscaledDeltaTime;
-      img.color = new Color(0f, 0f, 0f, Mathf.Clamp01(t / 0.2f));
-      yield return null;
-    }
-
-    SceneManager.LoadScene(sceneName);
+    SceneTransitionCurtain.LoadScene(sceneName);
+    yield break;
   }
 
   // ---------------------------------------------------------------------------
@@ -3558,11 +3537,11 @@ public class UIManager : MonoBehaviour
   {
     if (AdsManager.Instance != null)
     {
-      AdsManager.Instance.ShowInterstitial(() => SceneManager.LoadScene(sceneName));
+      AdsManager.Instance.ShowInterstitial(() => SceneTransitionCurtain.LoadScene(sceneName));
     }
     else
     {
-      SceneManager.LoadScene(sceneName);
+      SceneTransitionCurtain.LoadScene(sceneName);
     }
   }
 
