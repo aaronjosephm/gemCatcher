@@ -18,6 +18,7 @@ public static class GameTextStyle
     public static readonly Color32 UnderlayColor = new Color32(0x03, 0x3F, 0x0B, 0xFF);
 
     private static TMP_FontAsset fontAsset;
+    private static Material noOutlineMaterial;
     private static bool missingFontLogged;
 
     public static TMP_FontAsset FontAsset
@@ -71,10 +72,39 @@ public static class GameTextStyle
             text.font = fredoka;
         }
 
-        if (text.fontSharedMaterial != fredoka.material)
+        bool usesNoOutlineMaterial =
+            noOutlineMaterial != null && text.fontSharedMaterial == noOutlineMaterial;
+        if (text.fontSharedMaterial != fredoka.material && !usesNoOutlineMaterial)
         {
             text.fontSharedMaterial = fredoka.material;
         }
+    }
+
+    public static void ApplyWithoutOutline(TMP_Text text)
+    {
+        if (text == null)
+        {
+            return;
+        }
+
+        TMP_FontAsset fredoka = FontAsset;
+        if (fredoka == null)
+        {
+            return;
+        }
+
+        if (noOutlineMaterial == null)
+        {
+            noOutlineMaterial = new Material(fredoka.material)
+            {
+                name = $"{fredoka.material.name} (No Outline)"
+            };
+            noOutlineMaterial.SetFloat("_OutlineWidth", 0f);
+            noOutlineMaterial.DisableKeyword("OUTLINE_ON");
+        }
+
+        text.font = fredoka;
+        text.fontSharedMaterial = noOutlineMaterial;
     }
 
     public static void ConfigureMaterial(Material material)
@@ -98,6 +128,19 @@ public static class GameTextStyle
 
     public static void ResetCache()
     {
+        if (noOutlineMaterial != null)
+        {
+            if (Application.isPlaying)
+            {
+                Object.Destroy(noOutlineMaterial);
+            }
+            else
+            {
+                Object.DestroyImmediate(noOutlineMaterial);
+            }
+            noOutlineMaterial = null;
+        }
+
         fontAsset = null;
         missingFontLogged = false;
     }

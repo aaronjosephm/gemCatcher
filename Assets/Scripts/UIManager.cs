@@ -1876,6 +1876,7 @@ public class UIManager : MonoBehaviour
     arrowTmp.fontStyle = FontStyles.Bold;
     arrowTmp.alignment = TextAlignmentOptions.MidlineLeft;
     arrowTmp.color = Color.white;
+    GameTextStyle.ApplyWithoutOutline(arrowTmp);
 
     // Title
     TextMeshProUGUI titleTmp = new GameObject("Title", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
@@ -2621,6 +2622,7 @@ public class UIManager : MonoBehaviour
       backTmp.fontStyle = FontStyles.Bold;
       backTmp.alignment = TextAlignmentOptions.MidlineLeft;
       backTmp.color = Color.white;
+      GameTextStyle.ApplyWithoutOutline(backTmp);
     }
 
     // SHOP title (left of center)
