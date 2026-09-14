@@ -2260,7 +2260,7 @@ public class UIManager : MonoBehaviour
 
     if (!unlocked)
     {
-      statusTmp.text = $"Cross finish line ({LevelManager.FinishLineScore:N0} pts)";
+      statusTmp.text = $"Cross finish line ({config.unlockScore:N0} pts)";
       statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
     }
     else if (selected)

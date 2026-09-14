@@ -13,8 +13,7 @@ public static class LevelManager
     public enum LevelId { Cave, Jungle, Space, Lava }
 
     public const string GameplaySceneName = "Gameplay";
-    public const int FinishLineScore = 100;
-    public const int JungleUnlockScore = 100;
+    public const int JungleUnlockScore = 10_000;
     public const int SpaceUnlockScore = 25_000;
     public const int LavaUnlockScore = 50_000;
 
@@ -210,22 +209,27 @@ public static class LevelManager
     }
 
     /// <summary>
-    /// Returns the level immediately after the selected level, regardless of
-    /// whether it is already unlocked, or null for the final level.
+    /// Returns the LevelId of the next locked level that the current level's
+    /// finish line would unlock, or null if there's nothing to unlock.
     /// </summary>
-    public static LevelId? GetNextLevel()
+    public static LevelId? GetNextLockedLevel()
     {
         int idx = System.Array.FindIndex(levels, l => l.id == SelectedLevel);
         if (idx < 0 || idx >= levels.Length - 1) return null;
-        return levels[idx + 1].id;
+        var next = levels[idx + 1];
+        if (IsUnlocked(next.id)) return null;
+        return next.id;
     }
 
     /// <summary>
-    /// Returns the score at which the finish line appears in every level.
+    /// Returns the score threshold at which the finish line should appear for the
+    /// current level, or 0 if there's no next level to unlock.
     /// </summary>
     public static int GetFinishLineScore()
     {
-        return FinishLineScore;
+        var next = GetNextLockedLevel();
+        if (next == null) return 0;
+        return GetConfig(next.Value).unlockScore;
     }
 
     /// <summary>

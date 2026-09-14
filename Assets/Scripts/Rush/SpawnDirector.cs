@@ -749,8 +749,13 @@ public class SpawnDirector : MonoBehaviour
 
     void SpawnFinishLine(float y, float fallSpeed)
     {
-        LevelManager.LevelId? nextLevel = LevelManager.GetNextLevel();
-        FinishLine line = FinishLine.Create(y, fallSpeed, nextLevel);
+        LevelManager.LevelId? nextLevel = LevelManager.GetNextLockedLevel();
+        if (nextLevel == null)
+        {
+            return;
+        }
+
+        FinishLine line = FinishLine.Create(y, fallSpeed, nextLevel.Value);
         if (line == null)
         {
             Debug.LogError("[SpawnDirector] Failed to create finish line.");
