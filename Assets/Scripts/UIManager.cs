@@ -157,6 +157,7 @@ public class UIManager : MonoBehaviour
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
+  private const float SubpageBackArrowFontSize = 64f;
   private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
       new Dictionary<int, Sprite>();
 
@@ -1871,7 +1872,7 @@ public class UIManager : MonoBehaviour
     arrowR.anchorMin = Vector2.zero; arrowR.anchorMax = Vector2.one;
     arrowR.offsetMin = new Vector2(15f, 0f); arrowR.offsetMax = Vector2.zero;
     arrowTmp.text = "\u2190";
-    arrowTmp.fontSize = 40;
+    arrowTmp.fontSize = SubpageBackArrowFontSize;
     arrowTmp.fontStyle = FontStyles.Bold;
     arrowTmp.alignment = TextAlignmentOptions.MidlineLeft;
     arrowTmp.color = Color.white;
@@ -2616,7 +2617,7 @@ public class UIManager : MonoBehaviour
       arrowR.anchorMin = Vector2.zero; arrowR.anchorMax = Vector2.one;
       arrowR.offsetMin = new Vector2(15f, 0f); arrowR.offsetMax = Vector2.zero;
       backTmp.text = "\u2190";
-      backTmp.fontSize = 40;
+      backTmp.fontSize = SubpageBackArrowFontSize;
       backTmp.fontStyle = FontStyles.Bold;
       backTmp.alignment = TextAlignmentOptions.MidlineLeft;
       backTmp.color = Color.white;
