@@ -38,6 +38,7 @@ public class AdsManager : MonoBehaviour
     private bool rewardedAdLoading;
     private int rewardedRetryAttempt;
     private Coroutine rewardedRetryCoroutine;
+    private bool fullScreenAdAudioSuspended;
 
     public static event Action<bool> OnRewardedAvailabilityChanged;
 
@@ -123,7 +124,10 @@ public class AdsManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        IAPManager.OnAdsRemoved += HandleAdsRemoved;
+        if (IAPManager.RemoveAdsPurchaseEnabled)
+        {
+            IAPManager.OnAdsRemoved += HandleAdsRemoved;
+        }
         LogAdUnitMode();
         InitializeAndPreload();
     }
@@ -260,11 +264,13 @@ public class AdsManager : MonoBehaviour
         {
             if (completed) return;
             completed = true;
+            RestoreGameAudioAfterAd();
             onComplete?.Invoke();
         }
 
         adToShow.OnAdFullScreenContentClosed += Complete;
         adToShow.OnAdFullScreenContentFailed += _ => Complete();
+        SuspendGameAudioForAd();
         adToShow.Show();
     }
 
@@ -294,7 +300,12 @@ public class AdsManager : MonoBehaviour
     public bool TryShowRewardedContinue(Action<bool> onComplete)
     {
 #if UNITY_EDITOR
-        StartCoroutine(SimulateRewardedContinue(onComplete));
+        SuspendGameAudioForAd();
+        StartCoroutine(SimulateRewardedContinue(result =>
+        {
+            RestoreGameAudioAfterAd();
+            onComplete?.Invoke(result);
+        }));
         return true;
 #else
         if (!IsRewardedContinueReady)
@@ -316,6 +327,7 @@ public class AdsManager : MonoBehaviour
 
             MobileAdsEventExecutor.ExecuteInUpdate(() =>
             {
+                RestoreGameAudioAfterAd();
                 adToShow.Destroy();
                 onComplete?.Invoke(granted);
                 LoadRewarded();
@@ -332,6 +344,7 @@ public class AdsManager : MonoBehaviour
             finish(false);
         };
 
+        SuspendGameAudioForAd();
         adToShow.Show(_ => Interlocked.Exchange(ref rewardEarned, 1));
         return true;
 #endif
@@ -419,6 +432,22 @@ public class AdsManager : MonoBehaviour
         OnRewardedAvailabilityChanged?.Invoke(IsRewardedContinueReady);
     }
 
+    private void SuspendGameAudioForAd()
+    {
+        if (fullScreenAdAudioSuspended) return;
+
+        fullScreenAdAudioSuspended = true;
+        SoundManager.SuspendForFullScreenAd();
+    }
+
+    private void RestoreGameAudioAfterAd()
+    {
+        if (!fullScreenAdAudioSuspended) return;
+
+        fullScreenAdAudioSuspended = false;
+        SoundManager.RestoreAfterFullScreenAd();
+    }
+
     private void DestroyRewarded()
     {
         if (rewardedAd == null) return;
@@ -440,9 +469,13 @@ public class AdsManager : MonoBehaviour
 
     void OnDestroy()
     {
-        IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+        if (IAPManager.RemoveAdsPurchaseEnabled)
+        {
+            IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+        }
         if (Instance != this) return;
 
+        RestoreGameAudioAfterAd();
         CancelRewardedRetry();
         if (interstitialAd != null)
         {

@@ -95,6 +95,9 @@ public class SoundManager : MonoBehaviour
     private bool startupAudioReleased;
     private float startupAudioFadeElapsed;
     private bool holdStartupAudioAtZeroForOneFrame;
+    private static int fullScreenAdAudioPauseDepth;
+    private static bool listenerWasPausedBeforeFullScreenAd;
+    private static float listenerVolumeBeforeFullScreenAd = 1f;
 
     static float DefaultMusicVolume()
     {
@@ -116,6 +119,9 @@ public class SoundManager : MonoBehaviour
     {
         OnSfxVolumeChanged = null;
         startupAudioGateArmed = false;
+        fullScreenAdAudioPauseDepth = 0;
+        listenerWasPausedBeforeFullScreenAd = false;
+        listenerVolumeBeforeFullScreenAd = 1f;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSplashScreen)]
@@ -201,6 +207,7 @@ public class SoundManager : MonoBehaviour
 
     void Update()
     {
+        if (fullScreenAdAudioPauseDepth > 0) return;
         if (!PrepareStartupAudio()) return;
 
         SyncGameplayMusic();
@@ -212,6 +219,8 @@ public class SoundManager : MonoBehaviour
 
     public void Play(string soundName)
     {
+        if (fullScreenAdAudioPauseDepth > 0) return;
+
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
             if (IsMusic(soundName)) return; // music is driven by SyncGameplayMusic only
@@ -224,6 +233,8 @@ public class SoundManager : MonoBehaviour
     /// <summary>Play a sound effect at a specific pitch.</summary>
     public void PlayWithPitch(string soundName, float pitch)
     {
+        if (fullScreenAdAudioPauseDepth > 0) return;
+
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
             sound.source.volume = sound.volume * SfxVolume;
@@ -255,6 +266,35 @@ public class SoundManager : MonoBehaviour
         Instance.musicWasWanted = false;
     }
 
+    /// <summary>
+    /// Suspends Unity audio while native full-screen content owns the display.
+    /// Calls may be nested; the listener is restored only after the final caller exits.
+    /// </summary>
+    public static void SuspendForFullScreenAd()
+    {
+        if (fullScreenAdAudioPauseDepth == 0)
+        {
+            listenerWasPausedBeforeFullScreenAd = AudioListener.pause;
+            listenerVolumeBeforeFullScreenAd = AudioListener.volume;
+            AudioListener.pause = true;
+            AudioListener.volume = 0f;
+        }
+
+        fullScreenAdAudioPauseDepth++;
+    }
+
+    /// <summary>Restores the exact listener state captured before the first suspension.</summary>
+    public static void RestoreAfterFullScreenAd()
+    {
+        if (fullScreenAdAudioPauseDepth <= 0) return;
+
+        fullScreenAdAudioPauseDepth--;
+        if (fullScreenAdAudioPauseDepth > 0) return;
+
+        AudioListener.pause = listenerWasPausedBeforeFullScreenAd;
+        AudioListener.volume = listenerVolumeBeforeFullScreenAd;
+    }
+
     public void ResumeGameplayMusicAfterRewardedContinue()
     {
         if (soundDictionary == null
@@ -274,6 +314,8 @@ public class SoundManager : MonoBehaviour
 
     public void PlayWithRandomPitch(string soundName, float minPitch = 0.9f, float maxPitch = 1.1f)
     {
+        if (fullScreenAdAudioPauseDepth > 0) return;
+
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
             sound.source.volume = sound.volume * SfxVolume;
@@ -417,6 +459,8 @@ public class SoundManager : MonoBehaviour
 
     private void PlayWithFixedPitch(string soundName, float pitch)
     {
+        if (fullScreenAdAudioPauseDepth > 0) return;
+
         if (soundDictionary.TryGetValue(soundName, out SoundEffect sound) && sound.source != null)
         {
             sound.source.volume = sound.volume * SfxVolume;

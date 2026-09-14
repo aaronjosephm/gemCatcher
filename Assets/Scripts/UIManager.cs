@@ -104,9 +104,10 @@ public class UIManager : MonoBehaviour
   private Transform shopGridContainer;
   private GameObject shopActionArea;    // buy/equip bar at bottom
   private Transform shopTabContainer;
-  // Diamond skin tile: live material preview
-  private RenderTexture diamondTileRT;
-  private GameObject diamondTilePreviewRoot;
+  // Premium gem-skin tiles use live previews of their source materials.
+  private readonly Dictionary<string, RenderTexture> shopSkinTileRenderTextures =
+      new Dictionary<string, RenderTexture>();
+  private GameObject shopSkinTilePreviewRoot;
 
   // Auto-created on first request. Shown when the OS backgrounds the app
   // (incoming call, home button, app switcher) so the player can resume on
@@ -153,7 +154,6 @@ public class UIManager : MonoBehaviour
   private TextMeshProUGUI totalPointsMenuTmp;
   private GameObject totalPointsMenuGo;
   private Button removeAdsMenuButton;
-  private static readonly bool ShowRemoveAdsPurchaseButton = false;
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
@@ -326,9 +326,10 @@ public class UIManager : MonoBehaviour
     // extra fx beyond the standard catch / miss visuals.
     GemCatcher.OnBombHit += HandleBombHit;
 
-    // Remove-Ads purchase/restore — hide the main-menu button the instant
-    // ads are removed, without waiting for the player to reopen the menu.
-    IAPManager.OnAdsRemoved += HandleAdsRemoved;
+    if (IAPManager.RemoveAdsPurchaseEnabled)
+    {
+      IAPManager.OnAdsRemoved += HandleAdsRemoved;
+    }
     AdsManager.OnRewardedAvailabilityChanged += HandleRewardedAvailabilityChanged;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
@@ -367,6 +368,7 @@ public class UIManager : MonoBehaviour
     if (GameState.SkipMainMenuOnLoad)
     {
       GameState.SkipMainMenuOnLoad = false;
+      if (mainMenuPanel != null) mainMenuPanel.SetActive(false);
       ShowGameplay();
     }
     else if (s_returnToLevelSelect)
@@ -625,8 +627,19 @@ public class UIManager : MonoBehaviour
   {
     if (hudCanvas == null)
     {
-      Canvas existing = FindObjectOfType<Canvas>();
-      if (existing != null && existing.renderMode == RenderMode.ScreenSpaceOverlay)
+      Canvas existing = null;
+      Canvas[] sceneCanvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include);
+      foreach (Canvas candidate in sceneCanvases)
+      {
+        if (candidate.renderMode == RenderMode.ScreenSpaceOverlay
+            && candidate.gameObject.scene.handle == gameObject.scene.handle)
+        {
+          existing = candidate;
+          break;
+        }
+      }
+
+      if (existing != null)
       {
         hudCanvas = existing;
       }
@@ -1421,11 +1434,7 @@ public class UIManager : MonoBehaviour
   // toggles it on.
   void EnsureMainMenuPanel()
   {
-    if (mainMenuPanel != null)
-    {
-      mainMenuPanel.SetActive(false);
-      return;
-    }
+    if (mainMenuPanel != null) return;
     EnsureHudCanvas();
     if (hudCanvas == null) return;
 
@@ -1476,7 +1485,8 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
     stackRect.anchoredPosition = new Vector2(0f, -250f);
-    stackRect.sizeDelta = new Vector2(620f, ShowRemoveAdsPurchaseButton ? 620f : 520f);
+    stackRect.sizeDelta =
+        new Vector2(620f, IAPManager.RemoveAdsPurchaseEnabled ? 620f : 520f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 26f;
@@ -1493,7 +1503,7 @@ public class UIManager : MonoBehaviour
         new Color(0.55f, 0.25f, 0.55f), OnShopClicked);
     BuildImageMenuButton(stackGo.transform, "SettingsButton", "Settings", "UI/SettingsButton",
         new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
-    if (ShowRemoveAdsPurchaseButton)
+    if (IAPManager.RemoveAdsPurchaseEnabled)
     {
       removeAdsMenuButton = BuildImageMenuButton(
           stackGo.transform, "RemoveAdsButton", "Remove Ads - $2", "UI/RemoveAdsButton",
@@ -2346,8 +2356,18 @@ public class UIManager : MonoBehaviour
   {
     if (shopPreviewRoot != null) { Destroy(shopPreviewRoot); shopPreviewRoot = null; }
     if (shopPreviewRT != null) { shopPreviewRT.Release(); Destroy(shopPreviewRT); shopPreviewRT = null; }
-    if (diamondTilePreviewRoot != null) { Destroy(diamondTilePreviewRoot); diamondTilePreviewRoot = null; }
-    if (diamondTileRT != null) { diamondTileRT.Release(); Destroy(diamondTileRT); diamondTileRT = null; }
+    if (shopSkinTilePreviewRoot != null)
+    {
+      Destroy(shopSkinTilePreviewRoot);
+      shopSkinTilePreviewRoot = null;
+    }
+    foreach (RenderTexture texture in shopSkinTileRenderTextures.Values)
+    {
+      if (texture == null) continue;
+      texture.Release();
+      Destroy(texture);
+    }
+    shopSkinTileRenderTextures.Clear();
     shopPreviewCamera = null;
     shopPreviewCatchy = null;
     shopPreviewWearableId = null;
@@ -2427,7 +2447,7 @@ public class UIManager : MonoBehaviour
       ApplyShopPreviewWearables(null);
     }
 
-    SetupDiamondTilePreview();
+    SetupMaterialSkinTilePreviews();
   }
 
   void ApplyShopPreviewWearables(string previewId)
@@ -2494,54 +2514,62 @@ public class UIManager : MonoBehaviour
     }
   }
 
-  void SetupDiamondTilePreview()
+  void SetupMaterialSkinTilePreviews()
   {
-    // Load the Rainbow material from the DiamondGem prefab
-    var prefab = Resources.Load<GameObject>("Gems/DiamondGem");
-    if (prefab == null) return;
-    var prefabRend = prefab.GetComponentInChildren<Renderer>();
-    if (prefabRend == null || prefabRend.sharedMaterial == null) return;
+    shopSkinTilePreviewRoot = new GameObject("MaterialSkinTilePreviews");
+    shopSkinTilePreviewRoot.transform.position = new Vector3(50f, 100f, 0f);
 
-    diamondTileRT = new RenderTexture(128, 128, 16);
-    diamondTileRT.Create();
+    GameObject lightGo = new GameObject("MaterialPreviewLight");
+    lightGo.transform.SetParent(shopSkinTilePreviewRoot.transform, false);
+    lightGo.transform.localRotation = Quaternion.Euler(35f, 145f, 0f);
+    Light light = lightGo.AddComponent<Light>();
+    light.type = LightType.Directional;
+    light.intensity = 1.5f;
+    light.color = Color.white;
 
-    // Place it far from the catchy preview so cameras don't overlap
-    diamondTilePreviewRoot = new GameObject("DiamondTilePreview");
-    diamondTilePreviewRoot.transform.position = new Vector3(50f, 100f, 0f);
+    int previewIndex = 0;
+    foreach (SkinManager.SkinDef skin in SkinManager.Catalog)
+    {
+      if (skin.type != SkinManager.SkinType.PrefabMaterial) continue;
 
-    // Quad facing the camera with the Rainbow material
-    GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-    quad.name = "DiamondQuad";
-    quad.transform.SetParent(diamondTilePreviewRoot.transform, false);
-    quad.transform.localPosition = Vector3.zero;
-    quad.transform.localScale = new Vector3(2f, 2f, 1f);
-    var col = quad.GetComponent<Collider>();
-    if (col != null) Destroy(col);
-    quad.GetComponent<Renderer>().sharedMaterial = prefabRend.sharedMaterial;
+      Material material = SkinManager.GetPrefabMaterial(skin);
+      if (material == null) continue;
 
-    // Light so the material looks good
-    GameObject dtLight = new GameObject("DTLight");
-    dtLight.transform.SetParent(diamondTilePreviewRoot.transform, false);
-    dtLight.transform.localPosition = new Vector3(0.5f, 1f, 1f);
-    dtLight.transform.LookAt(diamondTilePreviewRoot.transform);
-    Light lt = dtLight.AddComponent<Light>();
-    lt.type = LightType.Directional;
-    lt.intensity = 1.5f;
-    lt.color = Color.white;
+      RenderTexture texture = new RenderTexture(128, 128, 16)
+      {
+        name = $"{skin.id} Skin Tile"
+      };
+      texture.Create();
+      shopSkinTileRenderTextures[skin.id] = texture;
 
-    // Camera looking at the quad
-    GameObject dtCam = new GameObject("DTCam");
-    dtCam.transform.SetParent(diamondTilePreviewRoot.transform, false);
-    dtCam.transform.localPosition = new Vector3(0f, 0f, 1.5f);
-    dtCam.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
-    Camera cam = dtCam.AddComponent<Camera>();
-    cam.targetTexture = diamondTileRT;
-    cam.clearFlags = CameraClearFlags.SolidColor;
-    cam.backgroundColor = new Color(0.15f, 0.15f, 0.2f);
-    cam.orthographic = true;
-    cam.orthographicSize = 1f;
-    cam.nearClipPlane = 0.1f;
-    cam.farClipPlane = 5f;
+      GameObject preview = new GameObject($"{skin.id}TilePreview");
+      preview.transform.SetParent(shopSkinTilePreviewRoot.transform, false);
+      preview.transform.localPosition = new Vector3(previewIndex * 10f, 0f, 0f);
+
+      GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
+      quad.name = $"{skin.id}Quad";
+      quad.transform.SetParent(preview.transform, false);
+      quad.transform.localPosition = Vector3.zero;
+      quad.transform.localScale = new Vector3(2f, 2f, 1f);
+      Collider collider = quad.GetComponent<Collider>();
+      if (collider != null) Destroy(collider);
+      quad.GetComponent<Renderer>().sharedMaterial = material;
+
+      GameObject cameraGo = new GameObject($"{skin.id}TileCamera");
+      cameraGo.transform.SetParent(preview.transform, false);
+      cameraGo.transform.localPosition = new Vector3(0f, 0f, 1.5f);
+      cameraGo.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+      Camera camera = cameraGo.AddComponent<Camera>();
+      camera.targetTexture = texture;
+      camera.clearFlags = CameraClearFlags.SolidColor;
+      camera.backgroundColor = new Color(0.15f, 0.15f, 0.2f);
+      camera.orthographic = true;
+      camera.orthographicSize = 1f;
+      camera.nearClipPlane = 0.1f;
+      camera.farClipPlane = 5f;
+
+      previewIndex++;
+    }
   }
 
   void EnsureShopPanel()
@@ -2812,7 +2840,7 @@ public class UIManager : MonoBehaviour
     nameR.anchorMin = new Vector2(0.05f, 0.25f);
     nameR.anchorMax = new Vector2(0.95f, 0.65f);
     nameR.offsetMin = Vector2.zero; nameR.offsetMax = Vector2.zero;
-    nameTmp.text = def.displayName;
+    nameTmp.text = def.displayName.ToUpperInvariant();
     nameTmp.fontSize = 24;
     nameTmp.fontStyle = FontStyles.Bold;
     nameTmp.alignment = TextAlignmentOptions.Center;
@@ -2903,7 +2931,7 @@ public class UIManager : MonoBehaviour
       RectTransform hintR = hintTmp.GetComponent<RectTransform>();
       hintR.anchorMin = Vector2.zero; hintR.anchorMax = Vector2.one;
       hintR.offsetMin = Vector2.zero; hintR.offsetMax = Vector2.zero;
-      hintTmp.text = "Tap an item to preview";
+      hintTmp.text = "TAP AN ITEM TO PREVIEW";
       hintTmp.fontSize = 26;
       hintTmp.fontStyle = FontStyles.Italic;
       hintTmp.alignment = TextAlignmentOptions.Center;
@@ -2911,7 +2939,6 @@ public class UIManager : MonoBehaviour
       return;
     }
 
-    string itemName;
     long itemPrice;
     bool owned, equipped, canAfford;
 
@@ -2920,7 +2947,6 @@ public class UIManager : MonoBehaviour
       var defN = WearableManager.GetDef(shopSelectedId);
       if (defN == null) return;
       var def = defN.Value;
-      itemName = def.displayName;
       itemPrice = def.price;
       owned = WearableManager.IsOwned(def.id);
       equipped = WearableManager.IsEquipped(def.id);
@@ -2931,7 +2957,6 @@ public class UIManager : MonoBehaviour
       var skinN = SkinManager.GetDef(shopSelectedId);
       if (skinN == null) return;
       var skin = skinN.Value;
-      itemName = skin.displayName;
       itemPrice = skin.price;
       owned = SkinManager.IsOwned(skin.id);
       equipped = SkinManager.IsEquipped(skin.id);
@@ -2985,7 +3010,7 @@ public class UIManager : MonoBehaviour
     else if (canAfford)
     {
       actionColor = new Color(0.18f, 0.55f, 0.28f);
-      btnTmp.text = $"BUY \u2014 {itemPrice:N0} pts";
+      btnTmp.text = $"BUY \u2014 {itemPrice:N0} PTS";
       btnTmp.color = Color.white;
       var selId = shopSelectedId;
       var tab = shopActiveTab;
@@ -2999,7 +3024,7 @@ public class UIManager : MonoBehaviour
     else
     {
       actionColor = new Color(0.10f, 0.10f, 0.13f);
-      btnTmp.text = $"BUY \u2014 {itemPrice:N0} pts";
+      btnTmp.text = $"BUY \u2014 {itemPrice:N0} PTS";
       btnTmp.color = new Color(0.4f, 0.35f, 0.3f);
       btn.interactable = false;
     }
@@ -3043,8 +3068,8 @@ public class UIManager : MonoBehaviour
     RectTransform lblR = tmp.GetComponent<RectTransform>();
     lblR.anchorMin = Vector2.zero; lblR.anchorMax = Vector2.one;
     lblR.offsetMin = Vector2.zero; lblR.offsetMax = Vector2.zero;
-    tmp.text = label;
-    tmp.fontSize = 24;
+    tmp.text = label.ToUpperInvariant();
+    tmp.fontSize = 36;
     tmp.fontStyle = active ? FontStyles.Bold : FontStyles.Normal;
     tmp.alignment = TextAlignmentOptions.Center;
     tmp.color = active ? Color.white : new Color(0.64f, 0.68f, 0.78f);
@@ -3094,18 +3119,18 @@ public class UIManager : MonoBehaviour
     // Set the entire tile to the skin color
     if (skin.type == SkinManager.SkinType.PrefabMaterial)
     {
-      // Live material preview via RawImage showing the diamond RenderTexture
-      cardBg.color = new Color(0.15f, 0.15f, 0.2f); // dark fallback
-      if (diamondTileRT != null)
+      cardBg.color = skin.primaryColor;
+      if (shopSkinTileRenderTextures.TryGetValue(skin.id, out RenderTexture texture))
       {
-        GameObject rawGo = new GameObject("DiamondPreview", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
+        GameObject rawGo = new GameObject(
+            "MaterialPreview", typeof(RectTransform), typeof(CanvasRenderer), typeof(RawImage));
         rawGo.transform.SetParent(card.transform, false);
         RectTransform rawR = rawGo.GetComponent<RectTransform>();
         rawR.anchorMin = Vector2.zero;
         rawR.anchorMax = Vector2.one;
         rawR.offsetMin = Vector2.zero;
         rawR.offsetMax = Vector2.zero;
-        rawGo.GetComponent<RawImage>().texture = diamondTileRT;
+        rawGo.GetComponent<RawImage>().texture = texture;
         rawGo.GetComponent<RawImage>().raycastTarget = false;
       }
     }
@@ -3160,24 +3185,25 @@ public class UIManager : MonoBehaviour
     bool isLightBg = (cardBg.color.r + cardBg.color.g + cardBg.color.b) / 3f > 0.5f;
     Color textColor = isLightBg ? new Color(0.1f, 0.1f, 0.15f) : Color.white;
 
+    string displayName = skin.displayName.ToUpperInvariant();
     if (equipped)
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>(EQUIPPED)</size>";
+      nameTmp.text = $"{displayName}\n<size=16>(EQUIPPED)</size>";
       nameTmp.color = isLightBg ? new Color(0.05f, 0.3f, 0.05f) : new Color(0.5f, 1f, 0.7f);
     }
     else if (skin.price == 0)
     {
-      nameTmp.text = skin.displayName;
+      nameTmp.text = displayName;
       nameTmp.color = textColor;
     }
     else if (owned)
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>(OWNED)</size>";
+      nameTmp.text = $"{displayName}\n<size=16>(OWNED)</size>";
       nameTmp.color = isLightBg ? new Color(0.1f, 0.35f, 0.15f) : new Color(0.5f, 0.75f, 0.55f);
     }
     else
     {
-      nameTmp.text = $"{skin.displayName}\n<size=16>\u2666 {skin.price:N0}</size>";
+      nameTmp.text = $"{displayName}\n<size=16>\u2666 {skin.price:N0}</size>";
       nameTmp.color = textColor;
     }
   }
@@ -3300,26 +3326,8 @@ public class UIManager : MonoBehaviour
   System.Collections.IEnumerator FadeAndLoadScene(string sceneName)
   {
     Time.timeScale = 1f;
-
-    // Create a full-screen black overlay to hide the scene transition flash
-    var fadeGo = new GameObject("SceneFade");
-    var fadeCanvas = fadeGo.AddComponent<Canvas>();
-    fadeCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-    fadeCanvas.sortingOrder = 9999;
-    var img = fadeGo.AddComponent<UnityEngine.UI.Image>();
-    img.color = new Color(0f, 0f, 0f, 0f);
-    img.raycastTarget = false;
-
-    // Fade to black over 0.2s
-    float t = 0f;
-    while (t < 0.2f)
-    {
-      t += Time.unscaledDeltaTime;
-      img.color = new Color(0f, 0f, 0f, Mathf.Clamp01(t / 0.2f));
-      yield return null;
-    }
-
-    SceneManager.LoadScene(sceneName);
+    SceneTransitionCurtain.LoadScene(sceneName);
+    yield break;
   }
 
   // ---------------------------------------------------------------------------
@@ -3558,11 +3566,11 @@ public class UIManager : MonoBehaviour
   {
     if (AdsManager.Instance != null)
     {
-      AdsManager.Instance.ShowInterstitial(() => SceneManager.LoadScene(sceneName));
+      AdsManager.Instance.ShowInterstitial(() => SceneTransitionCurtain.LoadScene(sceneName));
     }
     else
     {
-      SceneManager.LoadScene(sceneName);
+      SceneTransitionCurtain.LoadScene(sceneName);
     }
   }
 
@@ -4361,8 +4369,10 @@ public class UIManager : MonoBehaviour
 
   void RestartGame()
   {
-    // Reset score & lives before reloading so the next session starts clean even if Unity's
-    // Domain Reload is disabled (statics persist across scene reloads otherwise).
+    // Resetting lives clears the game-over state. Stop the current round first so
+    // its music cannot restart while an interstitial is covering the transition.
+    GameState.IsPlaying = false;
+    SoundManager.StopAll();
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
 
@@ -4570,7 +4580,8 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
     stackRect.anchoredPosition = new Vector2(0f, -10f);
-    stackRect.sizeDelta = new Vector2(SettingsContentWidth, 560f);
+    stackRect.sizeDelta =
+        new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 20f;
@@ -4585,8 +4596,11 @@ public class UIManager : MonoBehaviour
         v => SoundManager.SfxVolume = v);
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
-    BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
-        new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
+    if (IAPManager.RemoveAdsPurchaseEnabled)
+    {
+      BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
+          new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
+    }
 
     BuildTopBarBackArrow(contentParent, "SETTINGS", OnSettingsBackClicked);
 
@@ -4949,9 +4963,6 @@ public class UIManager : MonoBehaviour
     ShowMainMenu();
   }
 
-  // IAPManager handles store communication when the gated storefront entry
-  // is enabled. Existing ownership and restore behavior remain active while
-  // the entry is hidden.
   void OnRemoveAdsClicked()
   {
     if (IAPManager.Instance != null)
@@ -4975,7 +4986,7 @@ public class UIManager : MonoBehaviour
   {
     if (removeAdsMenuButton == null) return;
 
-    removeAdsMenuButton.gameObject.SetActive(true);
+    removeAdsMenuButton.gameObject.SetActive(IAPManager.RemoveAdsPurchaseEnabled);
     removeAdsMenuButton.interactable = !IAPManager.AdsRemoved;
   }
 
@@ -5044,7 +5055,10 @@ public class UIManager : MonoBehaviour
     ComboManager.OnComboBroken -= HandleComboBroken;
     MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
-    IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+    if (IAPManager.RemoveAdsPurchaseEnabled)
+    {
+      IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+    }
     AdsManager.OnRewardedAvailabilityChanged -= HandleRewardedAvailabilityChanged;
 
     if (objectPooler != null)
