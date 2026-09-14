@@ -157,7 +157,7 @@ public class UIManager : MonoBehaviour
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
-  private const float SubpageBackArrowFontSize = 64f;
+  private const float SubpageBackArrowFontSize = 128f;
   private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
       new Dictionary<int, Sprite>();
 
