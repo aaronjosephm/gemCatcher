@@ -165,8 +165,8 @@ public static class LevelManager
 
     public static LevelConfig CurrentConfig => GetConfig(SelectedLevel);
 
-    // Set to true during development to bypass unlock requirements.
-    private const bool AllLevelsUnlocked = false;
+    // Temporary screenshot mode. Set back to false before the next release build.
+    private const bool AllLevelsUnlocked = true;
 
     /// <summary>
     /// Returns the best score achieved on a specific level.
@@ -243,6 +243,8 @@ public static class LevelManager
     public static LevelId? CheckNewUnlock()
     {
         EnsureUnlockProgressionInitialized();
+        if (AllLevelsUnlocked) return null;
+
         foreach (var l in levels)
         {
             if (l.unlockScore <= 0) continue;
