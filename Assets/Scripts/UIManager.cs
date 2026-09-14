@@ -4368,8 +4368,10 @@ public class UIManager : MonoBehaviour
 
   void RestartGame()
   {
-    // Reset score & lives before reloading so the next session starts clean even if Unity's
-    // Domain Reload is disabled (statics persist across scene reloads otherwise).
+    // Resetting lives clears the game-over state. Stop the current round first so
+    // its music cannot restart while an interstitial is covering the transition.
+    GameState.IsPlaying = false;
+    SoundManager.StopAll();
     GemCatcher.ResetScore();
     GemCatcher.ResetLives();
 
