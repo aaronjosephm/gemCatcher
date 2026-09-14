@@ -2633,7 +2633,7 @@ public class UIManager : MonoBehaviour
       titleR.anchorMin = new Vector2(0.15f, 0f);
       titleR.anchorMax = new Vector2(0.5f, 1f);
       titleR.offsetMin = Vector2.zero; titleR.offsetMax = Vector2.zero;
-      titleTmp.text = "STORE";
+      titleTmp.text = "SHOP";
       titleTmp.fontSize = 36;
       titleTmp.fontStyle = FontStyles.Bold;
       titleTmp.alignment = TextAlignmentOptions.MidlineLeft;
