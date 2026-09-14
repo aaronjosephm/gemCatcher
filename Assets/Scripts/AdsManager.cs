@@ -124,7 +124,10 @@ public class AdsManager : MonoBehaviour
 
         Instance = this;
         DontDestroyOnLoad(gameObject);
-        IAPManager.OnAdsRemoved += HandleAdsRemoved;
+        if (IAPManager.RemoveAdsPurchaseEnabled)
+        {
+            IAPManager.OnAdsRemoved += HandleAdsRemoved;
+        }
         LogAdUnitMode();
         InitializeAndPreload();
     }
@@ -466,7 +469,10 @@ public class AdsManager : MonoBehaviour
 
     void OnDestroy()
     {
-        IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+        if (IAPManager.RemoveAdsPurchaseEnabled)
+        {
+            IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+        }
         if (Instance != this) return;
 
         RestoreGameAudioAfterAd();

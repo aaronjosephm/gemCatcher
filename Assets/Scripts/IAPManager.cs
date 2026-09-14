@@ -17,10 +17,11 @@ using UnityEngine.Purchasing.Extension;
 #pragma warning disable CS0618
 
 /// <summary>
-/// Handles the one-time "Remove Ads" non-consumable purchase via Unity IAP,
-/// unified across the App Store and Google Play. Auto-bootstraps like the
-/// other manager singletons (<see cref="PowerUpManager"/>, <see cref="SoundManager"/>,
-/// <see cref="HapticManager"/>) — no scene setup required.
+/// Handles the optional one-time "Remove Ads" non-consumable purchase via
+/// Unity IAP, unified across the App Store and Google Play. When the release
+/// gate is enabled, it auto-bootstraps like the other manager singletons
+/// (<see cref="PowerUpManager"/>, <see cref="SoundManager"/>,
+/// <see cref="HapticManager"/>) with no scene setup required.
 ///
 /// Ownership is tracked two ways:
 ///   1. A PlayerPrefs flag (<see cref="AdsRemoved"/>) — a fast, synchronous
@@ -32,6 +33,13 @@ using UnityEngine.Purchasing.Extension;
 /// </summary>
 public class IAPManager : MonoBehaviour, IStoreListener
 {
+    /// <summary>
+    /// Release gate for the optional Remove Ads storefront. Keeping the
+    /// implementation compiled makes a later launch straightforward without
+    /// initializing StoreKit or exposing purchase UI in the initial release.
+    /// </summary>
+    public static bool RemoveAdsPurchaseEnabled => false;
+
     /// <summary>Non-consumable product id. Must match the id configured in
     /// App Store Connect and Google Play Console.</summary>
     public const string RemoveAdsProductId = "remove_ads";
@@ -52,7 +60,8 @@ public class IAPManager : MonoBehaviour, IStoreListener
     /// </summary>
     public static bool AdsRemoved
     {
-        get => PlayerPrefs.GetInt(AdsRemovedPrefKey, 0) == 1;
+        get => RemoveAdsPurchaseEnabled
+            && PlayerPrefs.GetInt(AdsRemovedPrefKey, 0) == 1;
         private set
         {
             PlayerPrefs.SetInt(AdsRemovedPrefKey, value ? 1 : 0);
@@ -76,6 +85,7 @@ public class IAPManager : MonoBehaviour, IStoreListener
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void EnsureInstance()
     {
+        if (!RemoveAdsPurchaseEnabled) return;
         if (Instance != null) return;
         if (FindObjectOfType<IAPManager>() != null) return;
 
@@ -85,6 +95,12 @@ public class IAPManager : MonoBehaviour, IStoreListener
 
     void Awake()
     {
+        if (!RemoveAdsPurchaseEnabled)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
         if (Instance != null && Instance != this)
         {
             Destroy(gameObject);
@@ -104,6 +120,7 @@ public class IAPManager : MonoBehaviour, IStoreListener
     /// <summary>Starts the Remove Ads purchase when the storefront UI is enabled.</summary>
     public void BuyRemoveAds()
     {
+        if (!RemoveAdsPurchaseEnabled) return;
         if (AdsRemoved) return;
 
         if (storeController == null)
@@ -131,6 +148,8 @@ public class IAPManager : MonoBehaviour, IStoreListener
     /// </summary>
     public void RestorePurchases()
     {
+        if (!RemoveAdsPurchaseEnabled) return;
+
         if (storeController == null)
         {
             Debug.LogWarning("[IAPManager] Store not initialized yet — try again in a moment.");

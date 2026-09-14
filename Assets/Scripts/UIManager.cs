@@ -154,7 +154,6 @@ public class UIManager : MonoBehaviour
   private TextMeshProUGUI totalPointsMenuTmp;
   private GameObject totalPointsMenuGo;
   private Button removeAdsMenuButton;
-  private static readonly bool ShowRemoveAdsPurchaseButton = false;
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
@@ -327,9 +326,10 @@ public class UIManager : MonoBehaviour
     // extra fx beyond the standard catch / miss visuals.
     GemCatcher.OnBombHit += HandleBombHit;
 
-    // Remove-Ads purchase/restore — hide the main-menu button the instant
-    // ads are removed, without waiting for the player to reopen the menu.
-    IAPManager.OnAdsRemoved += HandleAdsRemoved;
+    if (IAPManager.RemoveAdsPurchaseEnabled)
+    {
+      IAPManager.OnAdsRemoved += HandleAdsRemoved;
+    }
     AdsManager.OnRewardedAvailabilityChanged += HandleRewardedAvailabilityChanged;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
@@ -1485,7 +1485,8 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
     stackRect.anchoredPosition = new Vector2(0f, -250f);
-    stackRect.sizeDelta = new Vector2(620f, ShowRemoveAdsPurchaseButton ? 620f : 520f);
+    stackRect.sizeDelta =
+        new Vector2(620f, IAPManager.RemoveAdsPurchaseEnabled ? 620f : 520f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 26f;
@@ -1502,7 +1503,7 @@ public class UIManager : MonoBehaviour
         new Color(0.55f, 0.25f, 0.55f), OnShopClicked);
     BuildImageMenuButton(stackGo.transform, "SettingsButton", "Settings", "UI/SettingsButton",
         new Color(0.20f, 0.22f, 0.28f), OnSettingsButtonClicked);
-    if (ShowRemoveAdsPurchaseButton)
+    if (IAPManager.RemoveAdsPurchaseEnabled)
     {
       removeAdsMenuButton = BuildImageMenuButton(
           stackGo.transform, "RemoveAdsButton", "Remove Ads - $2", "UI/RemoveAdsButton",
@@ -4579,7 +4580,8 @@ public class UIManager : MonoBehaviour
     stackRect.anchorMax = new Vector2(0.5f, 0.5f);
     stackRect.pivot = new Vector2(0.5f, 0.5f);
     stackRect.anchoredPosition = new Vector2(0f, -10f);
-    stackRect.sizeDelta = new Vector2(SettingsContentWidth, 560f);
+    stackRect.sizeDelta =
+        new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 20f;
@@ -4594,8 +4596,11 @@ public class UIManager : MonoBehaviour
         v => SoundManager.SfxVolume = v);
     BuildSettingsToggleRow(stackGo.transform, "Haptics", HapticManager.HapticsEnabled,
         v => HapticManager.HapticsEnabled = v);
-    BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
-        new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
+    if (IAPManager.RemoveAdsPurchaseEnabled)
+    {
+      BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
+          new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
+    }
 
     BuildTopBarBackArrow(contentParent, "SETTINGS", OnSettingsBackClicked);
 
@@ -4958,9 +4963,6 @@ public class UIManager : MonoBehaviour
     ShowMainMenu();
   }
 
-  // IAPManager handles store communication when the gated storefront entry
-  // is enabled. Existing ownership and restore behavior remain active while
-  // the entry is hidden.
   void OnRemoveAdsClicked()
   {
     if (IAPManager.Instance != null)
@@ -4984,7 +4986,7 @@ public class UIManager : MonoBehaviour
   {
     if (removeAdsMenuButton == null) return;
 
-    removeAdsMenuButton.gameObject.SetActive(true);
+    removeAdsMenuButton.gameObject.SetActive(IAPManager.RemoveAdsPurchaseEnabled);
     removeAdsMenuButton.interactable = !IAPManager.AdsRemoved;
   }
 
@@ -5053,7 +5055,10 @@ public class UIManager : MonoBehaviour
     ComboManager.OnComboBroken -= HandleComboBroken;
     MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
-    IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+    if (IAPManager.RemoveAdsPurchaseEnabled)
+    {
+      IAPManager.OnAdsRemoved -= HandleAdsRemoved;
+    }
     AdsManager.OnRewardedAvailabilityChanged -= HandleRewardedAvailabilityChanged;
 
     if (objectPooler != null)
