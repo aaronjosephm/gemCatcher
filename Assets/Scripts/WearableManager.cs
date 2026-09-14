@@ -32,9 +32,19 @@ public static class WearableManager
     {
         new WearableDef
         {
+            id = "sunglasses",
+            displayName = "Sunglasses",
+            price = 1_000_000,
+            prefabPath = "Wearables/Sunglasses",
+            attach = AttachPoint.Face,
+            localRotation = Vector3.zero,
+            scale = 0.5f,
+        },
+        new WearableDef
+        {
             id = "eyepatch",
             displayName = "Eye Patch",
-            price = 10,
+            price = 1_000_000,
             prefabPath = "Wearables/EyePatch",
             attach = AttachPoint.Face,
             localOffset = new Vector3(0.12f, 0.08f, 0.45f),
@@ -43,19 +53,9 @@ public static class WearableManager
         },
         new WearableDef
         {
-            id = "sunglasses",
-            displayName = "Sunglasses",
-            price = 10,
-            prefabPath = "Wearables/Sunglasses",
-            attach = AttachPoint.Face,
-            localRotation = Vector3.zero,
-            scale = 0.5f,
-        },
-        new WearableDef
-        {
             id = "cowboyhat",
             displayName = "Cowboy Hat",
-            price = 25,
+            price = 2_000_000,
             prefabPath = "Wearables/CowboyHat",
             attach = AttachPoint.Head,
             localOffset = new Vector3(0f, 0.45f, 0f),
@@ -139,6 +139,16 @@ public static class WearableManager
         PlayerPrefs.SetString("Wearable_Equipped_" + slot, "");
         PlayerPrefs.Save();
         OnWearableChanged?.Invoke();
+    }
+
+    /// <summary>Unequip a specific wearable if it currently occupies its slot.</summary>
+    public static bool Unequip(string wearableId)
+    {
+        var def = GetDef(wearableId);
+        if (def == null || !IsEquipped(wearableId)) return false;
+
+        Unequip(def.Value.attach);
+        return true;
     }
 
     /// <summary>Check if a specific wearable is currently equipped.</summary>

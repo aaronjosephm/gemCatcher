@@ -165,9 +165,6 @@ public static class LevelManager
 
     public static LevelConfig CurrentConfig => GetConfig(SelectedLevel);
 
-    // Temporary screenshot mode. Set back to false before the next release build.
-    private const bool AllLevelsUnlocked = true;
-
     /// <summary>
     /// Returns the best score achieved on a specific level.
     /// </summary>
@@ -196,7 +193,6 @@ public static class LevelManager
     public static bool IsUnlocked(LevelId id)
     {
         EnsureUnlockProgressionInitialized();
-        if (AllLevelsUnlocked) return true;
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
         return PlayerPrefs.GetInt("KeyUnlocked_" + id, 0) == 1;
@@ -243,8 +239,6 @@ public static class LevelManager
     public static LevelId? CheckNewUnlock()
     {
         EnsureUnlockProgressionInitialized();
-        if (AllLevelsUnlocked) return null;
-
         foreach (var l in levels)
         {
             if (l.unlockScore <= 0) continue;

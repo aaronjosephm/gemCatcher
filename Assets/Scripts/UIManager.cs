@@ -2326,11 +2326,11 @@ public class UIManager : MonoBehaviour
   //  │  └───────────────────────────┘  │
   //  │  ┌──────┐  ┌──────┐  ┌──────┐  │
   //  │  │  🎩  │  │  ◐   │  │  🕶  │  │  2-col grid
-  //  │  │TopHat│  │ Patch │  │Sungls│  │
-  //  │  │  10  │  │  10   │  │  10  │  │
+  //  │  │Sungls│  │ Patch │  │Cowboy│  │
+  //  │  │  1M  │  │  1M   │  │  2M  │  │
   //  │  └──────┘  └──────┘  └──────┘  │
   //  │  ┌───────────────────────────┐  │
-  //  │  │   BUY — 10 pts            │  │  Action bar
+  //  │  │   BUY — 1,000,000 PTS      │  │  Action bar
   //  │  └───────────────────────────┘  │
   //  └─────────────────────────────────┘
   // ═══════════════════════════════════════════════════════════════════════
@@ -2988,10 +2988,25 @@ public class UIManager : MonoBehaviour
     Color actionColor;
     if (equipped)
     {
-      actionColor = new Color(0.18f, 0.22f, 0.30f);
-      btnTmp.text = "EQUIPPED";
-      btnTmp.color = new Color(0.55f, 0.65f, 0.75f);
-      btn.interactable = false;
+      if (shopActiveTab == "wearables")
+      {
+        actionColor = new Color(0.55f, 0.28f, 0.15f);
+        btnTmp.text = "UNEQUIP";
+        btnTmp.color = Color.white;
+        var selId = shopSelectedId;
+        btn.onClick.AddListener(() =>
+        {
+          WearableManager.Unequip(selId);
+          RefreshShopAfterAction(selId);
+        });
+      }
+      else
+      {
+        actionColor = new Color(0.18f, 0.22f, 0.30f);
+        btnTmp.text = "EQUIPPED";
+        btnTmp.color = new Color(0.55f, 0.65f, 0.75f);
+        btn.interactable = false;
+      }
     }
     else if (owned)
     {
