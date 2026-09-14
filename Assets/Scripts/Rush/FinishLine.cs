@@ -2,8 +2,8 @@ using UnityEngine;
 using UnityEngine.Rendering;
 
 /// <summary>
-/// Full-width level-unlock marker. It falls with the active Rush wave and
-/// unlocks the next level when it crosses the catcher's vertical position.
+/// Full-width finish marker. It falls with the active Rush wave and unlocks
+/// the next level, when one exists, after crossing the catcher.
 /// </summary>
 public sealed class FinishLine : MonoBehaviour
 {
@@ -16,7 +16,7 @@ public sealed class FinishLine : MonoBehaviour
     private Texture2D checkerTexture;
     private Material runtimeMaterial;
     private float fallSpeed;
-    private LevelManager.LevelId targetLevel;
+    private LevelManager.LevelId? targetLevel;
     private bool initialized;
     private bool crossed;
 
@@ -26,7 +26,7 @@ public sealed class FinishLine : MonoBehaviour
     public static FinishLine Create(
         float spawnY,
         float speed,
-        LevelManager.LevelId levelToUnlock)
+        LevelManager.LevelId? levelToUnlock)
     {
         GameObject root = new GameObject("FinishLine");
         FinishLine finishLine = root.AddComponent<FinishLine>();
@@ -37,7 +37,7 @@ public sealed class FinishLine : MonoBehaviour
     public void Initialize(
         float spawnY,
         float speed,
-        LevelManager.LevelId levelToUnlock)
+        LevelManager.LevelId? levelToUnlock)
     {
         fallSpeed = Mathf.Max(0.1f, speed);
         targetLevel = levelToUnlock;
@@ -204,13 +204,14 @@ public sealed class FinishLine : MonoBehaviour
     void CompleteCrossing()
     {
         crossed = true;
-        if (LevelManager.IsUnlocked(targetLevel))
+        if (!targetLevel.HasValue || LevelManager.IsUnlocked(targetLevel.Value))
         {
             return;
         }
 
-        LevelManager.UnlockLevel(targetLevel);
-        LevelManager.LevelConfig config = LevelManager.GetConfig(targetLevel);
+        LevelManager.LevelId levelToUnlock = targetLevel.Value;
+        LevelManager.UnlockLevel(levelToUnlock);
+        LevelManager.LevelConfig config = LevelManager.GetConfig(levelToUnlock);
         UIManager.Instance?.SpawnBannerNotification(
             $"{config.displayName} UNLOCKED!",
             new Color(1f, 0.85f, 0.2f));
