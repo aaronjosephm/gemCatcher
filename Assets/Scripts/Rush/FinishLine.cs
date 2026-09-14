@@ -9,6 +9,7 @@ public sealed class FinishLine : MonoBehaviour
 {
     private const float LineHeight = 0.9f;
     private const float HorizontalOverscan = 0.4f;
+    private const float LineOpacity = 0.5f;
     private const int CheckerRows = 4;
 
     private Transform visual;
@@ -99,18 +100,46 @@ public sealed class FinishLine : MonoBehaviour
             hideFlags = HideFlags.DontSave,
             mainTexture = checkerTexture,
         };
+        Color tint = new Color(1f, 1f, 1f, LineOpacity);
         if (runtimeMaterial.HasProperty("_BaseMap"))
         {
             runtimeMaterial.SetTexture("_BaseMap", checkerTexture);
         }
         if (runtimeMaterial.HasProperty("_BaseColor"))
         {
-            runtimeMaterial.SetColor("_BaseColor", Color.white);
+            runtimeMaterial.SetColor("_BaseColor", tint);
+        }
+        if (runtimeMaterial.HasProperty("_Color"))
+        {
+            runtimeMaterial.SetColor("_Color", tint);
         }
         if (runtimeMaterial.HasProperty("_Cull"))
         {
             runtimeMaterial.SetFloat("_Cull", (float)CullMode.Off);
         }
+        if (runtimeMaterial.HasProperty("_Surface"))
+        {
+            runtimeMaterial.SetFloat("_Surface", 1f);
+        }
+        if (runtimeMaterial.HasProperty("_Blend"))
+        {
+            runtimeMaterial.SetFloat("_Blend", 0f);
+        }
+        if (runtimeMaterial.HasProperty("_SrcBlend"))
+        {
+            runtimeMaterial.SetFloat("_SrcBlend", (float)BlendMode.SrcAlpha);
+        }
+        if (runtimeMaterial.HasProperty("_DstBlend"))
+        {
+            runtimeMaterial.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+        }
+        if (runtimeMaterial.HasProperty("_ZWrite"))
+        {
+            runtimeMaterial.SetFloat("_ZWrite", 0f);
+        }
+        runtimeMaterial.SetOverrideTag("RenderType", "Transparent");
+        runtimeMaterial.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+        runtimeMaterial.renderQueue = (int)RenderQueue.Transparent;
 
         Renderer lineRenderer = quad.GetComponent<Renderer>();
         lineRenderer.sharedMaterial = runtimeMaterial;
