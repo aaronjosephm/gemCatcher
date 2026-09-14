@@ -82,6 +82,33 @@ public static class SkinManager
             primaryColor = new Color(0.05f, 0.55f, 0.25f),
             materialPrefabPath = "Gems/EmeraldGem",
         },
+        new SkinDef
+        {
+            id = "topaz",
+            displayName = "Topaz",
+            price = 50,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.95f, 0.4f, 0.08f),
+            materialPrefabPath = "Gems/TopazGem",
+        },
+        new SkinDef
+        {
+            id = "sapphire",
+            displayName = "Sapphire",
+            price = 50,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.08f, 0.25f, 0.85f),
+            materialPrefabPath = "Gems/SapphireGem",
+        },
+        new SkinDef
+        {
+            id = "citrine",
+            displayName = "Citrine",
+            price = 50,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(1f, 0.72f, 0.1f),
+            materialPrefabPath = "Gems/CitrineGem",
+        },
     };
 
     public static SkinDef[] Catalog => catalog;
