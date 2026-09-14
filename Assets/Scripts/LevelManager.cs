@@ -4,16 +4,16 @@ using UnityEngine;
 /// Central level/theme management. Tracks which level is selected, which
 /// levels are unlocked, and provides difficulty parameters to ObjectPooler.
 ///
-/// Each locked level is unlocked by catching the key that drops at its score
-/// threshold in the preceding level. The selected level and unlocks persist in
-/// PlayerPrefs so the player returns to their last choice.
+/// Each locked level is unlocked by crossing the finish line that appears at
+/// its score threshold in the preceding level. The selected level and unlocks
+/// persist in PlayerPrefs so the player returns to their last choice.
 /// </summary>
 public static class LevelManager
 {
     public enum LevelId { Cave, Jungle, Space, Lava }
 
     public const string GameplaySceneName = "Gameplay";
-    public const int JungleUnlockScore = 10_000;
+    public const int JungleUnlockScore = 100;
     public const int SpaceUnlockScore = 25_000;
     public const int LavaUnlockScore = 50_000;
 
@@ -27,7 +27,7 @@ public static class LevelManager
         public string midgroundResource;     // Resources/ path to midground texture (null = none)
         public string musicResource;         // Resources/ path to background music
         public string[] extraGemPrefabs;     // Additional gem prefab names (from Resources/Gems/) for this level
-        public int unlockScore;              // Score threshold to drop the key during gameplay (0 = always unlocked)
+        public int unlockScore;              // Score threshold to spawn the finish line (0 = always unlocked)
         public Color cameraColor;            // Camera.backgroundColor for this level
 
         // Difficulty overrides
@@ -188,7 +188,7 @@ public static class LevelManager
 
     /// <summary>
     /// A level is unlocked if its unlockScore is 0, or if the player has
-    /// caught the key to unlock it (persisted in PlayerPrefs).
+    /// crossed the finish line to unlock it (persisted in PlayerPrefs).
     /// </summary>
     public static bool IsUnlocked(LevelId id)
     {
@@ -199,7 +199,7 @@ public static class LevelManager
     }
 
     /// <summary>
-    /// Permanently unlock a level (called when the player catches the key).
+    /// Permanently unlock a level (called when the player crosses the finish line).
     /// </summary>
     public static void UnlockLevel(LevelId id)
     {
@@ -210,7 +210,7 @@ public static class LevelManager
 
     /// <summary>
     /// Returns the LevelId of the next locked level that the current level's
-    /// key would unlock, or null if there's nothing to unlock.
+    /// finish line would unlock, or null if there's nothing to unlock.
     /// </summary>
     public static LevelId? GetNextLockedLevel()
     {
@@ -222,10 +222,10 @@ public static class LevelManager
     }
 
     /// <summary>
-    /// Returns the score threshold at which the key should drop for the
+    /// Returns the score threshold at which the finish line should appear for the
     /// current level, or 0 if there's no next level to unlock.
     /// </summary>
-    public static int GetKeyDropScore()
+    public static int GetFinishLineScore()
     {
         var next = GetNextLockedLevel();
         if (next == null) return 0;
@@ -274,10 +274,10 @@ public static class LevelManager
         int savedVersion = PlayerPrefs.GetInt(UnlockProgressionVersionKey, 0);
         if (savedVersion >= CurrentUnlockProgressionVersion) return;
 
-        // Pre-release builds used a 100-point threshold for every key. Reset
-        // only that obsolete unlock state so installed test builds start the
-        // new progression with Crystal Cave while preserving scores, points,
-        // cosmetics, settings, and purchase entitlements.
+        // Early pre-release builds used the same 100-point threshold for every
+        // level. Reset only that obsolete unlock state so installed test builds
+        // start the current progression with Crystal Cave while preserving
+        // scores, points, cosmetics, settings, and purchase entitlements.
         foreach (var level in levels)
         {
             if (level.unlockScore <= 0) continue;
