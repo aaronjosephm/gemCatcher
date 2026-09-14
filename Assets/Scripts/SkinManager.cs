@@ -64,6 +64,24 @@ public static class SkinManager
             primaryColor = new Color(0.7f, 0.85f, 1f), // swatch color for card
             materialPrefabPath = "Gems/DiamondGem",
         },
+        new SkinDef
+        {
+            id = "ruby",
+            displayName = "Ruby",
+            price = 50,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.8f, 0.08f, 0.12f),
+            materialPrefabPath = "Gems/RubyGem",
+        },
+        new SkinDef
+        {
+            id = "emerald",
+            displayName = "Emerald",
+            price = 50,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.05f, 0.55f, 0.25f),
+            materialPrefabPath = "Gems/EmeraldGem",
+        },
     };
 
     public static SkinDef[] Catalog => catalog;
@@ -136,6 +154,39 @@ public static class SkinManager
         return GetDef(EquippedId);
     }
 
+    public static Material GetPrefabMaterial(SkinDef skin)
+    {
+        if (skin.type != SkinType.PrefabMaterial)
+        {
+            Debug.LogError($"Skin '{skin.id}' is not configured as a prefab-material skin.");
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(skin.materialPrefabPath))
+        {
+            Debug.LogError($"Skin '{skin.id}' has no material prefab path.");
+            return null;
+        }
+
+        GameObject prefab = Resources.Load<GameObject>(skin.materialPrefabPath);
+        if (prefab == null)
+        {
+            Debug.LogError(
+                $"Skin '{skin.id}' could not load Resources/{skin.materialPrefabPath}.");
+            return null;
+        }
+
+        Renderer renderer = prefab.GetComponentInChildren<Renderer>(true);
+        if (renderer == null || renderer.sharedMaterial == null)
+        {
+            Debug.LogError(
+                $"Skin '{skin.id}' material prefab has no renderer material.");
+            return null;
+        }
+
+        return renderer.sharedMaterial;
+    }
+
     // ─── Apply to a GameObject ──────────────────────────────────────────
 
     /// <summary>Applies the currently equipped skin to catchy's renderers.</summary>
@@ -151,16 +202,12 @@ public static class SkinManager
     {
         if (skin.id == "default") return;
 
-        Material prefabMat = null;
-        if (skin.type == SkinType.PrefabMaterial && !string.IsNullOrEmpty(skin.materialPrefabPath))
+        Material prefabMat = skin.type == SkinType.PrefabMaterial
+            ? GetPrefabMaterial(skin)
+            : null;
+        if (skin.type == SkinType.PrefabMaterial && prefabMat == null)
         {
-            var prefab = Resources.Load<GameObject>(skin.materialPrefabPath);
-            if (prefab != null)
-            {
-                var rend = prefab.GetComponentInChildren<Renderer>();
-                if (rend != null && rend.sharedMaterial != null)
-                    prefabMat = rend.sharedMaterial;
-            }
+            return;
         }
 
         foreach (var rend in catchy.GetComponentsInChildren<Renderer>())
