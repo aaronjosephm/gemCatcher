@@ -97,7 +97,7 @@ public static class SkinManager
             displayName = "Sapphire",
             price = 50,
             type = SkinType.PrefabMaterial,
-            primaryColor = new Color(0.08f, 0.25f, 0.85f),
+            primaryColor = new Color(0.18f, 0.5f, 1f),
             materialPrefabPath = "Gems/SapphireGem",
         },
         new SkinDef
