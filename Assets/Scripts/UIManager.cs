@@ -171,6 +171,7 @@ public class UIManager : MonoBehaviour
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
   private const float SettingsPrivacyRowHeight = 178f;
+  private const string PrivacyPolicyUrl = "https://gemcatch.app/privacy-policy/";
   private const float SubpageBackArrowFontSize = 128f;
   private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
       new Dictionary<int, Sprite>();
@@ -4820,7 +4821,7 @@ public class UIManager : MonoBehaviour
 
   /// <summary>
   /// Build the settings panel on first demand. Includes audio, haptics,
-  /// purchases, and UMP privacy choices when that entry point is required.
+  /// purchases, the privacy policy, and UMP privacy choices when required.
   /// </summary>
   void EnsureSettingsPanel()
   {
@@ -4840,7 +4841,7 @@ public class UIManager : MonoBehaviour
     settingsStackRect.pivot = new Vector2(0.5f, 0.5f);
     settingsStackRect.anchoredPosition = new Vector2(0f, -10f);
     settingsStackRect.sizeDelta =
-        new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f);
+        new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 700f : 560f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 20f;
@@ -4860,6 +4861,8 @@ public class UIManager : MonoBehaviour
       BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
           new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
     }
+    BuildSettingsActionRow(stackGo.transform, "Privacy Policy", "View",
+        new Color(0.18f, 0.48f, 0.72f), OnPrivacyPolicyClicked);
     BuildPrivacySettingsRow(stackGo.transform);
     RefreshPrivacySettingsRow();
 
@@ -5289,6 +5292,11 @@ public class UIManager : MonoBehaviour
     }
   }
 
+  void OnPrivacyPolicyClicked()
+  {
+    Application.OpenURL(PrivacyPolicyUrl);
+  }
+
   void RefreshPrivacySettingsRow()
   {
     if (privacyOptionsRow == null) return;
@@ -5317,7 +5325,7 @@ public class UIManager : MonoBehaviour
 
     if (settingsStackRect != null)
     {
-      float baseHeight = IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f;
+      float baseHeight = IAPManager.RemoveAdsPurchaseEnabled ? 700f : 560f;
       settingsStackRect.sizeDelta = new Vector2(
           SettingsContentWidth,
           baseHeight + (visible ? SettingsPrivacyRowHeight + 20f : 0f));
