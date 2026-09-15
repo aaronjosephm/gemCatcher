@@ -141,6 +141,7 @@ public class UIManager : MonoBehaviour
   private bool rewardedContinueLostFocus;
   private int rewardedContinueAttemptId;
   private Coroutine rewardedContinueRecoveryCoroutine;
+  private bool sceneTransitionPending;
 
   // ---- Daily Challenge UI references --------------------------------------
   // Cached so we can refresh the menu button label, hide retry on daily
@@ -1375,7 +1376,7 @@ public class UIManager : MonoBehaviour
     Button retryBtn = BuildPanelButton(
         contentParent, "RetryButton", "Try Again",
         new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 195f), new Vector2(480f, 130f),
-        RestartGame);
+        null);
     restartButton = retryBtn;
 
     BuildPanelButton(
@@ -1420,7 +1421,10 @@ public class UIManager : MonoBehaviour
 
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
-    btn.onClick.AddListener(onClick);
+    if (onClick != null)
+    {
+      btn.onClick.AddListener(onClick);
+    }
 
     CrystalButtonStyle.Apply(btnGo, bgColor);
     return btn;
@@ -3582,6 +3586,9 @@ public class UIManager : MonoBehaviour
   // ad between rounds without interrupting the score-reveal moment itself.
   void ShowInterstitialThenLoadScene(string sceneName)
   {
+    if (sceneTransitionPending) return;
+    sceneTransitionPending = true;
+
     if (AdsManager.Instance != null)
     {
       AdsManager.Instance.ShowInterstitial(() => SceneTransitionCurtain.LoadScene(sceneName));
