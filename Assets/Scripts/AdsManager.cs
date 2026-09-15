@@ -20,11 +20,10 @@ public class AdsManager : MonoBehaviour
     private const string TestRewardedIdAndroid = "ca-app-pub-3940256099942544/5224354917";
     private const string TestRewardedIdIOS = "ca-app-pub-3940256099942544/1712485313";
 
-    // Replace all four production ad unit IDs before shipping.
-    private const string ProductionInterstitialIdAndroid = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_UNIT";
-    private const string ProductionInterstitialIdIOS = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_UNIT";
-    private const string ProductionRewardedIdAndroid = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_REWARDED_UNIT";
-    private const string ProductionRewardedIdIOS = "ca-app-pub-REPLACE_WITH_YOUR_ID/REPLACE_WITH_YOUR_REWARDED_UNIT";
+    private const string ProductionInterstitialIdAndroid = "ca-app-pub-5414130987848915/3174600810";
+    private const string ProductionInterstitialIdIOS = "ca-app-pub-5414130987848915/4898746027";
+    private const string ProductionRewardedIdAndroid = "ca-app-pub-5414130987848915/7716481058";
+    private const string ProductionRewardedIdIOS = "ca-app-pub-5414130987848915/2773689298";
 
     private const float RewardedRetryDelaySeconds = 10f;
     private const int RewardedMaxAutomaticRetries = 5;
