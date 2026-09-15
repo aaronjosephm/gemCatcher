@@ -141,6 +141,7 @@ public class UIManager : MonoBehaviour
   private bool rewardedContinueLostFocus;
   private int rewardedContinueAttemptId;
   private Coroutine rewardedContinueRecoveryCoroutine;
+  private bool sceneTransitionPending;
 
   // ---- Daily Challenge UI references --------------------------------------
   // Cached so we can refresh the menu button label, hide retry on daily
@@ -157,6 +158,7 @@ public class UIManager : MonoBehaviour
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
+  private const float SubpageBackArrowFontSize = 128f;
   private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
       new Dictionary<int, Sprite>();
 
@@ -1374,7 +1376,7 @@ public class UIManager : MonoBehaviour
     Button retryBtn = BuildPanelButton(
         contentParent, "RetryButton", "Try Again",
         new Color(0.20f, 0.55f, 0.85f), new Vector2(0f, 195f), new Vector2(480f, 130f),
-        RestartGame);
+        null);
     restartButton = retryBtn;
 
     BuildPanelButton(
@@ -1419,7 +1421,10 @@ public class UIManager : MonoBehaviour
 
     Button btn = btnGo.GetComponent<Button>();
     btn.targetGraphic = bg;
-    btn.onClick.AddListener(onClick);
+    if (onClick != null)
+    {
+      btn.onClick.AddListener(onClick);
+    }
 
     CrystalButtonStyle.Apply(btnGo, bgColor);
     return btn;
@@ -1871,10 +1876,11 @@ public class UIManager : MonoBehaviour
     arrowR.anchorMin = Vector2.zero; arrowR.anchorMax = Vector2.one;
     arrowR.offsetMin = new Vector2(15f, 0f); arrowR.offsetMax = Vector2.zero;
     arrowTmp.text = "\u2190";
-    arrowTmp.fontSize = 40;
+    arrowTmp.fontSize = SubpageBackArrowFontSize;
     arrowTmp.fontStyle = FontStyles.Bold;
     arrowTmp.alignment = TextAlignmentOptions.MidlineLeft;
     arrowTmp.color = Color.white;
+    GameTextStyle.ApplyWithoutOutline(arrowTmp);
 
     // Title
     TextMeshProUGUI titleTmp = new GameObject("Title", typeof(RectTransform)).AddComponent<TextMeshProUGUI>();
@@ -2258,7 +2264,7 @@ public class UIManager : MonoBehaviour
 
     if (!unlocked)
     {
-      statusTmp.text = $"Catch the key ({config.unlockScore:N0} pts)";
+      statusTmp.text = $"Cross finish line ({config.unlockScore:N0} pts)";
       statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
     }
     else if (selected)
@@ -2326,11 +2332,11 @@ public class UIManager : MonoBehaviour
   //  │  └───────────────────────────┘  │
   //  │  ┌──────┐  ┌──────┐  ┌──────┐  │
   //  │  │  🎩  │  │  ◐   │  │  🕶  │  │  2-col grid
-  //  │  │TopHat│  │ Patch │  │Sungls│  │
-  //  │  │  10  │  │  10   │  │  10  │  │
+  //  │  │Sungls│  │ Patch │  │Cowboy│  │
+  //  │  │  1M  │  │  1M   │  │  2M  │  │
   //  │  └──────┘  └──────┘  └──────┘  │
   //  │  ┌───────────────────────────┐  │
-  //  │  │   BUY — 10 pts            │  │  Action bar
+  //  │  │   BUY — 1,000,000 PTS      │  │  Action bar
   //  │  └───────────────────────────┘  │
   //  └─────────────────────────────────┘
   // ═══════════════════════════════════════════════════════════════════════
@@ -2616,10 +2622,11 @@ public class UIManager : MonoBehaviour
       arrowR.anchorMin = Vector2.zero; arrowR.anchorMax = Vector2.one;
       arrowR.offsetMin = new Vector2(15f, 0f); arrowR.offsetMax = Vector2.zero;
       backTmp.text = "\u2190";
-      backTmp.fontSize = 40;
+      backTmp.fontSize = SubpageBackArrowFontSize;
       backTmp.fontStyle = FontStyles.Bold;
       backTmp.alignment = TextAlignmentOptions.MidlineLeft;
       backTmp.color = Color.white;
+      GameTextStyle.ApplyWithoutOutline(backTmp);
     }
 
     // SHOP title (left of center)
@@ -2630,7 +2637,7 @@ public class UIManager : MonoBehaviour
       titleR.anchorMin = new Vector2(0.15f, 0f);
       titleR.anchorMax = new Vector2(0.5f, 1f);
       titleR.offsetMin = Vector2.zero; titleR.offsetMax = Vector2.zero;
-      titleTmp.text = "STORE";
+      titleTmp.text = "SHOP";
       titleTmp.fontSize = 36;
       titleTmp.fontStyle = FontStyles.Bold;
       titleTmp.alignment = TextAlignmentOptions.MidlineLeft;
@@ -2988,10 +2995,25 @@ public class UIManager : MonoBehaviour
     Color actionColor;
     if (equipped)
     {
-      actionColor = new Color(0.18f, 0.22f, 0.30f);
-      btnTmp.text = "EQUIPPED";
-      btnTmp.color = new Color(0.55f, 0.65f, 0.75f);
-      btn.interactable = false;
+      if (shopActiveTab == "wearables")
+      {
+        actionColor = new Color(0.55f, 0.28f, 0.15f);
+        btnTmp.text = "UNEQUIP";
+        btnTmp.color = Color.white;
+        var selId = shopSelectedId;
+        btn.onClick.AddListener(() =>
+        {
+          WearableManager.Unequip(selId);
+          RefreshShopAfterAction(selId);
+        });
+      }
+      else
+      {
+        actionColor = new Color(0.18f, 0.22f, 0.30f);
+        btnTmp.text = "EQUIPPED";
+        btnTmp.color = new Color(0.55f, 0.65f, 0.75f);
+        btn.interactable = false;
+      }
     }
     else if (owned)
     {
@@ -3564,6 +3586,9 @@ public class UIManager : MonoBehaviour
   // ad between rounds without interrupting the score-reveal moment itself.
   void ShowInterstitialThenLoadScene(string sceneName)
   {
+    if (sceneTransitionPending) return;
+    sceneTransitionPending = true;
+
     if (AdsManager.Instance != null)
     {
       AdsManager.Instance.ShowInterstitial(() => SceneTransitionCurtain.LoadScene(sceneName));

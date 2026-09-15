@@ -32,17 +32,9 @@ public static class SkinManager
         },
         new SkinDef
         {
-            id = "purple",
-            displayName = "Purple",
-            price = 10,
-            type = SkinType.SolidColor,
-            primaryColor = new Color(0.55f, 0.20f, 0.80f),
-        },
-        new SkinDef
-        {
             id = "red",
             displayName = "Red",
-            price = 10,
+            price = 1_000_000,
             type = SkinType.SolidColor,
             primaryColor = new Color(0.85f, 0.15f, 0.15f),
         },
@@ -50,43 +42,42 @@ public static class SkinManager
         {
             id = "camo",
             displayName = "Green",
-            price = 10,
+            price = 1_000_000,
             type = SkinType.Camo,
             primaryColor = new Color(0.30f, 0.40f, 0.20f),
             secondaryColor = new Color(0.20f, 0.28f, 0.12f),
         },
         new SkinDef
         {
-            id = "diamond",
-            displayName = "Diamond",
-            price = 50,
-            type = SkinType.PrefabMaterial,
-            primaryColor = new Color(0.7f, 0.85f, 1f), // swatch color for card
-            materialPrefabPath = "Gems/DiamondGem",
-        },
-        new SkinDef
-        {
-            id = "ruby",
-            displayName = "Ruby",
-            price = 50,
-            type = SkinType.PrefabMaterial,
-            primaryColor = new Color(0.8f, 0.08f, 0.12f),
-            materialPrefabPath = "Gems/RubyGem",
+            id = "purple",
+            displayName = "Purple",
+            price = 1_000_000,
+            type = SkinType.SolidColor,
+            primaryColor = new Color(0.55f, 0.20f, 0.80f),
         },
         new SkinDef
         {
             id = "emerald",
             displayName = "Emerald",
-            price = 50,
+            price = 2_000_000,
             type = SkinType.PrefabMaterial,
             primaryColor = new Color(0.05f, 0.55f, 0.25f),
             materialPrefabPath = "Gems/EmeraldGem",
         },
         new SkinDef
         {
+            id = "ruby",
+            displayName = "Ruby",
+            price = 3_000_000,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.8f, 0.08f, 0.12f),
+            materialPrefabPath = "Gems/RubyGem",
+        },
+        new SkinDef
+        {
             id = "topaz",
             displayName = "Topaz",
-            price = 50,
+            price = 4_000_000,
             type = SkinType.PrefabMaterial,
             primaryColor = new Color(0.95f, 0.4f, 0.08f),
             materialPrefabPath = "Gems/TopazGem",
@@ -95,7 +86,7 @@ public static class SkinManager
         {
             id = "sapphire",
             displayName = "Sapphire",
-            price = 50,
+            price = 5_000_000,
             type = SkinType.PrefabMaterial,
             primaryColor = new Color(0.18f, 0.5f, 1f),
             materialPrefabPath = "Gems/SapphireGem",
@@ -104,10 +95,19 @@ public static class SkinManager
         {
             id = "citrine",
             displayName = "Citrine",
-            price = 50,
+            price = 5_000_000,
             type = SkinType.PrefabMaterial,
             primaryColor = new Color(1f, 0.72f, 0.1f),
             materialPrefabPath = "Gems/CitrineGem",
+        },
+        new SkinDef
+        {
+            id = "diamond",
+            displayName = "Diamond",
+            price = 10_000_000,
+            type = SkinType.PrefabMaterial,
+            primaryColor = new Color(0.7f, 0.85f, 1f), // swatch color for card
+            materialPrefabPath = "Gems/DiamondGem",
         },
     };
 

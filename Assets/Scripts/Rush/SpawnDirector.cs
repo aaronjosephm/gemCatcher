@@ -59,11 +59,10 @@ public class SpawnDirector : MonoBehaviour
     private const float MasterGemDropInterval = 180f; // every 3 minutes
     private bool pendingMasterGem;
 
-    // Key drop (level unlock)
-    private GameObject keyPrefab;
-    private bool pendingKey;
-    private bool keyDropped; // only one key per round
-    private int keyDropScore; // score threshold to trigger key drop
+    // Finish line (level unlock)
+    private bool pendingFinishLine;
+    private bool finishLineTriggered; // only one finish line per round
+    private int finishLineScore;
 
     // Tutorial intro
     private int tutorialStep; // 0 = move right, 1 = move left, 2+ = done
@@ -137,16 +136,13 @@ public class SpawnDirector : MonoBehaviour
         else
             nextMasterGemDropTime = MasterGemDropInterval;
 
-        // Key drop — load prefab and determine score threshold.
-        keyPrefab = Resources.Load<GameObject>("PowerUps/Key_V3_0");
-        keyDropScore = LevelManager.GetKeyDropScore();
-        keyDropped = keyDropScore <= 0; // no key needed if nothing to unlock
-        pendingKey = false;
+        finishLineScore = LevelManager.GetFinishLineScore();
+        finishLineTriggered = finishLineScore <= 0;
+        pendingFinishLine = false;
 
-        // Subscribe to score changes to trigger key drop.
-        if (!keyDropped && RoundManager.Instance != null)
+        if (!finishLineTriggered && RoundManager.Instance != null)
         {
-            RoundManager.Instance.OnScoreChanged += OnScoreChangedForKey;
+            RoundManager.Instance.OnScoreChanged += OnScoreChangedForFinishLine;
         }
 
         if (config.logValidation)
@@ -346,6 +342,15 @@ public class SpawnDirector : MonoBehaviour
     void SpawnRow(WaveDefinition.Row row, float fallSpeed)
     {
         float spawnY = ScreenPadding.WorldTop + 1.5f;
+
+        // A finish line replaces the whole row so hazards cannot obscure it.
+        if (pendingFinishLine)
+        {
+            pendingFinishLine = false;
+            SpawnFinishLine(spawnY, fallSpeed);
+            return;
+        }
+
         bool swapped = PowerUpManager.SwapActive;
 
         foreach (WaveDefinition.Slot slot in row.slots)
@@ -433,13 +438,6 @@ public class SpawnDirector : MonoBehaviour
             SpawnMasterGemPowerUp(x, y, fallSpeed);
             return;
         }
-        if (pendingKey)
-        {
-            pendingKey = false;
-            SpawnKeyDrop(x, y, fallSpeed);
-            return;
-        }
-
         if (pooler == null) return;
         pooler.SpawnRushGemAt(x, y, fallSpeed, currentTier.redGemChance);
     }
@@ -734,74 +732,39 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
     }
 
-    void OnScoreChangedForKey(int score)
+    void OnScoreChangedForFinishLine(int score)
     {
-        if (keyDropped) return;
-        if (score >= keyDropScore)
+        if (finishLineTriggered) return;
+        if (score >= finishLineScore)
         {
-            keyDropped = true;
-            pendingKey = true;
+            finishLineTriggered = true;
+            pendingFinishLine = true;
             if (RoundManager.Instance != null)
-                RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
-            Debug.Log($"[SpawnDirector] Key drop triggered at score {score} (threshold {keyDropScore})");
+                RoundManager.Instance.OnScoreChanged -= OnScoreChangedForFinishLine;
+            Debug.Log(
+                $"[SpawnDirector] Finish line triggered at score {score} " +
+                $"(threshold {finishLineScore})");
         }
     }
 
-    void SpawnKeyDrop(float x, float y, float fallSpeed)
+    void SpawnFinishLine(float y, float fallSpeed)
     {
-        if (keyPrefab == null)
+        LevelManager.LevelId? nextLevel = LevelManager.GetNextLockedLevel();
+        if (nextLevel == null)
         {
-            Debug.LogWarning("[SpawnDirector] Key prefab not loaded!");
             return;
         }
 
-        GameObject obj = Instantiate(keyPrefab);
-        obj.transform.position = new Vector3(x, y, 0f);
-        obj.transform.localScale = Vector3.one * 1.15f; // same size as other power-ups
-
-        // Zero child mesh offsets to prevent orbiting when spinning.
-        foreach (Transform child in obj.transform)
-            child.localPosition = Vector3.zero;
-
-        FallingObject fo = obj.GetComponent<FallingObject>();
-        if (fo == null) fo = obj.AddComponent<FallingObject>();
-        fo.ResetObject();
-        fo.verticalOnly = true;
-        fo.horizontalSpeed = 0f;
-        fo.fallSpeed = fallSpeed;
-        fo.InitializeMovement(fo.fallSpeed);
-        fo.isRushKey = true;
-
-        var spinner = obj.AddComponent<SimpleSpinner>();
-        spinner.speed = new Vector3(0f, 120f, 0f);
-
-        if (obj.GetComponent<Collider>() == null)
+        FinishLine line = FinishLine.Create(y, fallSpeed, nextLevel.Value);
+        if (line == null)
         {
-            SphereCollider sc = obj.AddComponent<SphereCollider>();
-            sc.radius = 0.5f;
-            sc.isTrigger = true;
+            Debug.LogError("[SpawnDirector] Failed to create finish line.");
+            return;
         }
-
-        // Golden glow
-        Renderer[] renderers = obj.GetComponentsInChildren<Renderer>();
-        foreach (Renderer r in renderers)
-        {
-            MaterialPropertyBlock mpb = new MaterialPropertyBlock();
-            r.GetPropertyBlock(mpb);
-            mpb.SetColor("_EmissionColor", new Color(1f, 0.85f, 0.2f) * 3f);
-            r.SetPropertyBlock(mpb);
-        }
-
-        // Add glow aura
-        var glow = obj.AddComponent<GemGlowVolume>();
-        glow.glowColor = new Color(1f, 0.85f, 0.2f, 1f);
-        glow.glowRadius = 2f;
-
-        obj.SetActive(true);
-        standaloneDrops.Add(obj);
+        standaloneDrops.Add(line.gameObject);
 
         if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Key drop spawned at ({x:F2}, {y:F2})");
+            Debug.Log($"[SpawnDirector] Finish line spawned at y={y:F2}");
     }
 
     // ─── Tutorial intro ─────────────────────────────────────────────────
@@ -917,7 +880,7 @@ public class SpawnDirector : MonoBehaviour
     {
         // Unsubscribe from score changes.
         if (RoundManager.Instance != null)
-            RoundManager.Instance.OnScoreChanged -= OnScoreChangedForKey;
+            RoundManager.Instance.OnScoreChanged -= OnScoreChangedForFinishLine;
 
         if (tutorialOverlay != null)
             Destroy(tutorialOverlay.gameObject);
