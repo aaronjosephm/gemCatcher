@@ -18,7 +18,7 @@ MonoBehaviour:
   enableGradleBuildPreProcessor: 1
   disableOptimizeInitialization: 0
   disableOptimizeAdLoading: 0
-  userTrackingUsageDescription: 
+  userTrackingUsageDescription: We use your device identifier to show more relevant ads and measure advertising performance.
   userLanguage: en
   overrideDefaultGmaAndroidSdk: 0
   selectedGmaAndroidSdk: 0

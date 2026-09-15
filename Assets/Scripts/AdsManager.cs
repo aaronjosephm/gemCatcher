@@ -3,6 +3,7 @@ using System.Collections;
 using System.Threading;
 using GoogleMobileAds.Api;
 using GoogleMobileAds.Common;
+using GoogleMobileAds.Ump.Api;
 using UnityEngine;
 
 /// <summary>
@@ -12,7 +13,23 @@ using UnityEngine;
 /// </summary>
 public class AdsManager : MonoBehaviour
 {
+    public enum AgeBand
+    {
+        Unknown = 0,
+        Under16 = 1,
+        Adult16Plus = 2,
+    }
+
+    public enum PrivacyFlowState
+    {
+        AwaitingAgeSelection = 0,
+        Resolving = 1,
+        Ready = 2,
+    }
+
     public static AdsManager Instance { get; private set; }
+
+    private const string AgeBandPrefsKey = "AdPrivacy.AgeBand";
 
     // Google's official test ad unit IDs. Development builds always use these.
     private const string TestInterstitialIdAndroid = "ca-app-pub-3940256099942544/1033173712";
@@ -31,6 +48,12 @@ public class AdsManager : MonoBehaviour
     private static bool sdkInitialized;
     private static bool sdkInitializing;
     private static bool adUnitModeLogged;
+    private static bool adsRequestPermitted;
+    private static AgeBand selectedAgeBand = AgeBand.Unknown;
+    private static PrivacyFlowState privacyFlowState = PrivacyFlowState.AwaitingAgeSelection;
+    private static bool privacyOptionsRequired;
+    private static bool privacyOptionsFormInProgress;
+    private static string privacyOptionsStatusMessage = "";
 
     private InterstitialAd interstitialAd;
     private RewardedAd rewardedAd;
@@ -38,17 +61,30 @@ public class AdsManager : MonoBehaviour
     private int rewardedRetryAttempt;
     private Coroutine rewardedRetryCoroutine;
     private bool fullScreenAdAudioSuspended;
+    private bool privacyBootstrapStarted;
+    private bool adultConsentFlowRunning;
 
     public static event Action<bool> OnRewardedAvailabilityChanged;
+    public static event Action OnPrivacyStateChanged;
+    public static event Action OnPrivacyOptionsStateChanged;
+
+    public static AgeBand SelectedAgeBand => selectedAgeBand;
+    public static PrivacyFlowState CurrentPrivacyFlowState => privacyFlowState;
+    public static bool IsPrivacyFlowBlocking => privacyFlowState != PrivacyFlowState.Ready;
+    public static bool AdsRequestPermitted => adsRequestPermitted;
+    public static bool PrivacyOptionsRequired =>
+        selectedAgeBand == AgeBand.Adult16Plus && privacyOptionsRequired;
+    public static bool PrivacyOptionsFormInProgress => privacyOptionsFormInProgress;
+    public static string PrivacyOptionsStatusMessage => privacyOptionsStatusMessage;
 
     public bool IsRewardedContinueReady
     {
         get
         {
 #if UNITY_EDITOR
-            return true;
+            return adsRequestPermitted;
 #else
-            return rewardedAd != null && rewardedAd.CanShowAd();
+            return adsRequestPermitted && rewardedAd != null && rewardedAd.CanShowAd();
 #endif
         }
     }
@@ -103,7 +139,15 @@ public class AdsManager : MonoBehaviour
         sdkInitialized = false;
         sdkInitializing = false;
         adUnitModeLogged = false;
+        adsRequestPermitted = false;
+        selectedAgeBand = AgeBand.Unknown;
+        privacyFlowState = PrivacyFlowState.AwaitingAgeSelection;
+        privacyOptionsRequired = false;
+        privacyOptionsFormInProgress = false;
+        privacyOptionsStatusMessage = "";
         OnRewardedAvailabilityChanged = null;
+        OnPrivacyStateChanged = null;
+        OnPrivacyOptionsStateChanged = null;
     }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -127,8 +171,14 @@ public class AdsManager : MonoBehaviour
         {
             IAPManager.OnAdsRemoved += HandleAdsRemoved;
         }
+
+        MobileAdsEventExecutor.Initialize();
+#pragma warning disable 0618
+        MobileAds.RaiseAdEventsOnUnityMainThread = true;
+#pragma warning restore 0618
+
         LogAdUnitMode();
-        InitializeAndPreload();
+        LoadAgeBandAndBeginPrivacyFlow();
     }
 
     private static void LogAdUnitMode()
@@ -156,8 +206,425 @@ public class AdsManager : MonoBehaviour
         }
     }
 
+    private void LoadAgeBandAndBeginPrivacyFlow()
+    {
+        int storedValue = PlayerPrefs.GetInt(AgeBandPrefsKey, (int)AgeBand.Unknown);
+        if (storedValue == (int)AgeBand.Under16 || storedValue == (int)AgeBand.Adult16Plus)
+        {
+            selectedAgeBand = (AgeBand)storedValue;
+        }
+        else
+        {
+            if (storedValue != (int)AgeBand.Unknown)
+            {
+                Debug.LogWarning(
+                    $"[AdsManager] Ignoring invalid saved age band value {storedValue}.");
+            }
+            selectedAgeBand = AgeBand.Unknown;
+        }
+
+        BeginPrivacyBootstrap();
+    }
+
+    private void BeginPrivacyBootstrap()
+    {
+        if (privacyBootstrapStarted) return;
+        privacyBootstrapStarted = true;
+
+        switch (selectedAgeBand)
+        {
+            case AgeBand.Under16:
+                BeginUnder16Flow();
+                break;
+            case AgeBand.Adult16Plus:
+                BeginAdultConsentFlow();
+                break;
+            default:
+                SetPrivacyFlowState(PrivacyFlowState.AwaitingAgeSelection);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Persists a neutral age band and begins the matching privacy path.
+    /// The selection is accepted only while no age band has been saved.
+    /// </summary>
+    public bool SelectAgeBand(AgeBand ageBand)
+    {
+        if (selectedAgeBand != AgeBand.Unknown
+            || privacyFlowState != PrivacyFlowState.AwaitingAgeSelection)
+        {
+            return false;
+        }
+
+        if (ageBand != AgeBand.Under16 && ageBand != AgeBand.Adult16Plus)
+        {
+            Debug.LogWarning($"[AdsManager] Rejected invalid age band selection: {ageBand}.");
+            return false;
+        }
+
+        selectedAgeBand = ageBand;
+        PlayerPrefs.SetInt(AgeBandPrefsKey, (int)ageBand);
+        PlayerPrefs.Save();
+
+        if (ageBand == AgeBand.Under16)
+        {
+            BeginUnder16Flow();
+        }
+        else
+        {
+            BeginAdultConsentFlow();
+        }
+
+        return true;
+    }
+
+    private void BeginUnder16Flow()
+    {
+        adultConsentFlowRunning = false;
+        SetPrivacyOptionsRequired(false);
+        SetPrivacyFlowState(PrivacyFlowState.Resolving);
+
+        var requestConfiguration = new RequestConfiguration
+        {
+            AgeRestrictedTreatment = AgeRestrictedTreatment.Child,
+            MaxAdContentRating = MaxAdContentRating.G,
+            PublisherPrivacyPersonalizationState =
+                PublisherPrivacyPersonalizationState.Disabled,
+            PublisherFirstPartyIdEnabled = false,
+        };
+
+        PermitAdsAndInitialize(
+            requestConfiguration,
+            "[AdsManager] Under-16 privacy configuration applied; UMP and ATT are skipped.");
+    }
+
+    private void BeginAdultConsentFlow()
+    {
+        if (adultConsentFlowRunning) return;
+
+        adultConsentFlowRunning = true;
+        SetPrivacyOptionsRequired(false);
+        SetPrivacyFlowState(PrivacyFlowState.Resolving);
+
+#if UNITY_EDITOR
+        adultConsentFlowRunning = false;
+        Debug.Log(
+            "[AdsManager] Editor mode: adult UMP is skipped and rewarded completion is simulated.");
+        PermitAdsAndInitialize(
+            CreateAdultRequestConfiguration(),
+            "[AdsManager] Editor adult privacy flow simulated.");
+#else
+        try
+        {
+            var requestParameters = new ConsentRequestParameters
+            {
+                TagForUnderAgeOfConsent = false,
+            };
+
+            ConsentInformation.Update(
+                requestParameters,
+                error => RunOnUnityThread(() => HandleConsentInformationUpdated(error)));
+        }
+        catch (Exception exception)
+        {
+            adultConsentFlowRunning = false;
+            Debug.LogWarning(
+                $"[AdsManager] UMP consent update could not start; continuing without ads. "
+                + exception.Message);
+            CompletePrivacyFlowWithoutAds();
+        }
+#endif
+    }
+
+    private void HandleConsentInformationUpdated(FormError error)
+    {
+        if (this == null || !adultConsentFlowRunning
+            || selectedAgeBand != AgeBand.Adult16Plus)
+        {
+            return;
+        }
+
+        RefreshPrivacyOptionsRequirement();
+
+        if (error != null)
+        {
+            adultConsentFlowRunning = false;
+            Debug.LogWarning(
+                $"[AdsManager] UMP consent update failed ({DescribeFormError(error)}).");
+            CompleteAdultConsentFlowAfterUmp("consent update failure");
+            return;
+        }
+
+        try
+        {
+            ConsentForm.LoadAndShowConsentFormIfRequired(
+                formError => RunOnUnityThread(() => HandleConsentFormDismissed(formError)));
+        }
+        catch (Exception exception)
+        {
+            adultConsentFlowRunning = false;
+            Debug.LogWarning(
+                $"[AdsManager] UMP consent form could not be loaded; continuing based on "
+                + $"cached consent. {exception.Message}");
+            CompleteAdultConsentFlowAfterUmp("consent form startup failure");
+        }
+    }
+
+    private void HandleConsentFormDismissed(FormError error)
+    {
+        if (this == null || !adultConsentFlowRunning
+            || selectedAgeBand != AgeBand.Adult16Plus)
+        {
+            return;
+        }
+
+        adultConsentFlowRunning = false;
+        RefreshPrivacyOptionsRequirement();
+
+        if (error != null)
+        {
+            Debug.LogWarning(
+                $"[AdsManager] UMP consent form failed ({DescribeFormError(error)}).");
+        }
+
+        CompleteAdultConsentFlowAfterUmp(
+            error == null ? "consent flow completion" : "consent form failure");
+    }
+
+    private void CompleteAdultConsentFlowAfterUmp(string outcome)
+    {
+        if (CanRequestAdsFromUmp())
+        {
+            PermitAdsAndInitialize(
+                CreateAdultRequestConfiguration(),
+                $"[AdsManager] Adult UMP {outcome}; ad requests are permitted.");
+            return;
+        }
+
+        Debug.LogWarning(
+            $"[AdsManager] Adult UMP {outcome} did not provide permission to request ads; "
+            + "gameplay will continue without ads.");
+        CompletePrivacyFlowWithoutAds();
+    }
+
+    private static bool CanRequestAdsFromUmp()
+    {
+        try
+        {
+            return ConsentInformation.CanRequestAds();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                $"[AdsManager] Unable to read UMP ad-request permission: {exception.Message}");
+            return false;
+        }
+    }
+
+    private void RefreshPrivacyOptionsRequirement()
+    {
+        if (selectedAgeBand != AgeBand.Adult16Plus)
+        {
+            SetPrivacyOptionsRequired(false);
+            return;
+        }
+
+        try
+        {
+            SetPrivacyOptionsRequired(
+                ConsentInformation.PrivacyOptionsRequirementStatus
+                == PrivacyOptionsRequirementStatus.Required);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                $"[AdsManager] Unable to read UMP privacy-options status: {exception.Message}");
+            SetPrivacyOptionsRequired(false);
+        }
+    }
+
+    /// <summary>
+    /// Shows UMP's adult privacy-options form when the SDK requires an entry point.
+    /// This flow never re-opens the blocking age gate.
+    /// </summary>
+    public bool ShowPrivacyOptionsForm()
+    {
+        if (selectedAgeBand != AgeBand.Adult16Plus || !privacyOptionsRequired)
+        {
+            Debug.LogWarning(
+                "[AdsManager] Privacy options are not available for the current privacy state.");
+            return false;
+        }
+
+        if (privacyOptionsFormInProgress) return false;
+
+        privacyOptionsFormInProgress = true;
+        privacyOptionsStatusMessage = "Opening privacy choices...";
+        NotifyPrivacyOptionsStateChanged();
+
+#if UNITY_EDITOR
+        privacyOptionsFormInProgress = false;
+        privacyOptionsStatusMessage = "Privacy choices are unavailable in the Unity Editor.";
+        NotifyPrivacyOptionsStateChanged();
+        return false;
+#else
+        try
+        {
+            ConsentForm.ShowPrivacyOptionsForm(
+                error => RunOnUnityThread(() => HandlePrivacyOptionsFormDismissed(error)));
+            return true;
+        }
+        catch (Exception exception)
+        {
+            privacyOptionsFormInProgress = false;
+            privacyOptionsStatusMessage =
+                "Couldn't open privacy choices. Please try again.";
+            Debug.LogWarning(
+                $"[AdsManager] UMP privacy-options form could not start: {exception.Message}");
+            NotifyPrivacyOptionsStateChanged();
+            return false;
+        }
+#endif
+    }
+
+    private void HandlePrivacyOptionsFormDismissed(FormError error)
+    {
+        if (this == null) return;
+
+        privacyOptionsFormInProgress = false;
+        RefreshPrivacyOptionsRequirement();
+
+        if (error != null)
+        {
+            privacyOptionsStatusMessage =
+                "Couldn't open privacy choices. Please try again.";
+            Debug.LogWarning(
+                $"[AdsManager] UMP privacy-options form failed ({DescribeFormError(error)}).");
+            NotifyPrivacyOptionsStateChanged();
+            return;
+        }
+
+        privacyOptionsStatusMessage = "Privacy choices updated.";
+
+        if (CanRequestAdsFromUmp())
+        {
+            if (!adsRequestPermitted)
+            {
+                PermitAdsAndInitialize(
+                    CreateAdultRequestConfiguration(),
+                    "[AdsManager] Updated adult privacy choices permit ad requests.");
+            }
+        }
+        else
+        {
+            DisableAdRequestsAndDestroyLoadedAds();
+            Debug.LogWarning(
+                "[AdsManager] Updated adult privacy choices no longer permit ad requests.");
+        }
+
+        NotifyPrivacyOptionsStateChanged();
+    }
+
+    private static RequestConfiguration CreateAdultRequestConfiguration()
+    {
+        return new RequestConfiguration
+        {
+            AgeRestrictedTreatment = AgeRestrictedTreatment.Unspecified,
+            PublisherPrivacyPersonalizationState =
+                PublisherPrivacyPersonalizationState.Default,
+        };
+    }
+
+    private void PermitAdsAndInitialize(
+        RequestConfiguration requestConfiguration,
+        string logMessage)
+    {
+        try
+        {
+            MobileAds.SetRequestConfiguration(requestConfiguration);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                $"[AdsManager] Failed to apply ad request configuration; "
+                + $"continuing without ads. {exception.Message}");
+            CompletePrivacyFlowWithoutAds();
+            return;
+        }
+
+        adsRequestPermitted = true;
+        Debug.Log(logMessage);
+        SetPrivacyFlowState(PrivacyFlowState.Ready);
+        InitializeAndPreload();
+    }
+
+    private void CompletePrivacyFlowWithoutAds()
+    {
+        DisableAdRequestsAndDestroyLoadedAds();
+        SetPrivacyFlowState(PrivacyFlowState.Ready);
+    }
+
+    private void DisableAdRequestsAndDestroyLoadedAds()
+    {
+        adsRequestPermitted = false;
+        CancelRewardedRetry();
+
+        if (interstitialAd != null)
+        {
+            interstitialAd.Destroy();
+            interstitialAd = null;
+        }
+
+        DestroyRewarded();
+        NotifyRewardedAvailability();
+    }
+
+    private static void SetPrivacyFlowState(PrivacyFlowState state)
+    {
+        if (privacyFlowState == state) return;
+        privacyFlowState = state;
+        OnPrivacyStateChanged?.Invoke();
+    }
+
+    private static void SetPrivacyOptionsRequired(bool required)
+    {
+        if (privacyOptionsRequired == required) return;
+        privacyOptionsRequired = required;
+        OnPrivacyOptionsStateChanged?.Invoke();
+    }
+
+    private static void NotifyPrivacyOptionsStateChanged()
+    {
+        OnPrivacyOptionsStateChanged?.Invoke();
+    }
+
+    private static void RunOnUnityThread(Action action)
+    {
+        if (action == null) return;
+        if (MobileAdsEventExecutor.IsOnMainThread())
+        {
+            action();
+        }
+        else
+        {
+            MobileAdsEventExecutor.ExecuteInUpdate(action);
+        }
+    }
+
+    private static string DescribeFormError(FormError error)
+    {
+        return $"{error.ErrorCode}: {error.Message}";
+    }
+
     private void InitializeAndPreload()
     {
+        if (!adsRequestPermitted)
+        {
+            NotifyRewardedAvailability();
+            return;
+        }
+
 #if UNITY_EDITOR
         // The plugin's invisible Editor placeholder can leave Time.timeScale at
         // zero. Device builds exercise the real SDK; the Editor safely simulates
@@ -172,25 +639,34 @@ public class AdsManager : MonoBehaviour
             LoadRewarded();
             return;
         }
-
         if (sdkInitializing) return;
         sdkInitializing = true;
-        MobileAds.RaiseAdEventsOnUnityMainThread = true;
 
-        MobileAds.Initialize(_ =>
+        try
         {
-            MobileAdsEventExecutor.ExecuteInUpdate(() =>
+            MobileAds.Initialize(_ =>
             {
-                sdkInitializing = false;
-                if (this == null) return;
+                MobileAdsEventExecutor.ExecuteInUpdate(() =>
+                {
+                    sdkInitializing = false;
+                    if (this == null) return;
 
-                sdkInitialized = true;
-                Debug.Log("[AdsManager] Google Mobile Ads initialized.");
+                    sdkInitialized = true;
+                    Debug.Log("[AdsManager] Google Mobile Ads initialized.");
 
-                if (!IAPManager.AdsRemoved) LoadInterstitial();
-                LoadRewarded();
+                    if (!IAPManager.AdsRemoved) LoadInterstitial();
+                    LoadRewarded();
+                });
             });
-        });
+        }
+        catch (Exception exception)
+        {
+            sdkInitializing = false;
+            Debug.LogWarning(
+                $"[AdsManager] Google Mobile Ads initialization failed; "
+                + $"gameplay will continue without loaded ads. {exception.Message}");
+            NotifyRewardedAvailability();
+        }
 #endif
     }
 
@@ -199,13 +675,17 @@ public class AdsManager : MonoBehaviour
 #if UNITY_EDITOR
         return;
 #else
-        if (!sdkInitialized || IAPManager.AdsRemoved || interstitialAd != null) return;
+        if (!adsRequestPermitted || !sdkInitialized
+            || IAPManager.AdsRemoved || interstitialAd != null)
+        {
+            return;
+        }
 
         InterstitialAd.Load(InterstitialAdUnitId, new AdRequest(), (ad, error) =>
         {
             MobileAdsEventExecutor.ExecuteInUpdate(() =>
             {
-                if (this == null || IAPManager.AdsRemoved)
+                if (this == null || !adsRequestPermitted || IAPManager.AdsRemoved)
                 {
                     ad?.Destroy();
                     return;
@@ -250,10 +730,14 @@ public class AdsManager : MonoBehaviour
     /// </summary>
     public void ShowInterstitial(Action onComplete)
     {
-        if (IAPManager.AdsRemoved || interstitialAd == null || !interstitialAd.CanShowAd())
+        if (!adsRequestPermitted || IAPManager.AdsRemoved
+            || interstitialAd == null || !interstitialAd.CanShowAd())
         {
             onComplete?.Invoke();
-            if (!IAPManager.AdsRemoved && interstitialAd == null) LoadInterstitial();
+            if (adsRequestPermitted && !IAPManager.AdsRemoved && interstitialAd == null)
+            {
+                LoadInterstitial();
+            }
             return;
         }
 
@@ -278,6 +762,12 @@ public class AdsManager : MonoBehaviour
     /// </summary>
     public void PrepareRewardedContinue()
     {
+        if (!adsRequestPermitted)
+        {
+            NotifyRewardedAvailability();
+            return;
+        }
+
 #if UNITY_EDITOR
         NotifyRewardedAvailability();
 #else
@@ -298,6 +788,12 @@ public class AdsManager : MonoBehaviour
     /// </summary>
     public bool TryShowRewardedContinue(Action<bool> onComplete)
     {
+        if (!IsRewardedContinueReady)
+        {
+            PrepareRewardedContinue();
+            return false;
+        }
+
 #if UNITY_EDITOR
         SuspendGameAudioForAd();
         StartCoroutine(SimulateRewardedContinue(result =>
@@ -307,12 +803,6 @@ public class AdsManager : MonoBehaviour
         }));
         return true;
 #else
-        if (!IsRewardedContinueReady)
-        {
-            PrepareRewardedContinue();
-            return false;
-        }
-
         RewardedAd adToShow = rewardedAd;
         rewardedAd = null;
         NotifyRewardedAvailability();
@@ -354,7 +844,11 @@ public class AdsManager : MonoBehaviour
 #if UNITY_EDITOR
         return;
 #else
-        if (!sdkInitialized || rewardedAdLoading || IsRewardedContinueReady) return;
+        if (!adsRequestPermitted || !sdkInitialized
+            || rewardedAdLoading || IsRewardedContinueReady)
+        {
+            return;
+        }
 
         CancelRewardedRetry();
         rewardedAdLoading = true;
@@ -369,6 +863,13 @@ public class AdsManager : MonoBehaviour
                 }
 
                 rewardedAdLoading = false;
+                if (!adsRequestPermitted)
+                {
+                    ad?.Destroy();
+                    NotifyRewardedAvailability();
+                    return;
+                }
+
                 if (error != null || ad == null)
                 {
                     Debug.LogWarning($"[AdsManager] Rewarded ad failed to load: {error}");
