@@ -285,17 +285,8 @@ public class AdsManager : MonoBehaviour
         SetPrivacyOptionsRequired(false);
         SetPrivacyFlowState(PrivacyFlowState.Resolving);
 
-        var requestConfiguration = new RequestConfiguration
-        {
-            AgeRestrictedTreatment = AgeRestrictedTreatment.Child,
-            MaxAdContentRating = MaxAdContentRating.G,
-            PublisherPrivacyPersonalizationState =
-                PublisherPrivacyPersonalizationState.Disabled,
-            PublisherFirstPartyIdEnabled = false,
-        };
-
         PermitAdsAndInitialize(
-            requestConfiguration,
+            CreateUnder16RequestConfiguration(),
             "[AdsManager] Under-16 privacy configuration applied; UMP and ATT are skipped.");
     }
 
@@ -536,6 +527,44 @@ public class AdsManager : MonoBehaviour
         };
     }
 
+    private static RequestConfiguration CreateUnder16RequestConfiguration()
+    {
+        return new RequestConfiguration
+        {
+            AgeRestrictedTreatment = AgeRestrictedTreatment.Child,
+            MaxAdContentRating = MaxAdContentRating.G,
+            PublisherPrivacyPersonalizationState =
+                PublisherPrivacyPersonalizationState.Disabled,
+        };
+    }
+
+    private bool ApplyPostInitializationPrivacyConfiguration()
+    {
+        if (selectedAgeBand != AgeBand.Under16) return true;
+
+        RequestConfiguration requestConfiguration =
+            CreateUnder16RequestConfiguration();
+        requestConfiguration.PublisherFirstPartyIdEnabled = false;
+
+        try
+        {
+            // Google requires this setting after MobileAds.Initialize. Apply it
+            // before any ad load while retaining all child-request safeguards.
+            MobileAds.SetRequestConfiguration(requestConfiguration);
+            Debug.Log(
+                "[AdsManager] Under-16 publisher first-party ID disabled "
+                + "before loading ads.");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                "[AdsManager] Failed to disable the publisher first-party ID; "
+                + $"continuing without ads. {exception.Message}");
+            return false;
+        }
+    }
+
     private void PermitAdsAndInitialize(
         RequestConfiguration requestConfiguration,
         string logMessage)
@@ -650,6 +679,12 @@ public class AdsManager : MonoBehaviour
                 {
                     sdkInitializing = false;
                     if (this == null) return;
+
+                    if (!ApplyPostInitializationPrivacyConfiguration())
+                    {
+                        CompletePrivacyFlowWithoutAds();
+                        return;
+                    }
 
                     sdkInitialized = true;
                     Debug.Log("[AdsManager] Google Mobile Ads initialized.");
