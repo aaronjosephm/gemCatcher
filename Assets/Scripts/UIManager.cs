@@ -86,6 +86,18 @@ public class UIManager : MonoBehaviour
   // Auto-created in EnsureSettingsPanel, opened from a small gear button on
   // the main menu. Hosts Music / SFX volume sliders and Haptics toggle.
   private GameObject settingsPanel;
+  private RectTransform settingsStackRect;
+  private GameObject privacyOptionsRow;
+  private Button privacyOptionsButton;
+  private TextMeshProUGUI privacyOptionsButtonLabel;
+  private TextMeshProUGUI privacyOptionsStatusTmp;
+
+  // Blocks first-run menu interaction until a neutral age band is selected
+  // and, for adults, UMP has finished its launch-time consent flow.
+  private GameObject agePrivacyPanel;
+  private GameObject agePrivacyChoiceButtons;
+  private TextMeshProUGUI agePrivacyStatusTmp;
+  private string agePrivacyLoadingMessage = "";
 
   // Level select panel — auto-created, opened from the Levels button.
   private GameObject levelSelectPanel;
@@ -158,6 +170,7 @@ public class UIManager : MonoBehaviour
   private const float SettingsContentWidth = 940f;
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
+  private const float SettingsPrivacyRowHeight = 178f;
   private const float SubpageBackArrowFontSize = 128f;
   private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
       new Dictionary<int, Sprite>();
@@ -333,6 +346,8 @@ public class UIManager : MonoBehaviour
       IAPManager.OnAdsRemoved += HandleAdsRemoved;
     }
     AdsManager.OnRewardedAvailabilityChanged += HandleRewardedAvailabilityChanged;
+    AdsManager.OnPrivacyStateChanged += HandlePrivacyStateChanged;
+    AdsManager.OnPrivacyOptionsStateChanged += HandlePrivacyOptionsStateChanged;
 
     // Make sure we have a top-right score tracker, top-left lives tracker, and
     // a game-over panel even if nothing was wired up in the Inspector.
@@ -383,6 +398,9 @@ public class UIManager : MonoBehaviour
     {
       ShowMainMenu();
     }
+
+    RefreshAgePrivacyGate();
+    RefreshPrivacySettingsRow();
   }
 
   void InitializeGemSpeedupTimer()
@@ -437,6 +455,7 @@ public class UIManager : MonoBehaviour
     TickVignetteFlash();
     TickFinalScoreCountUp();
     TickTestModeOverlay();
+    TickAgePrivacyLoading();
 
     // Handle fade out animation if active
     if (isFadingOut && gemSpeedupTimerText != null)
@@ -1433,6 +1452,221 @@ public class UIManager : MonoBehaviour
   // ---------------------------------------------------------------------------
   // Menu panels (main menu + help)
   // ---------------------------------------------------------------------------
+
+  void EnsureAgePrivacyPanel()
+  {
+    if (agePrivacyPanel != null) return;
+    EnsureHudCanvas();
+    if (hudCanvas == null) return;
+
+    GameObject panel = BuildFullScreenPanel(
+        "AgePrivacyPanel (auto)",
+        new Color(0.025f, 0.035f, 0.055f, 0.995f),
+        out Transform contentParent);
+
+    GameObject card = new GameObject(
+        "AgePrivacyCard",
+        typeof(RectTransform), typeof(CanvasRenderer), typeof(Image), typeof(Shadow));
+    card.transform.SetParent(contentParent, false);
+    RectTransform cardRect = card.GetComponent<RectTransform>();
+    cardRect.anchorMin = new Vector2(0.5f, 0.5f);
+    cardRect.anchorMax = new Vector2(0.5f, 0.5f);
+    cardRect.pivot = new Vector2(0.5f, 0.5f);
+    cardRect.sizeDelta = new Vector2(980f, 700f);
+
+    Image cardImage = card.GetComponent<Image>();
+    cardImage.sprite = CreateUiRoundedSprite();
+    cardImage.type = Image.Type.Sliced;
+    cardImage.color = new Color(0.075f, 0.105f, 0.15f, 0.98f);
+
+    Shadow cardShadow = card.GetComponent<Shadow>();
+    cardShadow.effectColor = new Color(0f, 0f, 0f, 0.55f);
+    cardShadow.effectDistance = new Vector2(0f, -12f);
+
+    GameObject accent = new GameObject(
+        "Accent", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
+    accent.transform.SetParent(card.transform, false);
+    RectTransform accentRect = accent.GetComponent<RectTransform>();
+    accentRect.anchorMin = new Vector2(0.5f, 1f);
+    accentRect.anchorMax = new Vector2(0.5f, 1f);
+    accentRect.pivot = new Vector2(0.5f, 1f);
+    accentRect.anchoredPosition = new Vector2(0f, -34f);
+    accentRect.sizeDelta = new Vector2(180f, 8f);
+    Image accentImage = accent.GetComponent<Image>();
+    accentImage.sprite = CreateUiSliderTrackSprite();
+    accentImage.type = Image.Type.Sliced;
+    accentImage.color = new Color(0.30f, 0.72f, 1f);
+    accentImage.raycastTarget = false;
+
+    GameObject titleGo = new GameObject("Title", typeof(RectTransform));
+    titleGo.transform.SetParent(card.transform, false);
+    RectTransform titleRect = titleGo.GetComponent<RectTransform>();
+    titleRect.anchorMin = new Vector2(0.5f, 1f);
+    titleRect.anchorMax = new Vector2(0.5f, 1f);
+    titleRect.pivot = new Vector2(0.5f, 1f);
+    titleRect.anchoredPosition = new Vector2(0f, -72f);
+    titleRect.sizeDelta = new Vector2(820f, 100f);
+    TextMeshProUGUI titleTmp = titleGo.AddComponent<TextMeshProUGUI>();
+    titleTmp.text = "BEFORE YOU PLAY";
+    titleTmp.fontStyle = FontStyles.Bold;
+    titleTmp.alignment = TextAlignmentOptions.Center;
+    titleTmp.color = new Color(1f, 0.86f, 0.38f);
+    titleTmp.fontSize = 64f;
+    titleTmp.textWrappingMode = TextWrappingModes.NoWrap;
+    GameTextStyle.Apply(titleTmp);
+
+    GameObject bodyGo = new GameObject("Body", typeof(RectTransform));
+    bodyGo.transform.SetParent(card.transform, false);
+    RectTransform bodyRect = bodyGo.GetComponent<RectTransform>();
+    bodyRect.anchorMin = new Vector2(0.5f, 1f);
+    bodyRect.anchorMax = new Vector2(0.5f, 1f);
+    bodyRect.pivot = new Vector2(0.5f, 1f);
+    bodyRect.anchoredPosition = new Vector2(0f, -190f);
+    bodyRect.sizeDelta = new Vector2(800f, 220f);
+    TextMeshProUGUI bodyTmp = bodyGo.AddComponent<TextMeshProUGUI>();
+    bodyTmp.text =
+        "Please select your age group. This helps us show age-appropriate ads. "
+        + "We do not store your birth date.";
+    bodyTmp.alignment = TextAlignmentOptions.Top;
+    bodyTmp.color = new Color(0.90f, 0.92f, 0.96f);
+    bodyTmp.enableAutoSizing = true;
+    bodyTmp.fontSizeMin = 30f;
+    bodyTmp.fontSizeMax = 43f;
+    bodyTmp.textWrappingMode = TextWrappingModes.Normal;
+    bodyTmp.lineSpacing = 7f;
+
+    agePrivacyChoiceButtons = new GameObject("AgeChoices", typeof(RectTransform));
+    agePrivacyChoiceButtons.transform.SetParent(card.transform, false);
+    RectTransform choicesRect = agePrivacyChoiceButtons.GetComponent<RectTransform>();
+    choicesRect.anchorMin = Vector2.zero;
+    choicesRect.anchorMax = Vector2.one;
+    choicesRect.offsetMin = Vector2.zero;
+    choicesRect.offsetMax = Vector2.zero;
+
+    Color choiceColor = new Color(0.18f, 0.52f, 0.78f);
+    BuildPanelButton(
+        agePrivacyChoiceButtons.transform,
+        "Under16Button",
+        "UNDER 16",
+        choiceColor,
+        new Vector2(-218f, 82f),
+        new Vector2(400f, 132f),
+        () => OnAgeBandSelected(AdsManager.AgeBand.Under16));
+    BuildPanelButton(
+        agePrivacyChoiceButtons.transform,
+        "Adult16PlusButton",
+        "16 OR OLDER",
+        choiceColor,
+        new Vector2(218f, 82f),
+        new Vector2(400f, 132f),
+        () => OnAgeBandSelected(AdsManager.AgeBand.Adult16Plus));
+
+    GameObject statusGo = new GameObject("PrivacyStatus", typeof(RectTransform));
+    statusGo.transform.SetParent(card.transform, false);
+    RectTransform statusRect = statusGo.GetComponent<RectTransform>();
+    statusRect.anchorMin = new Vector2(0.5f, 0f);
+    statusRect.anchorMax = new Vector2(0.5f, 0f);
+    statusRect.pivot = new Vector2(0.5f, 0f);
+    statusRect.anchoredPosition = new Vector2(0f, 105f);
+    statusRect.sizeDelta = new Vector2(780f, 100f);
+    agePrivacyStatusTmp = statusGo.AddComponent<TextMeshProUGUI>();
+    agePrivacyStatusTmp.alignment = TextAlignmentOptions.Center;
+    agePrivacyStatusTmp.color = new Color(0.65f, 0.84f, 1f);
+    agePrivacyStatusTmp.fontStyle = FontStyles.Bold;
+    agePrivacyStatusTmp.fontSize = 40f;
+    agePrivacyStatusTmp.textWrappingMode = TextWrappingModes.NoWrap;
+    statusGo.SetActive(false);
+
+    agePrivacyPanel = panel;
+    agePrivacyPanel.SetActive(false);
+  }
+
+  void OnAgeBandSelected(AdsManager.AgeBand ageBand)
+  {
+    if (AdsManager.Instance == null)
+    {
+      Debug.LogError("[UIManager] AdsManager is unavailable; age selection cannot continue.");
+      return;
+    }
+
+    if (!AdsManager.Instance.SelectAgeBand(ageBand))
+    {
+      Debug.LogWarning("[UIManager] Age selection was ignored because privacy setup already started.");
+    }
+    RefreshAgePrivacyGate();
+  }
+
+  void HandlePrivacyStateChanged()
+  {
+    RefreshAgePrivacyGate();
+    RefreshPrivacySettingsRow();
+  }
+
+  void HandlePrivacyOptionsStateChanged()
+  {
+    RefreshPrivacySettingsRow();
+  }
+
+  void RefreshAgePrivacyGate()
+  {
+    EnsureAgePrivacyPanel();
+    if (agePrivacyPanel == null) return;
+
+    if (!AdsManager.IsPrivacyFlowBlocking)
+    {
+      SetMainMenuPrivacyBlocked(false);
+      if (agePrivacyPanel.activeSelf)
+      {
+        FadePanel(agePrivacyPanel, false, 0.18f);
+      }
+      return;
+    }
+
+    SetMainMenuPrivacyBlocked(true);
+    bool awaitingSelection =
+        AdsManager.CurrentPrivacyFlowState
+        == AdsManager.PrivacyFlowState.AwaitingAgeSelection;
+    agePrivacyChoiceButtons.SetActive(awaitingSelection);
+    agePrivacyStatusTmp.gameObject.SetActive(!awaitingSelection);
+
+    if (!awaitingSelection)
+    {
+      agePrivacyLoadingMessage =
+          AdsManager.SelectedAgeBand == AdsManager.AgeBand.Adult16Plus
+              ? "Checking your privacy choices"
+              : "Preparing age-appropriate ads";
+      agePrivacyStatusTmp.text = agePrivacyLoadingMessage + "...";
+    }
+
+    CanvasGroup group = agePrivacyPanel.GetComponent<CanvasGroup>();
+    if (group == null) group = agePrivacyPanel.AddComponent<CanvasGroup>();
+    group.alpha = 1f;
+    group.interactable = true;
+    group.blocksRaycasts = true;
+    agePrivacyPanel.SetActive(true);
+    agePrivacyPanel.transform.SetAsLastSibling();
+  }
+
+  void SetMainMenuPrivacyBlocked(bool blocked)
+  {
+    if (mainMenuPanel == null) return;
+    CanvasGroup group = mainMenuPanel.GetComponent<CanvasGroup>();
+    if (group == null) group = mainMenuPanel.AddComponent<CanvasGroup>();
+    group.interactable = !blocked;
+    group.blocksRaycasts = !blocked;
+  }
+
+  void TickAgePrivacyLoading()
+  {
+    if (agePrivacyStatusTmp == null || !agePrivacyStatusTmp.gameObject.activeSelf
+        || string.IsNullOrEmpty(agePrivacyLoadingMessage))
+    {
+      return;
+    }
+
+    int dotCount = 1 + Mathf.FloorToInt(Time.unscaledTime * 2f) % 3;
+    agePrivacyStatusTmp.text = agePrivacyLoadingMessage + new string('.', dotCount);
+  }
 
   // Builds the main menu — title + three buttons (Play / Daily / Help) —
   // if no panel was wired up in the Inspector. The panel starts hidden; ShowMainMenu
@@ -4585,8 +4819,8 @@ public class UIManager : MonoBehaviour
   // -- Settings panel --------------------------------------------------------
 
   /// <summary>
-  /// Build the settings panel on first demand. Music / SFX volume sliders and
-  /// Haptics toggle, all backed by PlayerPrefs.
+  /// Build the settings panel on first demand. Includes audio, haptics,
+  /// purchases, and UMP privacy choices when that entry point is required.
   /// </summary>
   void EnsureSettingsPanel()
   {
@@ -4600,12 +4834,12 @@ public class UIManager : MonoBehaviour
     GameObject stackGo = new GameObject("ToggleStack",
         typeof(RectTransform), typeof(VerticalLayoutGroup));
     stackGo.transform.SetParent(contentParent, false);
-    RectTransform stackRect = stackGo.GetComponent<RectTransform>();
-    stackRect.anchorMin = new Vector2(0.5f, 0.5f);
-    stackRect.anchorMax = new Vector2(0.5f, 0.5f);
-    stackRect.pivot = new Vector2(0.5f, 0.5f);
-    stackRect.anchoredPosition = new Vector2(0f, -10f);
-    stackRect.sizeDelta =
+    settingsStackRect = stackGo.GetComponent<RectTransform>();
+    settingsStackRect.anchorMin = new Vector2(0.5f, 0.5f);
+    settingsStackRect.anchorMax = new Vector2(0.5f, 0.5f);
+    settingsStackRect.pivot = new Vector2(0.5f, 0.5f);
+    settingsStackRect.anchoredPosition = new Vector2(0f, -10f);
+    settingsStackRect.sizeDelta =
         new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
@@ -4626,6 +4860,8 @@ public class UIManager : MonoBehaviour
       BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
           new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
     }
+    BuildPrivacySettingsRow(stackGo.transform);
+    RefreshPrivacySettingsRow();
 
     BuildTopBarBackArrow(contentParent, "SETTINGS", OnSettingsBackClicked);
 
@@ -4919,10 +5155,64 @@ public class UIManager : MonoBehaviour
     CrystalButtonStyle.Apply(btnGo, initColor);
   }
 
-  // "Purchases  [ Restore ]" — same row layout as BuildSettingsToggleRow, but
-  // a plain action button instead of an ON/OFF toggle (used for Restore
-  // Purchases, which has no persistent on/off state of its own).
-  void BuildSettingsActionRow(Transform parent, string label, string buttonText, Color btnColor, UnityAction onClick)
+  void BuildPrivacySettingsRow(Transform parent)
+  {
+    GameObject container = new GameObject(
+        "PrivacySettingsGroup",
+        typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(LayoutElement));
+    container.transform.SetParent(parent, false);
+    RectTransform containerRect = container.GetComponent<RectTransform>();
+    containerRect.sizeDelta = new Vector2(SettingsContentWidth, SettingsPrivacyRowHeight);
+    LayoutElement containerLayout = container.GetComponent<LayoutElement>();
+    containerLayout.preferredWidth = SettingsContentWidth;
+    containerLayout.preferredHeight = SettingsPrivacyRowHeight;
+
+    VerticalLayoutGroup layout = container.GetComponent<VerticalLayoutGroup>();
+    layout.childAlignment = TextAnchor.UpperCenter;
+    layout.spacing = 6f;
+    layout.childControlWidth = false;
+    layout.childControlHeight = false;
+    layout.childForceExpandWidth = false;
+    layout.childForceExpandHeight = false;
+
+    GameObject actionRow = BuildSettingsActionRow(
+        container.transform,
+        "Privacy",
+        "Choices",
+        new Color(0.18f, 0.48f, 0.72f),
+        OnPrivacyOptionsClicked);
+    privacyOptionsButton = actionRow.GetComponentInChildren<Button>();
+    if (privacyOptionsButton != null)
+    {
+      privacyOptionsButtonLabel =
+          privacyOptionsButton.GetComponentInChildren<TextMeshProUGUI>();
+    }
+
+    GameObject statusGo = new GameObject(
+        "PrivacyStatus", typeof(RectTransform), typeof(LayoutElement));
+    statusGo.transform.SetParent(container.transform, false);
+    RectTransform statusRect = statusGo.GetComponent<RectTransform>();
+    statusRect.sizeDelta = new Vector2(SettingsContentWidth - 64f, 48f);
+    LayoutElement statusLayout = statusGo.GetComponent<LayoutElement>();
+    statusLayout.preferredWidth = SettingsContentWidth - 64f;
+    statusLayout.preferredHeight = 48f;
+    privacyOptionsStatusTmp = statusGo.AddComponent<TextMeshProUGUI>();
+    privacyOptionsStatusTmp.alignment = TextAlignmentOptions.Center;
+    privacyOptionsStatusTmp.color = new Color(0.68f, 0.82f, 0.95f);
+    privacyOptionsStatusTmp.fontSize = 28f;
+    privacyOptionsStatusTmp.textWrappingMode = TextWrappingModes.NoWrap;
+
+    privacyOptionsRow = container;
+    privacyOptionsRow.SetActive(false);
+  }
+
+  // Same row layout as BuildSettingsToggleRow, but with a plain action button.
+  GameObject BuildSettingsActionRow(
+      Transform parent,
+      string label,
+      string buttonText,
+      Color btnColor,
+      UnityAction onClick)
   {
     GameObject row = BuildSettingsRow(
         parent, label + "Row", out HorizontalLayoutGroup hlg);
@@ -4973,11 +5263,13 @@ public class UIManager : MonoBehaviour
     btn.onClick.AddListener(onClick);
 
     CrystalButtonStyle.Apply(btnGo, btnColor);
+    return row;
   }
 
   void OnSettingsButtonClicked()
   {
     EnsureSettingsPanel();
+    RefreshPrivacySettingsRow();
     FadePanel(mainMenuPanel, false);
     FadePanel(settingsPanel, true, 0.2f);
   }
@@ -4986,6 +5278,50 @@ public class UIManager : MonoBehaviour
   {
     FadePanel(settingsPanel, false, 0.15f);
     ShowMainMenu();
+  }
+
+  void OnPrivacyOptionsClicked()
+  {
+    if (AdsManager.Instance == null
+        || !AdsManager.Instance.ShowPrivacyOptionsForm())
+    {
+      RefreshPrivacySettingsRow();
+    }
+  }
+
+  void RefreshPrivacySettingsRow()
+  {
+    if (privacyOptionsRow == null) return;
+
+    bool visible =
+        AdsManager.SelectedAgeBand == AdsManager.AgeBand.Adult16Plus
+        && AdsManager.PrivacyOptionsRequired;
+    privacyOptionsRow.SetActive(visible);
+
+    if (privacyOptionsButton != null)
+    {
+      privacyOptionsButton.interactable =
+          visible && !AdsManager.PrivacyOptionsFormInProgress;
+    }
+    if (privacyOptionsButtonLabel != null)
+    {
+      privacyOptionsButtonLabel.text =
+          AdsManager.PrivacyOptionsFormInProgress ? "Opening..." : "Choices";
+    }
+    if (privacyOptionsStatusTmp != null)
+    {
+      privacyOptionsStatusTmp.text = AdsManager.PrivacyOptionsStatusMessage;
+      privacyOptionsStatusTmp.gameObject.SetActive(
+          visible && !string.IsNullOrEmpty(privacyOptionsStatusTmp.text));
+    }
+
+    if (settingsStackRect != null)
+    {
+      float baseHeight = IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f;
+      settingsStackRect.sizeDelta = new Vector2(
+          SettingsContentWidth,
+          baseHeight + (visible ? SettingsPrivacyRowHeight + 20f : 0f));
+    }
   }
 
   void OnRemoveAdsClicked()
@@ -5085,6 +5421,8 @@ public class UIManager : MonoBehaviour
       IAPManager.OnAdsRemoved -= HandleAdsRemoved;
     }
     AdsManager.OnRewardedAvailabilityChanged -= HandleRewardedAvailabilityChanged;
+    AdsManager.OnPrivacyStateChanged -= HandlePrivacyStateChanged;
+    AdsManager.OnPrivacyOptionsStateChanged -= HandlePrivacyOptionsStateChanged;
 
     if (objectPooler != null)
     {
