@@ -109,6 +109,12 @@ public class CatchZone : MonoBehaviour
         // Hazards (rocks) hurt — same as bombs.
         if (fo.isHazard)
         {
+            if (fo.isTrainingHazard)
+            {
+                fo.gameObject.SetActive(false);
+                return;
+            }
+
             // MasterGem invincibility: catch rocks for points.
             if (PowerUpManager.InvincibilityActive)
             {
@@ -362,7 +368,7 @@ public class CatchZone : MonoBehaviour
         SetRenderersVisible(true);
     }
 
-    public void BeginRewardedContinueInvincibility()
+    public void BeginContinueInvincibility()
     {
         StartInvincibility();
     }

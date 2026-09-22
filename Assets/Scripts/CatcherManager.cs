@@ -8,11 +8,11 @@ public class CatcherManager : MonoBehaviour
     private GameObject catcherInstance;
     public GameObject CatcherInstance => catcherInstance;
 
-    public void BeginRewardedContinueInvincibility()
+    public void BeginContinueInvincibility()
     {
         if (catcherInstance == null) return;
         CatchZone catchZone = catcherInstance.GetComponent<CatchZone>();
-        catchZone?.BeginRewardedContinueInvincibility();
+        catchZone?.BeginContinueInvincibility();
     }
 
     public int numberOfSlots = 8; // Number of sections (slots) at the bottom
