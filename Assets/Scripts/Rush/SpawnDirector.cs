@@ -11,6 +11,8 @@ public class SpawnDirector : MonoBehaviour
     [Tooltip("Drag the RushConfig ScriptableObject here.")]
     public RushConfig config;
 
+    public float CurrentFallSpeed { get; private set; }
+
     // ---- runtime state --------------------------------------------------
     private float roundStartTime;
     private float nextWaveSpawnY;        // world-Y where the next wave starts
@@ -72,6 +74,7 @@ public class SpawnDirector : MonoBehaviour
     private bool tutorialWaveInFlight;
     private TutorialOverlay tutorialOverlay;
     private const string TutorialCompletedKey = "TutorialCompleted";
+    private const float TutorialFallSpeed = 1.8f;
     private bool firstRunWarmupActive;
     private const float FirstRunWarmupDuration = 60f;
 
@@ -109,6 +112,9 @@ public class SpawnDirector : MonoBehaviour
             config = ScriptableObject.CreateInstance<RushConfig>();
             Debug.Log("[SpawnDirector] Using default RushConfig (create Assets/Resources/RushConfig via Assets → Create → Gem Catch → Rush Config to customize).");
         }
+
+        config.EvaluateTier(0f, currentTier);
+        CurrentFallSpeed = currentTier.fallSpeed;
 
         BuildRockPool();
         roundStartTime = Time.time;
@@ -162,6 +168,7 @@ public class SpawnDirector : MonoBehaviour
             tutorialWaveIndex = 0;
             tutorialWaveInFlight = false;
             tutorialWaveSpawnTime = Time.time + 1.5f; // short delay before first tutorial wave
+            CurrentFallSpeed = TutorialFallSpeed;
 
             // Create the arrow overlay.
             GameObject overlayGo = new GameObject("TutorialOverlay", typeof(TutorialOverlay));
@@ -278,6 +285,7 @@ public class SpawnDirector : MonoBehaviour
             activeWave = result.wave;
             activePlan = result.plan;
             activeWave.fallSpeed = tier.fallSpeed;
+            CurrentFallSpeed = activeWave.fallSpeed;
             activeTierPause = tier.wavePauseOverride;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
@@ -889,7 +897,7 @@ public class SpawnDirector : MonoBehaviour
         float right = GetPlayAreaRight();
         float width = right - left;
         float spawnY = ScreenPadding.WorldTop + 1.5f;
-        float fallSpeed = 1.8f;
+        float fallSpeed = TutorialFallSpeed;
 
         bool moveRight = waveIndex % 2 == 0;
 

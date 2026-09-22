@@ -163,7 +163,7 @@ public class CatcherManager : MonoBehaviour
             rushCurrentColumn = RushColumns.Count / 2;
             float centerX = RushColumns.GetColumnX(RushColumns.Count / 2);
             MoveCatcherToX(centerX, playFeedback: false);
-            rushRoundStartTime = Time.time;
+            rushSpawnDirector = FindObjectOfType<SpawnDirector>();
         }
 
         // Subscribe to score change events
@@ -278,7 +278,7 @@ public class CatcherManager : MonoBehaviour
     private int rushCurrentColumn = 2; // For spawn reference only
     private const float RushBaseMoveSpeed = 8f; // world units/sec at base fall speed
     private const float RushBaseFallSpeed = 2.4f; // fall speed that corresponds to base move speed
-    private RushConfig rushConfig;
+    private SpawnDirector rushSpawnDirector;
 
     void HandleRushTapInput()
     {
@@ -315,18 +315,18 @@ public class CatcherManager : MonoBehaviour
 
     float GetCurrentRushFallSpeed()
     {
-        if (rushConfig == null)
+        if (rushSpawnDirector == null)
         {
-            var director = FindObjectOfType<SpawnDirector>();
-            if (director != null) rushConfig = director.config;
+            rushSpawnDirector = FindObjectOfType<SpawnDirector>();
         }
-        if (rushConfig == null) return RushBaseFallSpeed;
 
-        float elapsed = Time.time - rushRoundStartTime;
-        return rushConfig.GetFallSpeed(elapsed);
+        if (rushSpawnDirector == null || rushSpawnDirector.CurrentFallSpeed <= 0f)
+        {
+            return RushBaseFallSpeed;
+        }
+
+        return rushSpawnDirector.CurrentFallSpeed;
     }
-
-    private float rushRoundStartTime;
 
     // ---- Magnet blue glow ---------------------------------------------------
     private GemGlowVolume magnetGlow;
