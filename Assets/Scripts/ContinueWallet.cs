@@ -5,8 +5,8 @@ using UnityEngine;
 /// </summary>
 public static class ContinueWallet
 {
-    public const int InitialBalance = 3;
-    public const int RewardedGrant = 3;
+    public const int Capacity = 1;
+    public const int InitialBalance = Capacity;
     public const string StorageKey = "Continues.Remaining";
 
     public static int Remaining
@@ -20,6 +20,14 @@ public static class ContinueWallet
             }
 
             int stored = PlayerPrefs.GetInt(StorageKey);
+            if (stored > Capacity)
+            {
+                Debug.Log(
+                    $"[ContinueWallet] Capping legacy balance {stored} at {Capacity}.");
+                Store(Capacity);
+                return Capacity;
+            }
+
             if (stored >= 0) return stored;
 
             Debug.LogWarning(
@@ -45,23 +53,20 @@ public static class ContinueWallet
 
     public static int GrantRewardedContinues()
     {
-        long updated = (long)Remaining + RewardedGrant;
-        int persisted = updated > int.MaxValue ? int.MaxValue : (int)updated;
-        Store(persisted);
-        return persisted;
+        Store(Capacity);
+        return Capacity;
     }
 
     public static int RefundOne()
     {
-        int current = Remaining;
-        int updated = current == int.MaxValue ? current : current + 1;
+        int updated = Mathf.Min(Capacity, Remaining + 1);
         Store(updated);
         return updated;
     }
 
     private static void Store(int balance)
     {
-        PlayerPrefs.SetInt(StorageKey, Mathf.Max(0, balance));
+        PlayerPrefs.SetInt(StorageKey, Mathf.Clamp(balance, 0, Capacity));
         PlayerPrefs.Save();
     }
 }
