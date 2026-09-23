@@ -295,7 +295,7 @@ public class SoundManager : MonoBehaviour
         AudioListener.volume = listenerVolumeBeforeFullScreenAd;
     }
 
-    public void ResumeGameplayMusicAfterRewardedContinue()
+    public void ResumeGameplayMusicAfterContinue()
     {
         if (soundDictionary == null
             || !soundDictionary.TryGetValue("BackgroundMusic", out SoundEffect bgm)
@@ -353,7 +353,7 @@ public class SoundManager : MonoBehaviour
         bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver && !GameState.IsTutorial;
         bgm.source.volume = bgm.volume * MusicVolume;
 
-        if (RoundManager.Instance != null && RoundManager.Instance.IsRewardedContinuePending)
+        if (RoundManager.Instance != null && RoundManager.Instance.IsContinuePending)
         {
             if (bgm.source.isPlaying)
             {
@@ -491,7 +491,7 @@ public class SoundManager : MonoBehaviour
 
     void HandleGameOver()
     {
-        if (RoundManager.Instance == null || !RoundManager.Instance.IsRewardedContinuePending)
+        if (RoundManager.Instance == null || !RoundManager.Instance.IsContinuePending)
         {
             return;
         }

@@ -88,6 +88,8 @@ namespace QuickSlickLabs.EditorTools
                 $"  Target SDK               : {targetSdkLabel}\n" +
                 $"  Scripting Backend        : {PlayerSettings.GetScriptingBackend(NamedBuildTarget.Android)}\n" +
                 $"  Target Architectures     : {PlayerSettings.Android.targetArchitectures}\n" +
+                $"  Release Minification     : {PlayerSettings.Android.minifyRelease} (R8)\n" +
+                $"  Debug Minification       : {PlayerSettings.Android.minifyDebug}\n" +
                 "\n" +
                 "[ Signing ]\n" +
                 $"  Use Custom Keystore      : {PlayerSettings.Android.useCustomKeystore}\n" +
@@ -122,6 +124,7 @@ namespace QuickSlickLabs.EditorTools
             }
 
             EnsureAndroidTargetApi();
+            EnsureAndroidMinificationDisabled();
 
             if (asAppBundle && !development && !ValidateReleaseSigning())
             {
@@ -168,7 +171,28 @@ namespace QuickSlickLabs.EditorTools
             Debug.Log($"[BuildScript] Version: {version} (code {versionCode})");
             Debug.Log($"[BuildScript] Scenes: {string.Join(", ", scenes)}");
 
-            BuildReport report = BuildPipeline.BuildPlayer(buildOpts);
+            bool restoreCustomKeystore =
+                development && PlayerSettings.Android.useCustomKeystore;
+            if (restoreCustomKeystore)
+            {
+                PlayerSettings.Android.useCustomKeystore = false;
+                Debug.Log(
+                    "[BuildScript] Development APK will use Android debug signing; "
+                    + "release keystore selection will be restored after the build.");
+            }
+
+            BuildReport report;
+            try
+            {
+                report = BuildPipeline.BuildPlayer(buildOpts);
+            }
+            finally
+            {
+                if (restoreCustomKeystore)
+                {
+                    PlayerSettings.Android.useCustomKeystore = true;
+                }
+            }
             BuildSummary summary = report.summary;
 
             if (summary.result == BuildResult.Succeeded)
@@ -201,6 +225,31 @@ namespace QuickSlickLabs.EditorTools
             Debug.Log(
                 $"[BuildScript] Updated Android target SDK from API {configuredTargetApi} " +
                 $"to API {MINIMUM_ANDROID_TARGET_API}.");
+        }
+
+        internal static void EnsureAndroidMinificationDisabled()
+        {
+            bool settingsChanged = false;
+
+            if (PlayerSettings.Android.minifyRelease)
+            {
+                PlayerSettings.Android.minifyRelease = false;
+                settingsChanged = true;
+            }
+
+            if (PlayerSettings.Android.minifyDebug)
+            {
+                PlayerSettings.Android.minifyDebug = false;
+                settingsChanged = true;
+            }
+
+            if (!settingsChanged) return;
+
+            AssetDatabase.SaveAssets();
+            Debug.LogWarning(
+                "[BuildScript] Disabled Android minification. R8 currently renames "
+                + "WorkManager's generated WorkDatabase implementation, which causes "
+                + "a native Android startup crash before Unity can initialize.");
         }
 
         private static bool ValidateReleaseSigning()
@@ -335,6 +384,7 @@ namespace QuickSlickLabs.EditorTools
             if (report.summary.platform == BuildTarget.Android)
             {
                 BuildScript.EnsureAndroidTargetApi();
+                BuildScript.EnsureAndroidMinificationDisabled();
             }
         }
     }

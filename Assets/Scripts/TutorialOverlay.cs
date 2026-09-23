@@ -49,7 +49,7 @@ public class TutorialOverlay : MonoBehaviour
         indicator = new GameObject("PressIndicator", typeof(RectTransform));
         indicator.transform.SetParent(canvasGo.transform, false);
         indicatorRect = indicator.GetComponent<RectTransform>();
-        indicatorRect.sizeDelta = new Vector2(200f, 260f);
+        indicatorRect.sizeDelta = new Vector2(300f, 260f);
 
         // "Press" label above the circle.
         GameObject labelGo = new GameObject("PressLabel", typeof(RectTransform));
@@ -59,11 +59,15 @@ public class TutorialOverlay : MonoBehaviour
         labelRect.anchorMax = new Vector2(0.5f, 1f);
         labelRect.pivot = new Vector2(0.5f, 1f);
         labelRect.anchoredPosition = new Vector2(0f, 0f);
-        labelRect.sizeDelta = new Vector2(200f, 60f);
+        labelRect.sizeDelta = new Vector2(300f, 60f);
 
         pressLabel = labelGo.AddComponent<TextMeshProUGUI>();
-        pressLabel.text = "Press";
+        pressLabel.text = "Press down";
         pressLabel.fontSize = 48;
+        pressLabel.enableAutoSizing = true;
+        pressLabel.fontSizeMin = 36f;
+        pressLabel.fontSizeMax = 48f;
+        pressLabel.enableWordWrapping = false;
         pressLabel.fontStyle = FontStyles.Bold;
         pressLabel.alignment = TextAlignmentOptions.Center;
         pressLabel.color = Color.white;

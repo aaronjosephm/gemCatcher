@@ -63,6 +63,9 @@ public class AdsManager : MonoBehaviour
     private bool fullScreenAdAudioSuspended;
     private bool privacyBootstrapStarted;
     private bool adultConsentFlowRunning;
+    private bool interstitialShowInProgress;
+    private readonly InterstitialCadence interstitialCadence =
+        new InterstitialCadence();
 
     public static event Action<bool> OnRewardedAvailabilityChanged;
     public static event Action OnPrivacyStateChanged;
@@ -171,6 +174,7 @@ public class AdsManager : MonoBehaviour
         {
             IAPManager.OnAdsRemoved += HandleAdsRemoved;
         }
+        GemCatcher.OnGameOverFinalized += HandleRoundFinalized;
 
         MobileAdsEventExecutor.Initialize();
 #pragma warning disable 0618
@@ -285,17 +289,8 @@ public class AdsManager : MonoBehaviour
         SetPrivacyOptionsRequired(false);
         SetPrivacyFlowState(PrivacyFlowState.Resolving);
 
-        var requestConfiguration = new RequestConfiguration
-        {
-            AgeRestrictedTreatment = AgeRestrictedTreatment.Child,
-            MaxAdContentRating = MaxAdContentRating.G,
-            PublisherPrivacyPersonalizationState =
-                PublisherPrivacyPersonalizationState.Disabled,
-            PublisherFirstPartyIdEnabled = false,
-        };
-
         PermitAdsAndInitialize(
-            requestConfiguration,
+            CreateUnder16RequestConfiguration(),
             "[AdsManager] Under-16 privacy configuration applied; UMP and ATT are skipped.");
     }
 
@@ -536,6 +531,44 @@ public class AdsManager : MonoBehaviour
         };
     }
 
+    private static RequestConfiguration CreateUnder16RequestConfiguration()
+    {
+        return new RequestConfiguration
+        {
+            AgeRestrictedTreatment = AgeRestrictedTreatment.Child,
+            MaxAdContentRating = MaxAdContentRating.G,
+            PublisherPrivacyPersonalizationState =
+                PublisherPrivacyPersonalizationState.Disabled,
+        };
+    }
+
+    private bool ApplyPostInitializationPrivacyConfiguration()
+    {
+        if (selectedAgeBand != AgeBand.Under16) return true;
+
+        RequestConfiguration requestConfiguration =
+            CreateUnder16RequestConfiguration();
+        requestConfiguration.PublisherFirstPartyIdEnabled = false;
+
+        try
+        {
+            // Google requires this setting after MobileAds.Initialize. Apply it
+            // before any ad load while retaining all child-request safeguards.
+            MobileAds.SetRequestConfiguration(requestConfiguration);
+            Debug.Log(
+                "[AdsManager] Under-16 publisher first-party ID disabled "
+                + "before loading ads.");
+            return true;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                "[AdsManager] Failed to disable the publisher first-party ID; "
+                + $"continuing without ads. {exception.Message}");
+            return false;
+        }
+    }
+
     private void PermitAdsAndInitialize(
         RequestConfiguration requestConfiguration,
         string logMessage)
@@ -651,6 +684,12 @@ public class AdsManager : MonoBehaviour
                     sdkInitializing = false;
                     if (this == null) return;
 
+                    if (!ApplyPostInitializationPrivacyConfiguration())
+                    {
+                        CompletePrivacyFlowWithoutAds();
+                        return;
+                    }
+
                     sdkInitialized = true;
                     Debug.Log("[AdsManager] Google Mobile Ads initialized.");
 
@@ -726,11 +765,27 @@ public class AdsManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Shows a preloaded interstitial, then always invokes the completion callback.
+    /// Marks the beginning of a playable round for interstitial cadence tracking.
+    /// </summary>
+    public void NotifyRoundStarted()
+    {
+        interstitialCadence.BeginRound();
+    }
+
+    private void HandleRoundFinalized()
+    {
+        interstitialCadence.CompleteRound();
+    }
+
+    /// <summary>
+    /// Shows an eligible preloaded interstitial, then always invokes the callback.
+    /// Ineligible or unavailable ads never delay the scene transition.
     /// </summary>
     public void ShowInterstitial(Action onComplete)
     {
-        if (!adsRequestPermitted || IAPManager.AdsRemoved
+        if (interstitialShowInProgress
+            || !interstitialCadence.CanShowInterstitial(DateTime.UtcNow)
+            || !adsRequestPermitted || IAPManager.AdsRemoved
             || interstitialAd == null || !interstitialAd.CanShowAd())
         {
             onComplete?.Invoke();
@@ -743,18 +798,31 @@ public class AdsManager : MonoBehaviour
 
         InterstitialAd adToShow = interstitialAd;
         bool completed = false;
+        interstitialShowInProgress = true;
         void Complete()
         {
             if (completed) return;
             completed = true;
+            interstitialShowInProgress = false;
             RestoreGameAudioAfterAd();
             onComplete?.Invoke();
         }
 
         adToShow.OnAdFullScreenContentClosed += Complete;
         adToShow.OnAdFullScreenContentFailed += _ => Complete();
+        interstitialCadence.MarkInterstitialShown(DateTime.UtcNow);
         SuspendGameAudioForAd();
-        adToShow.Show();
+        try
+        {
+            adToShow.Show();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                $"[AdsManager] Interstitial could not be shown: {exception.Message}");
+            RetireAndPreloadNext(adToShow);
+            Complete();
+        }
     }
 
     /// <summary>
@@ -795,6 +863,7 @@ public class AdsManager : MonoBehaviour
         }
 
 #if UNITY_EDITOR
+        interstitialCadence.MarkRewardedAdShown(DateTime.UtcNow);
         SuspendGameAudioForAd();
         StartCoroutine(SimulateRewardedContinue(result =>
         {
@@ -806,6 +875,7 @@ public class AdsManager : MonoBehaviour
         RewardedAd adToShow = rewardedAd;
         rewardedAd = null;
         NotifyRewardedAvailability();
+        interstitialCadence.MarkRewardedAdShown(DateTime.UtcNow);
 
         int rewardEarned = 0;
         int completionSent = 0;
@@ -834,7 +904,16 @@ public class AdsManager : MonoBehaviour
         };
 
         SuspendGameAudioForAd();
-        adToShow.Show(_ => Interlocked.Exchange(ref rewardEarned, 1));
+        try
+        {
+            adToShow.Show(_ => Interlocked.Exchange(ref rewardEarned, 1));
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                $"[AdsManager] Rewarded ad could not be shown: {exception.Message}");
+            finish(false);
+        }
         return true;
 #endif
     }
@@ -975,6 +1054,7 @@ public class AdsManager : MonoBehaviour
         }
         if (Instance != this) return;
 
+        GemCatcher.OnGameOverFinalized -= HandleRoundFinalized;
         RestoreGameAudioAfterAd();
         CancelRewardedRetry();
         if (interstitialAd != null)

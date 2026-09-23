@@ -142,18 +142,23 @@ public class UIManager : MonoBehaviour
   private int finalScoreTweenTarget;
   private bool finalScoreTweenActive;
 
-  // ---- Rewarded continue -------------------------------------------------
+  // ---- Continue offer and rewarded refill --------------------------------
   // Shown once over the first eligible game-over screen. The ad service only
   // reports success after Google grants the reward and the ad closes.
   private GameObject rewardedContinuePanel;
   private Button rewardedContinueAcceptButton;
   private Button rewardedContinueDeclineButton;
   private TextMeshProUGUI rewardedContinueStatusTmp;
+  private Image rewardedContinueCardImage;
+  private TextMeshProUGUI rewardedContinueFallbackTitleTmp;
+  private RectTransform rewardedContinueCardRect;
   private bool rewardedContinueInProgress;
   private bool rewardedContinueLostFocus;
   private int rewardedContinueAttemptId;
-  private Coroutine rewardedContinueRecoveryCoroutine;
+  private Coroutine rewardedAdTimeoutCoroutine;
   private bool sceneTransitionPending;
+  private const float ContinueCardReferenceWidth = 860f;
+  private const float ContinueCardScreenWidth = 0.9f;
 
   // ---- Daily Challenge UI references --------------------------------------
   // Cached so we can refresh the menu button label, hide retry on daily
@@ -171,6 +176,7 @@ public class UIManager : MonoBehaviour
   private const float SettingsRowHeight = 116f;
   private const float SettingsActionButtonWidth = 380f;
   private const float SettingsPrivacyRowHeight = 178f;
+  private const string PrivacyPolicyUrl = "https://gemcatch.app/privacy-policy/";
   private const float SubpageBackArrowFontSize = 128f;
   private static readonly Dictionary<int, Sprite> ResourceSpriteCache =
       new Dictionary<int, Sprite>();
@@ -456,6 +462,11 @@ public class UIManager : MonoBehaviour
     TickFinalScoreCountUp();
     TickTestModeOverlay();
     TickAgePrivacyLoading();
+    if (rewardedContinuePanel != null
+        && rewardedContinuePanel.activeInHierarchy)
+    {
+      UpdateRewardedContinueScale();
+    }
 
     // Handle fade out animation if active
     if (isFadingOut && gemSpeedupTimerText != null)
@@ -671,15 +682,27 @@ public class UIManager : MonoBehaviour
         hudCanvas = canvasGo.GetComponent<Canvas>();
         hudCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
         hudCanvas.sortingOrder = 100;
-
-        CanvasScaler scaler = canvasGo.GetComponent<CanvasScaler>();
-        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        scaler.referenceResolution = new Vector2(1920, 1080);
-        scaler.matchWidthOrHeight = 0.5f;
       }
     }
 
+    ConfigureHudCanvasScaler();
     EnsureSafeAreaRoot();
+  }
+
+  void ConfigureHudCanvasScaler()
+  {
+    if (hudCanvas == null) return;
+
+    CanvasScaler scaler = hudCanvas.GetComponent<CanvasScaler>();
+    if (scaler == null)
+    {
+      scaler = hudCanvas.gameObject.AddComponent<CanvasScaler>();
+    }
+
+    scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+    scaler.referenceResolution = new Vector2(1080f, 1920f);
+    scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+    scaler.matchWidthOrHeight = 0.5f;
   }
 
   // Builds a full-bleed RectTransform inside the HUD canvas that the SafeAreaFitter
@@ -2354,6 +2377,7 @@ public class UIManager : MonoBehaviour
 
     if (AdsManager.Instance != null)
     {
+      AdsManager.Instance.NotifyRoundStarted();
       AdsManager.Instance.PrepareRewardedContinue();
     }
   }
@@ -3813,11 +3837,9 @@ public class UIManager : MonoBehaviour
     ShowInterstitialThenLoadScene(LevelManager.GameplaySceneName);
   }
 
-  // Shows an interstitial ad (if one is preloaded, and the player hasn't
-  // bought Remove Ads) before loading the given scene, then loads it either
-  // way once the ad closes/fails or is skipped. Shared by "Try Again" and
-  // "Main Menu" on the game-over screen — the two natural spots to show an
-  // ad between rounds without interrupting the score-reveal moment itself.
+  // Requests a cadence-eligible interstitial before loading the scene. The ad
+  // manager skips immediately when the player is protected by the first-run,
+  // run-count, rewarded-ad, cooldown, availability, or Remove Ads rules.
   void ShowInterstitialThenLoadScene(string sceneName)
   {
     if (sceneTransitionPending) return;
@@ -3973,14 +3995,14 @@ public class UIManager : MonoBehaviour
     const float hitStopScale = 0.12f;
     const float hitStopDuration = 0.42f;
 
-    bool suspendForRewardedContinue =
+    bool suspendForContinue =
         RoundManager.Instance != null
-        && RoundManager.Instance.IsRewardedContinuePending;
+        && RoundManager.Instance.IsContinuePending;
     float prevScale = Time.timeScale;
-    Time.timeScale = suspendForRewardedContinue ? 0f : hitStopScale;
+    Time.timeScale = suspendForContinue ? 0f : hitStopScale;
     yield return new WaitForSecondsRealtime(hitStopDuration);
 
-    if (suspendForRewardedContinue)
+    if (suspendForContinue)
     {
       Time.timeScale = 0f;
     }
@@ -4066,7 +4088,7 @@ public class UIManager : MonoBehaviour
     EnsureRewardedContinuePanel();
     if (rewardedContinuePanel == null
         || RoundManager.Instance == null
-        || !RoundManager.Instance.TryMarkRewardedContinueOffered())
+        || !RoundManager.Instance.TryMarkContinueOffered())
     {
       return;
     }
@@ -4075,8 +4097,9 @@ public class UIManager : MonoBehaviour
     rewardedContinuePanel.transform.SetAsLastSibling();
     RefreshRewardedContinueControls();
     FadePanel(rewardedContinuePanel, true, 0.38f);
+    UpdateRewardedContinueScale();
 
-    if (AdsManager.Instance != null)
+    if (ContinueWallet.Remaining <= 0 && AdsManager.Instance != null)
     {
       AdsManager.Instance.PrepareRewardedContinue();
     }
@@ -4122,37 +4145,27 @@ public class UIManager : MonoBehaviour
     cardRect.pivot = new Vector2(0.5f, 0.5f);
     cardRect.anchoredPosition = new Vector2(0f, 15f);
     cardRect.sizeDelta = new Vector2(860f, 800f);
+    rewardedContinueCardRect = cardRect;
 
     Image cardImage = cardGo.GetComponent<Image>();
-    Texture2D cardTexture = Resources.Load<Texture2D>("UI/ContinueOfferPanel");
-    if (cardTexture != null)
-    {
-      cardImage.sprite = CreateSprite(cardTexture);
-      cardImage.type = Image.Type.Simple;
-      cardImage.preserveAspect = true;
-      cardImage.color = Color.white;
-    }
-    else
-    {
-      Debug.LogError("[UIManager] Missing Resources/UI/ContinueOfferPanel artwork.");
-      cardImage.sprite = CreateUiRoundedSprite();
-      cardImage.type = Image.Type.Sliced;
-      cardImage.color = new Color(0.23f, 0.10f, 0.04f, 0.98f);
-
-      GameObject fallbackTitleGo = new GameObject("FallbackTitle", typeof(RectTransform));
-      fallbackTitleGo.transform.SetParent(cardGo.transform, false);
-      RectTransform fallbackTitleRect = fallbackTitleGo.GetComponent<RectTransform>();
-      fallbackTitleRect.anchorMin = new Vector2(0.5f, 0.72f);
-      fallbackTitleRect.anchorMax = new Vector2(0.5f, 0.72f);
-      fallbackTitleRect.sizeDelta = new Vector2(720f, 180f);
-      TextMeshProUGUI fallbackTitle = fallbackTitleGo.AddComponent<TextMeshProUGUI>();
-      fallbackTitle.text = "WATCH AN AD\nTO CONTINUE";
-      fallbackTitle.fontSize = 68f;
-      fallbackTitle.fontStyle = FontStyles.Bold;
-      fallbackTitle.alignment = TextAlignmentOptions.Center;
-      fallbackTitle.color = Color.white;
-    }
+    rewardedContinueCardImage = cardImage;
     cardImage.raycastTarget = false;
+
+    GameObject fallbackTitleGo = new GameObject("FallbackTitle", typeof(RectTransform));
+    fallbackTitleGo.transform.SetParent(cardGo.transform, false);
+    RectTransform fallbackTitleRect = fallbackTitleGo.GetComponent<RectTransform>();
+    fallbackTitleRect.anchorMin = new Vector2(0.5f, 0.72f);
+    fallbackTitleRect.anchorMax = new Vector2(0.5f, 0.72f);
+    fallbackTitleRect.sizeDelta = new Vector2(720f, 180f);
+    rewardedContinueFallbackTitleTmp =
+        fallbackTitleGo.AddComponent<TextMeshProUGUI>();
+    rewardedContinueFallbackTitleTmp.fontSize = 68f;
+    rewardedContinueFallbackTitleTmp.fontStyle = FontStyles.Bold;
+    rewardedContinueFallbackTitleTmp.alignment = TextAlignmentOptions.Center;
+    rewardedContinueFallbackTitleTmp.color = Color.white;
+    rewardedContinueFallbackTitleTmp.raycastTarget = false;
+
+    SetRewardedContinueArtwork(useStoredContinue: false);
 
     GameObject statusGo = new GameObject("RewardStatus", typeof(RectTransform));
     statusGo.transform.SetParent(cardGo.transform, false);
@@ -4160,11 +4173,11 @@ public class UIManager : MonoBehaviour
     statusRect.anchorMin = new Vector2(0.5f, 0.5f);
     statusRect.anchorMax = new Vector2(0.5f, 0.5f);
     statusRect.pivot = new Vector2(0.5f, 0.5f);
-    statusRect.anchoredPosition = new Vector2(0f, -145f);
+    statusRect.anchoredPosition = new Vector2(0f, -175f);
     statusRect.sizeDelta = new Vector2(650f, 70f);
 
     rewardedContinueStatusTmp = statusGo.AddComponent<TextMeshProUGUI>();
-    rewardedContinueStatusTmp.text = "+3 LIVES";
+    rewardedContinueStatusTmp.text = "LOADING AD...";
     rewardedContinueStatusTmp.fontSize = 34f;
     rewardedContinueStatusTmp.fontStyle = FontStyles.Bold;
     rewardedContinueStatusTmp.alignment = TextAlignmentOptions.Center;
@@ -4174,13 +4187,14 @@ public class UIManager : MonoBehaviour
     rewardedContinueStatusTmp.enableWordWrapping = false;
     rewardedContinueStatusTmp.color = new Color(1f, 0.22f, 0.18f);
     rewardedContinueStatusTmp.raycastTarget = false;
+    GameTextStyle.Apply(rewardedContinueStatusTmp);
 
     rewardedContinueAcceptButton = BuildRewardedContinueImageButton(
         cardGo.transform,
         "AcceptRewardedContinue",
         "UI/ContinueAcceptButton",
-        new Vector2(330f, 176f),
-        new Vector2(130f, -250f),
+        new Vector2(240f, 120f),
+        new Vector2(110f, -247f),
         "CONTINUE",
         new Color(0.20f, 0.72f, 0.30f),
         OnRewardedContinueAccepted);
@@ -4189,8 +4203,8 @@ public class UIManager : MonoBehaviour
         cardGo.transform,
         "DeclineRewardedContinue",
         "UI/ContinueDeclineButton",
-        new Vector2(190f, 176f),
-        new Vector2(-185f, -250f),
+        new Vector2(134.4f, 120f),
+        new Vector2(-110f, -247f),
         "X",
         new Color(0.85f, 0.18f, 0.16f),
         OnRewardedContinueDeclined);
@@ -4200,6 +4214,58 @@ public class UIManager : MonoBehaviour
     group.interactable = false;
     group.blocksRaycasts = false;
     rewardedContinuePanel.SetActive(false);
+  }
+
+  void UpdateRewardedContinueScale()
+  {
+    if (rewardedContinueCardRect == null) return;
+
+    RectTransform parent = rewardedContinueCardRect.parent as RectTransform;
+    float availableWidth = parent != null ? parent.rect.width : 0f;
+    if (availableWidth <= 0f && hudCanvas != null)
+    {
+      availableWidth = ((RectTransform)hudCanvas.transform).rect.width;
+    }
+    if (availableWidth <= 0f) return;
+
+    float scale = availableWidth * ContinueCardScreenWidth
+        / ContinueCardReferenceWidth;
+    rewardedContinueCardRect.localScale =
+        new Vector3(scale, scale, 1f);
+  }
+
+  void SetRewardedContinueArtwork(bool useStoredContinue)
+  {
+    if (rewardedContinueCardImage == null) return;
+
+    string resourcePath = useStoredContinue
+        ? "UI/ContinueUsePanel"
+        : "UI/ContinueOfferPanel";
+    Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+    bool hasArtwork = texture != null;
+
+    if (hasArtwork)
+    {
+      rewardedContinueCardImage.sprite = CreateSprite(texture);
+      rewardedContinueCardImage.type = Image.Type.Simple;
+      rewardedContinueCardImage.preserveAspect = true;
+      rewardedContinueCardImage.color = Color.white;
+    }
+    else
+    {
+      Debug.LogError($"[UIManager] Missing Resources/{resourcePath} artwork.");
+      rewardedContinueCardImage.sprite = CreateUiRoundedSprite();
+      rewardedContinueCardImage.type = Image.Type.Sliced;
+      rewardedContinueCardImage.color = new Color(0.23f, 0.10f, 0.04f, 0.98f);
+    }
+
+    if (rewardedContinueFallbackTitleTmp != null)
+    {
+      rewardedContinueFallbackTitleTmp.text = useStoredContinue
+          ? "USE CONTINUE?"
+          : "WATCH AN AD\nTO CONTINUE";
+      rewardedContinueFallbackTitleTmp.gameObject.SetActive(!hasArtwork);
+    }
   }
 
   Button BuildRewardedContinueImageButton(
@@ -4295,6 +4361,26 @@ public class UIManager : MonoBehaviour
   {
     if (rewardedContinueInProgress) return;
 
+    if (ContinueWallet.Remaining > 0)
+    {
+      rewardedContinueInProgress = true;
+      rewardedContinueAcceptButton.interactable = false;
+      rewardedContinueDeclineButton.interactable = false;
+
+      if (TrySpendContinueAndResume(out int remaining))
+      {
+        CompleteContinueResume(remaining);
+        return;
+      }
+
+      rewardedContinueInProgress = false;
+      RefreshRewardedContinueControls();
+      SetRewardedContinueStatus(
+          "UNABLE TO CONTINUE",
+          new Color(1f, 0.45f, 0.45f));
+      return;
+    }
+
     AdsManager ads = AdsManager.Instance;
     if (ads == null)
     {
@@ -4310,12 +4396,12 @@ public class UIManager : MonoBehaviour
     rewardedContinueAcceptButton.interactable = false;
     rewardedContinueDeclineButton.interactable = false;
     SetRewardedContinueStatus("OPENING AD...", Color.white);
-    StartRewardedContinueRecovery(attemptId, 180f);
+    StartRewardedAdTimeout(attemptId, 180f);
 
     if (!ads.TryShowRewardedContinue(
         rewardEarned => HandleRewardedContinueResult(attemptId, rewardEarned)))
     {
-      CancelRewardedContinueRecovery();
+      CancelRewardedAdTimeout();
       rewardedContinueInProgress = false;
       rewardedContinueDeclineButton.interactable = true;
       rewardedContinueAcceptButton.interactable = false;
@@ -4327,7 +4413,7 @@ public class UIManager : MonoBehaviour
   {
     if (rewardedContinueInProgress) return;
     rewardedContinueAttemptId++;
-    RoundManager.Instance?.FinalizeRewardedContinueDecline();
+    RoundManager.Instance?.FinalizeContinueDecline();
     Time.timeScale = 1f;
     FadePanel(rewardedContinuePanel, false, 0.18f);
   }
@@ -4341,7 +4427,7 @@ public class UIManager : MonoBehaviour
       return;
     }
 
-    CancelRewardedContinueRecovery();
+    CancelRewardedAdTimeout();
     rewardedContinueInProgress = false;
 
     if (!rewardEarned)
@@ -4353,15 +4439,47 @@ public class UIManager : MonoBehaviour
       return;
     }
 
-    if (RoundManager.Instance == null || !RoundManager.Instance.ContinueAfterRewardedAd())
+    int remaining = ContinueWallet.GrantRewardedContinues();
+    if (!TryResumeRound())
     {
-      Debug.LogError("[UIManager] Reward was earned, but the round could not be continued.");
+      Debug.LogError(
+          "[UIManager] Rewarded continues were saved, but the round could not resume.");
       rewardedContinueDeclineButton.interactable = true;
-      rewardedContinueAcceptButton.interactable = false;
-      SetRewardedContinueStatus("UNABLE TO CONTINUE", new Color(1f, 0.45f, 0.45f));
+      RefreshRewardedContinueControls();
+      SetRewardedContinueStatus(
+          $"CONTINUES SAVED: {ContinueWallet.Remaining}",
+          new Color(1f, 0.78f, 0.42f));
       return;
     }
 
+    CompleteContinueResume(remaining);
+  }
+
+  bool TrySpendContinueAndResume(out int remaining)
+  {
+    if (!ContinueWallet.TrySpend(out remaining))
+    {
+      return false;
+    }
+
+    if (TryResumeRound())
+    {
+      return true;
+    }
+
+    remaining = ContinueWallet.RefundOne();
+    return false;
+  }
+
+  bool TryResumeRound()
+  {
+    return RoundManager.Instance != null
+        && RoundManager.Instance.ContinueAfterOffer();
+  }
+
+  void CompleteContinueResume(int remaining)
+  {
+    rewardedContinueInProgress = false;
     finalScoreTweenActive = false;
     gameIsOver = false;
     GameState.IsPlaying = true;
@@ -4370,11 +4488,13 @@ public class UIManager : MonoBehaviour
     FadePanel(rewardedContinuePanel, false, 0.16f);
     FadePanel(gameOverPanel, false, 0.22f);
 
-    CatcherManager.Instance?.BeginRewardedContinueInvincibility();
-    SoundManager.Instance?.ResumeGameplayMusicAfterRewardedContinue();
+    CatcherManager.Instance?.BeginContinueInvincibility();
+    SoundManager.Instance?.ResumeGameplayMusicAfterContinue();
     Time.timeScale = 1f;
 
-    SpawnBannerNotification("CONTINUE!  3 LIVES", new Color(0.35f, 1f, 0.45f));
+    SpawnBannerNotification(
+        $"CONTINUE!  {remaining} {(remaining == 1 ? "CONTINUE" : "CONTINUES")} LEFT",
+        new Color(0.35f, 1f, 0.45f));
   }
 
   void OnApplicationPause(bool isPaused)
@@ -4400,23 +4520,23 @@ public class UIManager : MonoBehaviour
     if (rewardedContinueLostFocus)
     {
       rewardedContinueLostFocus = false;
-      StartRewardedContinueRecovery(rewardedContinueAttemptId, 5f);
+      StartRewardedAdTimeout(rewardedContinueAttemptId, 5f);
     }
   }
 
-  void StartRewardedContinueRecovery(int attemptId, float delay)
+  void StartRewardedAdTimeout(int attemptId, float delay)
   {
-    CancelRewardedContinueRecovery();
-    rewardedContinueRecoveryCoroutine =
-        StartCoroutine(RecoverInterruptedRewardedContinue(attemptId, delay));
+    CancelRewardedAdTimeout();
+    rewardedAdTimeoutCoroutine =
+        StartCoroutine(RecoverInterruptedRewardedAd(attemptId, delay));
   }
 
-  System.Collections.IEnumerator RecoverInterruptedRewardedContinue(
+  System.Collections.IEnumerator RecoverInterruptedRewardedAd(
       int attemptId,
       float delay)
   {
     yield return new WaitForSecondsRealtime(delay);
-    rewardedContinueRecoveryCoroutine = null;
+    rewardedAdTimeoutCoroutine = null;
 
     if (!rewardedContinueInProgress || attemptId != rewardedContinueAttemptId)
     {
@@ -4431,11 +4551,11 @@ public class UIManager : MonoBehaviour
     AdsManager.Instance?.PrepareRewardedContinue();
   }
 
-  void CancelRewardedContinueRecovery()
+  void CancelRewardedAdTimeout()
   {
-    if (rewardedContinueRecoveryCoroutine == null) return;
-    StopCoroutine(rewardedContinueRecoveryCoroutine);
-    rewardedContinueRecoveryCoroutine = null;
+    if (rewardedAdTimeoutCoroutine == null) return;
+    StopCoroutine(rewardedAdTimeoutCoroutine);
+    rewardedAdTimeoutCoroutine = null;
   }
 
   void HandleRewardedAvailabilityChanged(bool isReady)
@@ -4452,7 +4572,14 @@ public class UIManager : MonoBehaviour
 
   void RefreshRewardedContinueControls()
   {
-    bool ready = AdsManager.Instance != null && AdsManager.Instance.IsRewardedContinueReady;
+    int remaining = ContinueWallet.Remaining;
+    bool useStoredContinue = remaining > 0;
+    bool ready = useStoredContinue
+        || (AdsManager.Instance != null
+            && AdsManager.Instance.IsRewardedContinueReady);
+
+    SetRewardedContinueArtwork(useStoredContinue);
+
     if (rewardedContinueAcceptButton != null)
     {
       rewardedContinueAcceptButton.interactable = ready && !rewardedContinueInProgress;
@@ -4464,17 +4591,45 @@ public class UIManager : MonoBehaviour
 
     if (!rewardedContinueInProgress)
     {
-      SetRewardedContinueStatus(
-          ready ? "+3 LIVES" : "LOADING AD...",
-          ready ? new Color(1f, 0.22f, 0.18f) : new Color(1f, 0.78f, 0.42f));
+      if (useStoredContinue)
+      {
+        SetRewardedContinueStatus(
+            remaining.ToString(),
+            Color.white,
+            balanceDisplay: true);
+      }
+      else
+      {
+        SetRewardedContinueStatus(
+            ready ? "" : "LOADING AD...",
+            new Color(1f, 0.78f, 0.42f));
+      }
     }
   }
 
-  void SetRewardedContinueStatus(string message, Color color)
+  void SetRewardedContinueStatus(
+      string message,
+      Color color,
+      bool balanceDisplay = false)
   {
     if (rewardedContinueStatusTmp == null) return;
+
+    RectTransform rect = rewardedContinueStatusTmp.rectTransform;
+    rect.anchoredPosition = balanceDisplay
+        ? new Vector2(310f, -151f)
+        : new Vector2(0f, -175f);
+    rect.sizeDelta = balanceDisplay
+        ? new Vector2(104f, 84.5f)
+        : new Vector2(650f, 55f);
+    rewardedContinueStatusTmp.fontSize = balanceDisplay ? 67.6f : 28f;
+    rewardedContinueStatusTmp.fontSizeMin = balanceDisplay ? 49.4f : 20f;
+    rewardedContinueStatusTmp.fontSizeMax = balanceDisplay ? 67.6f : 28f;
+    rewardedContinueStatusTmp.outlineColor = GameTextStyle.OutlineColor;
+    rewardedContinueStatusTmp.outlineWidth = GameTextStyle.OutlineWidth;
     rewardedContinueStatusTmp.text = message;
-    rewardedContinueStatusTmp.color = color;
+    rewardedContinueStatusTmp.color = balanceDisplay
+        ? new Color(0.18f, 0.82f, 0.24f)
+        : color;
   }
 
   // Rebuilds the auto-panel's vertical "[icon] × N" list from GemCatcher.CatchesByGemName.
@@ -4820,7 +4975,7 @@ public class UIManager : MonoBehaviour
 
   /// <summary>
   /// Build the settings panel on first demand. Includes audio, haptics,
-  /// purchases, and UMP privacy choices when that entry point is required.
+  /// purchases, the privacy policy, and UMP privacy choices when required.
   /// </summary>
   void EnsureSettingsPanel()
   {
@@ -4840,7 +4995,7 @@ public class UIManager : MonoBehaviour
     settingsStackRect.pivot = new Vector2(0.5f, 0.5f);
     settingsStackRect.anchoredPosition = new Vector2(0f, -10f);
     settingsStackRect.sizeDelta =
-        new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f);
+        new Vector2(SettingsContentWidth, IAPManager.RemoveAdsPurchaseEnabled ? 700f : 560f);
     VerticalLayoutGroup vlg = stackGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 20f;
@@ -4860,6 +5015,8 @@ public class UIManager : MonoBehaviour
       BuildSettingsActionRow(stackGo.transform, "Purchases", "Restore",
           new Color(0.30f, 0.32f, 0.38f), OnRestorePurchasesClicked);
     }
+    BuildSettingsActionRow(stackGo.transform, "Privacy Policy", "View",
+        new Color(0.18f, 0.48f, 0.72f), OnPrivacyPolicyClicked);
     BuildPrivacySettingsRow(stackGo.transform);
     RefreshPrivacySettingsRow();
 
@@ -5289,6 +5446,11 @@ public class UIManager : MonoBehaviour
     }
   }
 
+  void OnPrivacyPolicyClicked()
+  {
+    Application.OpenURL(PrivacyPolicyUrl);
+  }
+
   void RefreshPrivacySettingsRow()
   {
     if (privacyOptionsRow == null) return;
@@ -5317,7 +5479,7 @@ public class UIManager : MonoBehaviour
 
     if (settingsStackRect != null)
     {
-      float baseHeight = IAPManager.RemoveAdsPurchaseEnabled ? 560f : 420f;
+      float baseHeight = IAPManager.RemoveAdsPurchaseEnabled ? 700f : 560f;
       settingsStackRect.sizeDelta = new Vector2(
           SettingsContentWidth,
           baseHeight + (visible ? SettingsPrivacyRowHeight + 20f : 0f));

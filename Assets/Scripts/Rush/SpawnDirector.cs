@@ -11,6 +11,8 @@ public class SpawnDirector : MonoBehaviour
     [Tooltip("Drag the RushConfig ScriptableObject here.")]
     public RushConfig config;
 
+    public float CurrentFallSpeed { get; private set; }
+
     // ---- runtime state --------------------------------------------------
     private float roundStartTime;
     private float nextWaveSpawnY;        // world-Y where the next wave starts
@@ -65,11 +67,16 @@ public class SpawnDirector : MonoBehaviour
     private int finishLineScore;
 
     // Tutorial intro
-    private int tutorialStep; // 0 = move right, 1 = move left, 2+ = done
+    private int tutorialCatchCount;
+    private int tutorialWaveIndex; // Even waves move right; odd waves move left.
     private bool tutorialActive;
     private float tutorialWaveSpawnTime;
     private bool tutorialWaveInFlight;
     private TutorialOverlay tutorialOverlay;
+    private const string TutorialCompletedKey = "TutorialCompleted";
+    private const float TutorialFallSpeed = 1.8f;
+    private bool firstRunWarmupActive;
+    private const float FirstRunWarmupDuration = 60f;
 
     // Pool references (grabbed from ObjectPooler at Start)
     private ObjectPooler pooler;
@@ -105,6 +112,9 @@ public class SpawnDirector : MonoBehaviour
             config = ScriptableObject.CreateInstance<RushConfig>();
             Debug.Log("[SpawnDirector] Using default RushConfig (create Assets/Resources/RushConfig via Assets → Create → Gem Catch → Rush Config to customize).");
         }
+
+        config.EvaluateTier(0f, currentTier);
+        CurrentFallSpeed = currentTier.fallSpeed;
 
         BuildRockPool();
         roundStartTime = Time.time;
@@ -150,12 +160,15 @@ public class SpawnDirector : MonoBehaviour
 
         // Tutorial intro — only on first-ever play.
         if (LevelManager.SelectedLevel == LevelManager.LevelId.Cave
-            && PlayerPrefs.GetInt("TutorialCompleted", 0) == 0)
+            && PlayerPrefs.GetInt(TutorialCompletedKey, 0) == 0)
         {
             tutorialActive = true;
-            tutorialStep = 0;
+            firstRunWarmupActive = true;
+            tutorialCatchCount = 0;
+            tutorialWaveIndex = 0;
             tutorialWaveInFlight = false;
             tutorialWaveSpawnTime = Time.time + 1.5f; // short delay before first tutorial wave
+            CurrentFallSpeed = TutorialFallSpeed;
 
             // Create the arrow overlay.
             GameObject overlayGo = new GameObject("TutorialOverlay", typeof(TutorialOverlay));
@@ -224,7 +237,11 @@ public class SpawnDirector : MonoBehaviour
         }
 
         float elapsed = Time.time - roundStartTime;
-        config.EvaluateTier(elapsed, currentTier);
+        float difficultyElapsed = firstRunWarmupActive
+            ? Mathf.Max(0f, elapsed - FirstRunWarmupDuration)
+            : elapsed;
+        config.EvaluateTier(difficultyElapsed, currentTier);
+        ApplyFirstRunWarmup(elapsed, currentTier);
         RushConfig.DifficultyTier tier = currentTier;
 
         // Mark power-ups as pending when timers elapse.
@@ -268,6 +285,7 @@ public class SpawnDirector : MonoBehaviour
             activeWave = result.wave;
             activePlan = result.plan;
             activeWave.fallSpeed = tier.fallSpeed;
+            CurrentFallSpeed = activeWave.fallSpeed;
             activeTierPause = tier.wavePauseOverride;
             activeRowIndex = 0;
             lastRowSpawnTime = Time.time;
@@ -339,6 +357,26 @@ public class SpawnDirector : MonoBehaviour
         standaloneDrops.Clear();
     }
 
+    private void ApplyFirstRunWarmup(
+        float elapsed,
+        RushConfig.DifficultyTier tier)
+    {
+        if (!firstRunWarmupActive || elapsed >= FirstRunWarmupDuration) return;
+
+        float t = Mathf.SmoothStep(
+            0f,
+            1f,
+            Mathf.Clamp01(elapsed / FirstRunWarmupDuration));
+        tier.fallSpeed = Mathf.Lerp(1.9f, tier.fallSpeed, t);
+        tier.maxRows = Mathf.RoundToInt(Mathf.Lerp(2f, tier.maxRows, t));
+        tier.safeCorridorFraction =
+            Mathf.Lerp(0.65f, tier.safeCorridorFraction, t);
+        tier.complexPatternWeight *= t;
+        tier.poisonGemChance = 0f;
+        tier.wavePauseOverride =
+            Mathf.Lerp(4f, Mathf.Max(3f, tier.wavePauseOverride), t);
+    }
+
     void SpawnRow(WaveDefinition.Row row, float fallSpeed)
     {
         float spawnY = ScreenPadding.WorldTop + 1.5f;
@@ -389,7 +427,12 @@ public class SpawnDirector : MonoBehaviour
         }
     }
 
-    void SpawnHazardAt(float x, float y, float fallSpeed, int sizeIdx)
+    void SpawnHazardAt(
+        float x,
+        float y,
+        float fallSpeed,
+        int sizeIdx,
+        bool trainingHazard = false)
     {
         if (rockPool == null) return;
 
@@ -403,6 +446,7 @@ public class SpawnDirector : MonoBehaviour
         {
             fo.ResetObject();
             fo.SetHazard(true);
+            fo.SetTrainingHazard(trainingHazard);
             fo.verticalOnly = true;
             fo.horizontalSpeed = 0f;
             fo.fallSpeed = fallSpeed;
@@ -774,7 +818,7 @@ public class SpawnDirector : MonoBehaviour
 
     /// <summary>
     /// Called each frame during tutorial. Spawns scripted rock walls with a
-    /// gap and a gem, shows directional arrows, advances steps on gem catch.
+    /// gap and a gem, alternates the prompted side, and counts successful catches.
     /// </summary>
     void UpdateTutorial()
     {
@@ -786,15 +830,17 @@ public class SpawnDirector : MonoBehaviour
 
             if (wasCaught)
             {
-                // Gem was caught — advance to next step.
+                // Complete the tutorial after two successful catches. Wave
+                // direction advances independently so misses still alternate.
                 tutorialWaveInFlight = false;
                 if (tutorialOverlay != null) tutorialOverlay.HideArrows();
-                tutorialStep++;
-                if (tutorialStep >= 2)
+                tutorialCatchCount++;
+                ShowTutorialCatchFeedback();
+                if (tutorialCatchCount >= 2)
                 {
                     // Tutorial complete.
                     tutorialActive = false;
-                    PlayerPrefs.SetInt("TutorialCompleted", 1);
+                    PlayerPrefs.SetInt(TutorialCompletedKey, 1);
                     PlayerPrefs.Save();
                     if (tutorialOverlay != null)
                     {
@@ -811,7 +857,7 @@ public class SpawnDirector : MonoBehaviour
             }
             else
             {
-                // Gem was missed — retry the same step after a pause.
+                // A miss does not count, but the next wave still switches sides.
                 tutorialWaveInFlight = false;
                 if (tutorialOverlay != null) tutorialOverlay.HideArrows();
                 tutorialWaveSpawnTime = Time.time + 1.5f;
@@ -821,27 +867,44 @@ public class SpawnDirector : MonoBehaviour
         // Spawn next tutorial wave when timer elapses.
         if (!tutorialWaveInFlight && Time.time >= tutorialWaveSpawnTime)
         {
-            SpawnTutorialWave(tutorialStep);
+            SpawnTutorialWave(tutorialWaveIndex);
+            tutorialWaveIndex++;
             tutorialWaveInFlight = true;
         }
     }
 
+    void ShowTutorialCatchFeedback()
+    {
+        if (UIManager.Instance == null) return;
+
+        bool tutorialComplete = tutorialCatchCount >= 2;
+        UIManager.Instance.SpawnBannerNotification(
+            tutorialComplete
+                ? "AWESOME! YOU'RE READY!"
+                : "GREAT CATCH! ONE MORE!",
+            tutorialComplete
+                ? new Color(1f, 0.85f, 0.25f)
+                : new Color(0.30f, 0.90f, 0.40f));
+    }
+
     /// <summary>
     /// Spawns a wall of rocks with a gap on the specified side, plus a gem
-    /// in the gap. Step 0 = gap on far right, step 1 = gap on far left.
+    /// in the gap. Consecutive waves alternate between the right and left.
     /// </summary>
-    void SpawnTutorialWave(int step)
+    void SpawnTutorialWave(int waveIndex)
     {
         float left = GetPlayAreaLeft();
         float right = GetPlayAreaRight();
         float width = right - left;
         float spawnY = ScreenPadding.WorldTop + 1.5f;
-        float fallSpeed = 2.5f; // slow so the player has time to react
+        float fallSpeed = TutorialFallSpeed;
 
-        // Gap position: far right for step 0, far left for step 1.
+        bool moveRight = waveIndex % 2 == 0;
+
+        // Alternate the gap between the far right and far left.
         float gapCenter, gapWidth;
-        gapWidth = width * 0.2f; // 20% of screen is the gap
-        if (step == 0)
+        gapWidth = width * 0.4f;
+        if (moveRight)
             gapCenter = right - gapWidth * 0.5f; // far right
         else
             gapCenter = left + gapWidth * 0.5f;  // far left
@@ -855,7 +918,7 @@ public class SpawnDirector : MonoBehaviour
         {
             if (x >= gapLeft && x <= gapRight)
                 continue; // skip the gap
-            SpawnHazardAt(x, spawnY, fallSpeed, 0);
+            SpawnHazardAt(x, spawnY, fallSpeed, 0, trainingHazard: true);
         }
 
         // Spawn a gem in the center of the gap.
@@ -869,11 +932,13 @@ public class SpawnDirector : MonoBehaviour
         tutorialScoreBefore = RoundManager.Instance != null ? RoundManager.Instance.Score : 0;
 
         // Show directional arrows.
-        int arrowDir = (step == 0) ? 1 : -1;
+        int arrowDir = moveRight ? 1 : -1;
         if (tutorialOverlay != null)
             tutorialOverlay.ShowArrows(arrowDir);
 
-        Debug.Log($"[SpawnDirector] Tutorial wave {step}: gap at x={gapCenter:F1}, arrows={arrowDir}");
+        Debug.Log(
+            $"[SpawnDirector] Tutorial wave {waveIndex}: gap at x={gapCenter:F1}, "
+            + $"arrows={arrowDir}, catches={tutorialCatchCount}/2");
     }
 
     void OnDestroy()
