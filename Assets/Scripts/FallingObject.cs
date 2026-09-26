@@ -97,9 +97,11 @@ public class FallingObject : MonoBehaviour
     // When true, this object is a rock/hazard — catching it costs a life.
     // Set by ObjectPooler when spawning hazards in Rush Mode.
     public bool isHazard { get; private set; } = false;
+    public bool isTrainingHazard { get; private set; } = false;
 
     /// <summary>Mark this object as a hazard (rock). Called by ObjectPooler at spawn.</summary>
     public void SetHazard(bool value) { isHazard = value; }
+    public void SetTrainingHazard(bool value) { isTrainingHazard = value; }
 
     /// <summary>Poison gem — looks like a gem but costs a life when caught.</summary>
     public bool isPoisonGem { get; set; } = false;
@@ -222,6 +224,7 @@ public class FallingObject : MonoBehaviour
         InitializeComponents();
         ClearPowerUp();
         isHazard = false;
+        isTrainingHazard = false;
         isPoisonGem = false;
         isRushHeart = false;
         isRushRedGem = false;

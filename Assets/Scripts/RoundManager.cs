@@ -40,15 +40,13 @@ public class RoundManager : MonoBehaviour
     public int Score { get; private set; }
     public int Lives { get; private set; } = STARTING_LIVES;
     public bool IsGameOver { get; private set; }
-    public bool HasOfferedRewardedContinue { get; private set; }
-    public bool HasUsedRewardedContinue { get; private set; }
-    public bool IsRewardedContinuePending { get; private set; }
+    public bool IsContinuePending { get; private set; }
+    private bool hasPresentedContinueOffer;
 
-    public bool CanOfferRewardedContinue =>
+    public bool CanOfferContinue =>
         IsGameOver
-        && IsRewardedContinuePending
-        && !HasOfferedRewardedContinue
-        && !HasUsedRewardedContinue
+        && IsContinuePending
+        && !hasPresentedContinueOffer
         && !GameState.IsTutorial
         && GameState.Mode != GameState.GameMode.Daily;
 
@@ -65,12 +63,15 @@ public class RoundManager : MonoBehaviour
 
     public event System.Action<int> OnLivesChanged;
 
-    /// <summary>Fired exactly once when the player runs out of lives or EndGame is called.</summary>
+    /// <summary>
+    /// Fired whenever the current life pool reaches zero or EndGame is called.
+    /// A continued run can therefore raise this more than once.
+    /// </summary>
     public event System.Action OnGameOver;
 
     /// <summary>
     /// Fired when a game over becomes final and gameplay objects can be retired.
-    /// The first rewarded-continue offer delays this until the player declines.
+    /// A pending continue offer delays this until the player declines.
     /// </summary>
     public event System.Action OnGameOverFinalized;
 
@@ -155,42 +156,41 @@ public class RoundManager : MonoBehaviour
         BeginGameOver();
     }
 
-    public bool TryMarkRewardedContinueOffered()
+    public bool TryMarkContinueOffered()
     {
-        if (!CanOfferRewardedContinue) return false;
-        HasOfferedRewardedContinue = true;
+        if (!CanOfferContinue) return false;
+        hasPresentedContinueOffer = true;
         return true;
     }
 
     /// <summary>
-    /// Resumes the current run after a verified rewarded-ad completion.
+    /// Resumes the current run after a continue credit is spent.
     /// Score, catch totals, mode progression, and run seed remain unchanged.
     /// </summary>
-    public bool ContinueAfterRewardedAd()
+    public bool ContinueAfterOffer()
     {
         if (!IsGameOver
-            || !IsRewardedContinuePending
-            || !HasOfferedRewardedContinue
-            || HasUsedRewardedContinue
+            || !IsContinuePending
+            || !hasPresentedContinueOffer
             || GameState.IsTutorial
             || GameState.Mode == GameState.GameMode.Daily)
         {
             return false;
         }
 
-        HasUsedRewardedContinue = true;
-        IsRewardedContinuePending = false;
+        IsContinuePending = false;
+        hasPresentedContinueOffer = false;
         Lives = Mathf.Min(STARTING_LIVES, EffectiveMaxLives);
         IsGameOver = false;
         OnLivesChanged?.Invoke(Lives);
         return true;
     }
 
-    public bool FinalizeRewardedContinueDecline()
+    public bool FinalizeContinueDecline()
     {
-        if (!IsGameOver || !IsRewardedContinuePending) return false;
+        if (!IsGameOver || !IsContinuePending) return false;
 
-        IsRewardedContinuePending = false;
+        IsContinuePending = false;
         OnGameOverFinalized?.Invoke();
         return true;
     }
@@ -231,7 +231,7 @@ public class RoundManager : MonoBehaviour
     {
         Score = 0;
         CatchesByGemName.Clear();
-        ResetRewardedContinueState();
+        ResetContinueState();
         OnScoreChanged?.Invoke(Score);
     }
 
@@ -239,7 +239,7 @@ public class RoundManager : MonoBehaviour
     {
         Lives = STARTING_LIVES;
         IsGameOver = false;
-        ResetRewardedContinueState();
+        ResetContinueState();
         OnLivesChanged?.Invoke(Lives);
     }
 
@@ -264,24 +264,22 @@ public class RoundManager : MonoBehaviour
     private void BeginGameOver()
     {
         IsGameOver = true;
-        IsRewardedContinuePending =
-            !HasOfferedRewardedContinue
-            && !HasUsedRewardedContinue
-            && !GameState.IsTutorial
+        hasPresentedContinueOffer = false;
+        IsContinuePending =
+            !GameState.IsTutorial
             && GameState.Mode != GameState.GameMode.Daily;
 
         OnGameOver?.Invoke();
-        if (!IsRewardedContinuePending)
+        if (!IsContinuePending)
         {
             OnGameOverFinalized?.Invoke();
         }
     }
 
-    private void ResetRewardedContinueState()
+    private void ResetContinueState()
     {
-        HasOfferedRewardedContinue = false;
-        HasUsedRewardedContinue = false;
-        IsRewardedContinuePending = false;
+        hasPresentedContinueOffer = false;
+        IsContinuePending = false;
     }
 
     // ---- Bootstrap ---------------------------------------------------------
@@ -322,6 +320,7 @@ public class RoundManager : MonoBehaviour
         Score = 0;
         Lives = STARTING_LIVES;
         IsGameOver = false;
+        ResetContinueState();
         if (CatchesByGemName == null) CatchesByGemName = new Dictionary<string, int>();
         else CatchesByGemName.Clear();
     }
