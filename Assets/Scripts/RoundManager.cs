@@ -181,6 +181,7 @@ public class RoundManager : MonoBehaviour
             return false;
         }
 
+        ComboManager.Break();
         IsContinuePending = false;
         hasUsedRewardedContinue = true;
         hasPresentedContinueOffer = false;

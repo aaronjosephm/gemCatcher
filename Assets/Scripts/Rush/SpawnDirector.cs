@@ -54,7 +54,6 @@ public class SpawnDirector : MonoBehaviour
     private const float DiceDropInterval = 90f;
     private GameObject dicePrefab;
     private bool pendingDice;
-    private bool diceEnabled; // only levels 2+
 
     // MasterGem (invincibility) power-up drop
     private float nextMasterGemDropTime;
@@ -133,8 +132,7 @@ public class SpawnDirector : MonoBehaviour
         shieldPrefab = Resources.Load<GameObject>("PowerUps/Shield_V2_1");
         nextShieldDropTime = 40f;
 
-        // Load dice (swap) prefab — only available on levels 2+.
-        diceEnabled = LevelManager.SelectedLevel != LevelManager.LevelId.Cave;
+        // Probability drive is available in every level, including Cave.
         dicePrefab = Resources.Load<GameObject>("PowerUps/Dice_V3_0");
         nextDiceDropTime = 60f;
 
@@ -258,15 +256,8 @@ public class SpawnDirector : MonoBehaviour
         }
         if (elapsed >= nextDiceDropTime)
         {
-            if (diceEnabled)
-            {
-                nextDiceDropTime = elapsed + DiceDropInterval;
-                pendingDice = true;
-            }
-            else
-            {
-                nextDiceDropTime = float.MaxValue;
-            }
+            nextDiceDropTime = elapsed + DiceDropInterval;
+            pendingDice = true;
         }
 
         if (elapsed >= nextMasterGemDropTime)

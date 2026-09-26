@@ -453,7 +453,9 @@ public class SoundManager : MonoBehaviour
 
     void HandleGemCaught(int amount, Vector3 worldPosition)
     {
-        float comboPitch = 1f + Mathf.Clamp01(ComboManager.CurrentCombo / 10f) * 0.6f;
+        float comboPitch = GameState.Mode == GameState.GameMode.Rush
+            ? ComboManager.CatchPitch
+            : 1f + Mathf.Clamp01(ComboManager.CurrentCombo / 10f) * 0.6f;
         PlayWithFixedPitch("GemCaught", comboPitch);
     }
 

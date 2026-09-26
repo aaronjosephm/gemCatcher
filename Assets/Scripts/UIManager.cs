@@ -219,6 +219,8 @@ public class UIManager : MonoBehaviour
   // "COMBO ×N" otherwise, with color/scale escalation as the multiplier grows.
   private RectTransform comboDisplayRoot;
   private TextMeshProUGUI comboDisplayTmp;
+  private RectTransform comboProgressFill;
+  private Image comboProgressImage;
   // Smoothed scale target so OnComboChanged can pop the HUD without us writing
   // an animation system — Update() interpolates current scale toward this value
   // every frame using unscaled time.
@@ -2370,6 +2372,7 @@ public class UIManager : MonoBehaviour
 
     SetGameplayHudVisible(true);
     GameState.IsPlaying = true;
+    HandleComboChanged(ComboManager.CurrentCombo, ComboManager.CurrentMultiplier);
     gameIsOver = false;
     rewardedContinueInProgress = false;
     scoreCreditedThisRun = 0;
@@ -2387,6 +2390,9 @@ public class UIManager : MonoBehaviour
   {
     if (scoreDisplay != null) scoreDisplay.gameObject.SetActive(visible);
     if (livesDisplay != null) livesDisplay.gameObject.SetActive(visible);
+    if (comboDisplayRoot != null)
+      comboDisplayRoot.gameObject.SetActive(visible
+          && (GameState.Mode == GameState.GameMode.Rush || ComboManager.CurrentCombo > 0));
   }
 
   // Track which level was active when this scene instance loaded.
@@ -3860,7 +3866,11 @@ public class UIManager : MonoBehaviour
   {
     GameObject go = CreateFloatingTextHost(worldPosition);
     if (go == null) return;
-    go.AddComponent<FloatingScoreText>().Initialize(amount);
+    FloatingScoreText popup = go.AddComponent<FloatingScoreText>();
+    if (amount > 0 && GameState.Mode == GameState.GameMode.Rush)
+      popup.Initialize("+" + amount, ComboManager.CatchColor);
+    else
+      popup.Initialize(amount);
   }
 
   // -------------------------------------------------------------------------
@@ -3963,6 +3973,7 @@ public class UIManager : MonoBehaviour
     tmp.alignment = TextAlignmentOptions.Center;
     tmp.fontSize = 72f;
     tmp.fontStyle = FontStyles.Bold;
+    GameTextStyle.Apply(tmp);
 
     return go;
   }
@@ -5538,8 +5549,7 @@ public class UIManager : MonoBehaviour
   }
 
   // ----------------------------------------------------------------------
-  // Combo HUD — top-right, just under the score. Hidden at combo == 0,
-  // grows / changes color as the multiplier climbs.
+  // Combo HUD — next-tier progress under the score; visible at zero in Rush.
   // ----------------------------------------------------------------------
 
   void EnsureComboDisplay()
@@ -5563,6 +5573,31 @@ public class UIManager : MonoBehaviour
     comboDisplayTmp.fontStyle = FontStyles.Bold;
     comboDisplayTmp.color = Color.white;
     comboDisplayTmp.text = string.Empty;
+    comboDisplayTmp.raycastTarget = false;
+    comboDisplayTmp.enableAutoSizing = true;
+    comboDisplayTmp.fontSizeMin = 26f;
+    comboDisplayTmp.fontSizeMax = 40f;
+    GameTextStyle.Apply(comboDisplayTmp);
+
+    GameObject track = new GameObject("NextTierProgress", typeof(RectTransform), typeof(Image));
+    track.transform.SetParent(go.transform, false);
+    RectTransform trackRect = track.GetComponent<RectTransform>();
+    trackRect.anchorMin = new Vector2(0f, 0f);
+    trackRect.anchorMax = new Vector2(1f, 0f);
+    trackRect.pivot = new Vector2(0.5f, 1f);
+    trackRect.sizeDelta = new Vector2(0f, 8f);
+    trackRect.anchoredPosition = Vector2.zero;
+    track.GetComponent<Image>().color = new Color(0.05f, 0.08f, 0.15f, 0.8f);
+    track.GetComponent<Image>().raycastTarget = false;
+    GameObject fill = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+    fill.transform.SetParent(track.transform, false);
+    comboProgressFill = fill.GetComponent<RectTransform>();
+    comboProgressFill.anchorMin = Vector2.zero;
+    comboProgressFill.anchorMax = new Vector2(0f, 1f);
+    comboProgressFill.offsetMin = Vector2.zero;
+    comboProgressFill.offsetMax = Vector2.zero;
+    comboProgressImage = fill.GetComponent<Image>();
+    comboProgressImage.raycastTarget = false;
     go.SetActive(false);
   }
 
@@ -5570,26 +5605,20 @@ public class UIManager : MonoBehaviour
   {
     if (comboDisplayTmp == null) return;
 
-    if (combo <= 0)
+    bool rush = GameState.Mode == GameState.GameMode.Rush;
+    comboDisplayRoot.gameObject.SetActive(GameState.IsPlaying && !GemCatcher.IsGameOver
+        && (rush || combo > 0));
+    int next = ComboManager.NextThreshold;
+    comboDisplayTmp.text = ComboManager.IsGemRush
+        ? $"GEM RUSH! ×5 · {combo}"
+        : next > 0 ? $"×{multiplier:0.#} · {combo}/{next}"
+        : $"×{multiplier:0.#} · {combo}";
+    comboDisplayTmp.color = rush ? ComboManager.CatchColor : ColorForMultiplier(multiplier);
+    if (comboProgressFill != null)
     {
-      // Hidden state — combo broken or never started.
-      comboDisplayRoot.gameObject.SetActive(false);
-      return;
+      comboProgressFill.anchorMax = new Vector2(ComboManager.TierProgress, 1f);
+      comboProgressImage.color = comboDisplayTmp.color;
     }
-
-    comboDisplayRoot.gameObject.SetActive(true);
-    // Show "x3" only once the multiplier has actually kicked in. Below that
-    // tier the player still sees their streak count climbing — useful for
-    // the next-tier anticipation — but no false multiplier promise.
-    if (multiplier > 1f)
-    {
-      comboDisplayTmp.text = $"COMBO ×{multiplier:0.#}  ({combo})";
-    }
-    else
-    {
-      comboDisplayTmp.text = $"STREAK {combo}";
-    }
-    comboDisplayTmp.color = ColorForMultiplier(multiplier);
 
     // Quick scale pop on every catch — the ticker eases it back to 1.
     comboTargetScale = 1.18f;
@@ -5599,7 +5628,12 @@ public class UIManager : MonoBehaviour
   {
     // Bigger pop and a banner when the multiplier itself goes up.
     comboTierUpPending = true;
-    SpawnBannerNotification($"×{newMultiplier:0.#}  STREAK!", ColorForMultiplier(newMultiplier));
+    Color color = GameState.Mode == GameState.GameMode.Rush
+        ? ComboManager.CatchColor : ColorForMultiplier(newMultiplier);
+    SpawnBannerNotification(ComboManager.IsGemRush
+        ? "GEM RUSH! ×5" : $"×{newMultiplier:0.#} STREAK!", color);
+    GameObject catcher = CatcherManager.Instance?.CatcherInstance;
+    if (catcher != null) CatchBurst.Spawn(catcher.transform.position, color);
   }
 
   void HandleComboBroken(int lostCombo, float lostMultiplier)
@@ -5618,6 +5652,8 @@ public class UIManager : MonoBehaviour
   void TickComboDisplay()
   {
     if (comboDisplayRoot == null) return;
+    if (!GameState.IsPlaying || GemCatcher.IsGameOver)
+      comboDisplayRoot.gameObject.SetActive(false);
 
     // Pop on tier-up: oversize once, then ease back down.
     if (comboTierUpPending)

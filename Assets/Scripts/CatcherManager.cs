@@ -6,6 +6,8 @@ public class CatcherManager : MonoBehaviour
     public static CatcherManager Instance { get; private set; }
     public GameObject catcherPrefab; // The catcher (cube) prefab
     private GameObject catcherInstance;
+    private TrailRenderer gemRushTrail;
+    private Material gemRushTrailMaterial;
     public GameObject CatcherInstance => catcherInstance;
 
     public void BeginContinueInvincibility()
@@ -222,6 +224,35 @@ public class CatcherManager : MonoBehaviour
         UpdateShieldBubble();
         UpdateSwapBubble();
         UpdateInvincibilityBubble();
+        UpdateGemRushTrail();
+    }
+
+    // A short, narrow trail celebrates the cap without obscuring incoming rocks.
+    void UpdateGemRushTrail()
+    {
+        bool active = ComboManager.IsGemRush && GameState.IsPlaying
+            && !GemCatcher.IsGameOver;
+        if (active && gemRushTrail == null && catcherInstance != null)
+        {
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) return;
+            GameObject trail = new GameObject("Gem Rush Trail");
+            trail.transform.SetParent(catcherInstance.transform, false);
+            gemRushTrailMaterial = new Material(shader);
+            gemRushTrail = trail.AddComponent<TrailRenderer>();
+            gemRushTrail.sharedMaterial = gemRushTrailMaterial;
+            gemRushTrail.time = 0.22f;
+            gemRushTrail.minVertexDistance = 0.06f;
+            gemRushTrail.startWidth = 0.14f;
+            gemRushTrail.endWidth = 0f;
+            gemRushTrail.startColor = new Color(1f, 0.85f, 0.25f, 0.65f);
+            gemRushTrail.endColor = new Color(1f, 0.6f, 0.1f, 0f);
+            gemRushTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            gemRushTrail.receiveShadows = false;
+        }
+        if (gemRushTrail == null) return;
+        gemRushTrail.emitting = active;
+        if (!active) gemRushTrail.Clear();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -1208,6 +1239,7 @@ public class CatcherManager : MonoBehaviour
 
     void OnDestroy()
     {
+        if (gemRushTrailMaterial != null) Destroy(gemRushTrailMaterial);
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= UpdateScoreDisplay;
         GemCatcher.OnGemCaught -= HandleGemCaughtFeedback;
