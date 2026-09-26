@@ -784,7 +784,7 @@ public class SpawnDirector : MonoBehaviour
 
     void SpawnFinishLine(float y, float fallSpeed)
     {
-        LevelManager.LevelId? nextLevel = LevelManager.GetNextLockedLevel();
+        LevelManager.LevelId? nextLevel = LevelManager.GetNextLevel();
         if (nextLevel == null)
         {
             return;

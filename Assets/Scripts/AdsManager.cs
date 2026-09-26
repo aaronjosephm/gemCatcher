@@ -783,8 +783,22 @@ public class AdsManager : MonoBehaviour
     /// </summary>
     public void ShowInterstitial(Action onComplete)
     {
+        ShowInterstitialInternal(onComplete, false);
+    }
+
+    // A player-selected level transition is its own ad placement. It does not
+    // wait for the retry run-count cadence, but still honors consent/removal
+    // and availability. A missing/failed ad never blocks the next level.
+    public void ShowLevelTransitionInterstitial(Action onComplete)
+    {
+        interstitialCadence.CompleteRound();
+        ShowInterstitialInternal(onComplete, true);
+    }
+
+    private void ShowInterstitialInternal(Action onComplete, bool levelTransition)
+    {
         if (interstitialShowInProgress
-            || !interstitialCadence.CanShowInterstitial(DateTime.UtcNow)
+            || (!levelTransition && !interstitialCadence.CanShowInterstitial(DateTime.UtcNow))
             || !adsRequestPermitted || IAPManager.AdsRemoved
             || interstitialAd == null || !interstitialAd.CanShowAd())
         {

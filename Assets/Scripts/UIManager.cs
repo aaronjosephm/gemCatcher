@@ -8,7 +8,7 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using TMPro; // Add TextMeshPro namespace
 
-public class UIManager : MonoBehaviour
+public partial class UIManager : MonoBehaviour
 {
   [Header("UI Elements")]
   public Text scoreText;
@@ -460,6 +460,7 @@ public class UIManager : MonoBehaviour
     TickDailyCooldown();
     RefreshPowerUpHud();
     TickComboDisplay();
+    TickLevelProgress();
     TickVignetteFlash();
     TickFinalScoreCountUp();
     TickTestModeOverlay();
@@ -1189,9 +1190,12 @@ public class UIManager : MonoBehaviour
     EnsureHudCanvas();
     if (hudCanvas == null) yield break;
 
-    // Create a container that sits above the victory panel.
-    GameObject container = new GameObject("Confetti", typeof(RectTransform));
+    // A dedicated overlay keeps confetti above modal panels without blocking taps.
+    GameObject container = new GameObject("Confetti", typeof(RectTransform), typeof(Canvas));
     container.transform.SetParent(hudCanvas.transform, false);
+    Canvas confettiCanvas = container.GetComponent<Canvas>();
+    confettiCanvas.overrideSorting = true;
+    confettiCanvas.sortingOrder = hudCanvas.sortingOrder + 10;
     RectTransform cRect = container.GetComponent<RectTransform>();
     cRect.anchorMin = Vector2.zero;
     cRect.anchorMax = Vector2.one;
@@ -1225,7 +1229,8 @@ public class UIManager : MonoBehaviour
         GameObject piece = new GameObject("C", typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
         piece.transform.SetParent(container.transform, false);
         RectTransform pRect = piece.GetComponent<RectTransform>();
-        float x = UnityEngine.Random.Range(-540f, 540f);
+        float halfWidth = ((RectTransform)hudCanvas.transform).rect.width * 0.5f;
+        float x = UnityEngine.Random.Range(-halfWidth, halfWidth);
         pRect.anchorMin = new Vector2(0.5f, 1f);
         pRect.anchorMax = new Vector2(0.5f, 1f);
         pRect.pivot = new Vector2(0.5f, 0.5f);
@@ -1236,6 +1241,7 @@ public class UIManager : MonoBehaviour
         pRect.localRotation = Quaternion.Euler(0f, 0f, UnityEngine.Random.Range(0f, 360f));
         Image img = piece.GetComponent<Image>();
         img.color = colors[UnityEngine.Random.Range(0, colors.Length)];
+        img.raycastTarget = false;
         // Animate via a coroutine.
         StartCoroutine(AnimateConfettiPiece(pRect, UnityEngine.Random.Range(400f, 900f), UnityEngine.Random.Range(-120f, 120f)));
       }
@@ -1243,13 +1249,15 @@ public class UIManager : MonoBehaviour
     }
 
     // Let remaining pieces finish falling.
-    yield return new WaitForSecondsRealtime(3f);
+    float screenHeight = ((RectTransform)hudCanvas.transform).rect.height;
+    yield return new WaitForSecondsRealtime((screenHeight + 120f) / 400f);
     if (container != null) Destroy(container);
   }
 
   System.Collections.IEnumerator AnimateConfettiPiece(RectTransform rt, float fallSpeed, float drift)
   {
-    float life = 4f;
+    float height = hudCanvas != null ? ((RectTransform)hudCanvas.transform).rect.height : 1920f;
+    float life = (height + 120f) / fallSpeed;
     float t = 0f;
     float rotSpeed = UnityEngine.Random.Range(-360f, 360f);
     while (t < life && rt != null)

@@ -48,7 +48,7 @@ public sealed class FinishLine : MonoBehaviour
 
     void Update()
     {
-        if (!initialized || !GameState.IsPlaying || GemCatcher.IsGameOver)
+        if (!initialized || !GameState.IsPlaying || GemCatcher.IsGameOver || Time.timeScale <= 0f)
         {
             return;
         }
@@ -204,16 +204,8 @@ public sealed class FinishLine : MonoBehaviour
     void CompleteCrossing()
     {
         crossed = true;
-        if (LevelManager.IsUnlocked(targetLevel))
-        {
-            return;
-        }
-
         LevelManager.UnlockLevel(targetLevel);
-        LevelManager.LevelConfig config = LevelManager.GetConfig(targetLevel);
-        UIManager.Instance?.SpawnBannerNotification(
-            $"{config.displayName} UNLOCKED!",
-            new Color(1f, 0.85f, 0.2f));
+        UIManager.Instance?.ShowLevelComplete(targetLevel);
         SoundManager.Instance?.PlayWithPitch("GemCaught", 1.8f);
     }
 
