@@ -136,6 +136,16 @@ with `com.unity.purchasing` and `com.google.ads.mobile`. Watch for:
 
 ## 6. Testing before you ship
 
+- **One revival per run:** Lose all three lives in Normal/Rush and accept the
+  rewarded offer. A completed ad restores three lives without resetting the
+  score or waves. Lose all lives again: the run must end without another
+  rewarded offer. Start a new run and confirm its rewarded offer is available.
+- **Decline/failure paths:** Declining ends the run. An unavailable, skipped,
+  failed, or interrupted ad must not restore lives; retrying an unsuccessful
+  ad is allowed while the first offer is open. Duplicate or late callbacks
+  must not grant another revival. Daily and tutorial modes do not offer one.
+- **Existing installs:** A legacy `Continues.Remaining` preference must have
+  no effect. There is no free stored continue, balance, or refill flow.
 - **Ads:** Development Builds use Google's test interstitial and rewarded
   ad unit IDs, so you'll see a "Test Ad" banner. In the Unity Editor, the
   rewarded completion is simulated and AdMob UI is bypassed to avoid the
@@ -180,3 +190,6 @@ with `com.unity.purchasing` and `com.google.ads.mobile`. Watch for:
   or level state is restarted. Lives are granted only after Google's reward
   callback and the full-screen ad closes. Declining finalizes game over and
   performs the normal object, power-up, and music cleanup.
+- `Assets/Scripts/RoundManager.cs` — tracks the successful rewarded revival
+  for the current run. The next death finalizes immediately. Starting a fresh
+  run resets eligibility; no continue credits are saved between runs.

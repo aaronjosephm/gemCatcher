@@ -42,11 +42,13 @@ public class RoundManager : MonoBehaviour
     public bool IsGameOver { get; private set; }
     public bool IsContinuePending { get; private set; }
     private bool hasPresentedContinueOffer;
+    private bool hasUsedRewardedContinue;
 
     public bool CanOfferContinue =>
         IsGameOver
         && IsContinuePending
         && !hasPresentedContinueOffer
+        && !hasUsedRewardedContinue
         && !GameState.IsTutorial
         && GameState.Mode != GameState.GameMode.Daily;
 
@@ -164,7 +166,7 @@ public class RoundManager : MonoBehaviour
     }
 
     /// <summary>
-    /// Resumes the current run after a continue credit is spent.
+    /// Resumes the current run after a rewarded ad completes, once per run.
     /// Score, catch totals, mode progression, and run seed remain unchanged.
     /// </summary>
     public bool ContinueAfterOffer()
@@ -172,6 +174,7 @@ public class RoundManager : MonoBehaviour
         if (!IsGameOver
             || !IsContinuePending
             || !hasPresentedContinueOffer
+            || hasUsedRewardedContinue
             || GameState.IsTutorial
             || GameState.Mode == GameState.GameMode.Daily)
         {
@@ -179,6 +182,7 @@ public class RoundManager : MonoBehaviour
         }
 
         IsContinuePending = false;
+        hasUsedRewardedContinue = true;
         hasPresentedContinueOffer = false;
         Lives = Mathf.Min(STARTING_LIVES, EffectiveMaxLives);
         IsGameOver = false;
@@ -266,7 +270,8 @@ public class RoundManager : MonoBehaviour
         IsGameOver = true;
         hasPresentedContinueOffer = false;
         IsContinuePending =
-            !GameState.IsTutorial
+            !hasUsedRewardedContinue
+            && !GameState.IsTutorial
             && GameState.Mode != GameState.GameMode.Daily;
 
         OnGameOver?.Invoke();
@@ -278,6 +283,7 @@ public class RoundManager : MonoBehaviour
 
     private void ResetContinueState()
     {
+        hasUsedRewardedContinue = false;
         hasPresentedContinueOffer = false;
         IsContinuePending = false;
     }

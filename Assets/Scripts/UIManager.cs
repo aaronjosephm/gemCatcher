@@ -4099,7 +4099,7 @@ public class UIManager : MonoBehaviour
     FadePanel(rewardedContinuePanel, true, 0.38f);
     UpdateRewardedContinueScale();
 
-    if (ContinueWallet.Remaining <= 0 && AdsManager.Instance != null)
+    if (AdsManager.Instance != null)
     {
       AdsManager.Instance.PrepareRewardedContinue();
     }
@@ -4165,7 +4165,7 @@ public class UIManager : MonoBehaviour
     rewardedContinueFallbackTitleTmp.color = Color.white;
     rewardedContinueFallbackTitleTmp.raycastTarget = false;
 
-    SetRewardedContinueArtwork(useStoredContinue: false);
+    SetRewardedContinueArtwork();
 
     GameObject statusGo = new GameObject("RewardStatus", typeof(RectTransform));
     statusGo.transform.SetParent(cardGo.transform, false);
@@ -4234,13 +4234,11 @@ public class UIManager : MonoBehaviour
         new Vector3(scale, scale, 1f);
   }
 
-  void SetRewardedContinueArtwork(bool useStoredContinue)
+  void SetRewardedContinueArtwork()
   {
     if (rewardedContinueCardImage == null) return;
 
-    string resourcePath = useStoredContinue
-        ? "UI/ContinueUsePanel"
-        : "UI/ContinueOfferPanel";
+    const string resourcePath = "UI/ContinueOfferPanel";
     Texture2D texture = Resources.Load<Texture2D>(resourcePath);
     bool hasArtwork = texture != null;
 
@@ -4261,9 +4259,7 @@ public class UIManager : MonoBehaviour
 
     if (rewardedContinueFallbackTitleTmp != null)
     {
-      rewardedContinueFallbackTitleTmp.text = useStoredContinue
-          ? "USE CONTINUE?"
-          : "WATCH AN AD\nTO CONTINUE";
+      rewardedContinueFallbackTitleTmp.text = "WATCH AN AD\nTO CONTINUE?";
       rewardedContinueFallbackTitleTmp.gameObject.SetActive(!hasArtwork);
     }
   }
@@ -4361,26 +4357,6 @@ public class UIManager : MonoBehaviour
   {
     if (rewardedContinueInProgress) return;
 
-    if (ContinueWallet.Remaining > 0)
-    {
-      rewardedContinueInProgress = true;
-      rewardedContinueAcceptButton.interactable = false;
-      rewardedContinueDeclineButton.interactable = false;
-
-      if (TrySpendContinueAndResume(out int remaining))
-      {
-        CompleteContinueResume(remaining);
-        return;
-      }
-
-      rewardedContinueInProgress = false;
-      RefreshRewardedContinueControls();
-      SetRewardedContinueStatus(
-          "UNABLE TO CONTINUE",
-          new Color(1f, 0.45f, 0.45f));
-      return;
-    }
-
     AdsManager ads = AdsManager.Instance;
     if (ads == null)
     {
@@ -4439,36 +4415,19 @@ public class UIManager : MonoBehaviour
       return;
     }
 
-    int remaining = ContinueWallet.GrantRewardedContinues();
     if (!TryResumeRound())
     {
       Debug.LogError(
-          "[UIManager] Rewarded continues were saved, but the round could not resume.");
+          "[UIManager] Reward earned, but the round could not resume.");
       rewardedContinueDeclineButton.interactable = true;
       RefreshRewardedContinueControls();
       SetRewardedContinueStatus(
-          $"CONTINUES SAVED: {ContinueWallet.Remaining}",
+          "UNABLE TO CONTINUE",
           new Color(1f, 0.78f, 0.42f));
       return;
     }
 
-    CompleteContinueResume(remaining);
-  }
-
-  bool TrySpendContinueAndResume(out int remaining)
-  {
-    if (!ContinueWallet.TrySpend(out remaining))
-    {
-      return false;
-    }
-
-    if (TryResumeRound())
-    {
-      return true;
-    }
-
-    remaining = ContinueWallet.RefundOne();
-    return false;
+    CompleteContinueResume();
   }
 
   bool TryResumeRound()
@@ -4477,7 +4436,7 @@ public class UIManager : MonoBehaviour
         && RoundManager.Instance.ContinueAfterOffer();
   }
 
-  void CompleteContinueResume(int remaining)
+  void CompleteContinueResume()
   {
     rewardedContinueInProgress = false;
     finalScoreTweenActive = false;
@@ -4493,7 +4452,7 @@ public class UIManager : MonoBehaviour
     Time.timeScale = 1f;
 
     SpawnBannerNotification(
-        $"CONTINUE!  {remaining} {(remaining == 1 ? "CONTINUE" : "CONTINUES")} LEFT",
+        "BACK IN THE GAME!",
         new Color(0.35f, 1f, 0.45f));
   }
 
@@ -4572,13 +4531,8 @@ public class UIManager : MonoBehaviour
 
   void RefreshRewardedContinueControls()
   {
-    int remaining = ContinueWallet.Remaining;
-    bool useStoredContinue = remaining > 0;
-    bool ready = useStoredContinue
-        || (AdsManager.Instance != null
-            && AdsManager.Instance.IsRewardedContinueReady);
-
-    SetRewardedContinueArtwork(useStoredContinue);
+    bool ready = AdsManager.Instance != null
+        && AdsManager.Instance.IsRewardedContinueReady;
 
     if (rewardedContinueAcceptButton != null)
     {
@@ -4591,45 +4545,26 @@ public class UIManager : MonoBehaviour
 
     if (!rewardedContinueInProgress)
     {
-      if (useStoredContinue)
-      {
-        SetRewardedContinueStatus(
-            remaining.ToString(),
-            Color.white,
-            balanceDisplay: true);
-      }
-      else
-      {
-        SetRewardedContinueStatus(
-            ready ? "" : "LOADING AD...",
-            new Color(1f, 0.78f, 0.42f));
-      }
+      SetRewardedContinueStatus(
+          ready ? "+3 LIVES" : "LOADING AD...",
+          new Color(1f, 0.78f, 0.42f));
     }
   }
 
-  void SetRewardedContinueStatus(
-      string message,
-      Color color,
-      bool balanceDisplay = false)
+  void SetRewardedContinueStatus(string message, Color color)
   {
     if (rewardedContinueStatusTmp == null) return;
 
     RectTransform rect = rewardedContinueStatusTmp.rectTransform;
-    rect.anchoredPosition = balanceDisplay
-        ? new Vector2(310f, -151f)
-        : new Vector2(0f, -175f);
-    rect.sizeDelta = balanceDisplay
-        ? new Vector2(104f, 84.5f)
-        : new Vector2(650f, 55f);
-    rewardedContinueStatusTmp.fontSize = balanceDisplay ? 67.6f : 28f;
-    rewardedContinueStatusTmp.fontSizeMin = balanceDisplay ? 49.4f : 20f;
-    rewardedContinueStatusTmp.fontSizeMax = balanceDisplay ? 67.6f : 28f;
+    rect.anchoredPosition = new Vector2(0f, -175f);
+    rect.sizeDelta = new Vector2(650f, 55f);
+    rewardedContinueStatusTmp.fontSize = 28f;
+    rewardedContinueStatusTmp.fontSizeMin = 20f;
+    rewardedContinueStatusTmp.fontSizeMax = 28f;
     rewardedContinueStatusTmp.outlineColor = GameTextStyle.OutlineColor;
     rewardedContinueStatusTmp.outlineWidth = GameTextStyle.OutlineWidth;
     rewardedContinueStatusTmp.text = message;
-    rewardedContinueStatusTmp.color = balanceDisplay
-        ? new Color(0.18f, 0.82f, 0.24f)
-        : color;
+    rewardedContinueStatusTmp.color = color;
   }
 
   // Rebuilds the auto-panel's vertical "[icon] × N" list from GemCatcher.CatchesByGemName.
