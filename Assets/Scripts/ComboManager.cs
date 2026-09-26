@@ -1,21 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Tracks the player's current consecutive-catch streak and the score multiplier
-/// that comes with it. Static, scene-agnostic, hooked into GemCatcher events
-/// from the bootstrap callback below.
-///
-/// Multiplier ramp:
-///     0 catches  →  ×1   (idle)
-///     1-2        →  ×1   (warming up)
-///     3-4        →  ×1.5
-///     5-6        →  ×2
-///     7-9        →  ×3
-///     10+        →  ×5   (capped)
-///
-/// A normal miss (unshielded) breaks the combo. Catching a bomb also breaks it.
-/// Catching a power-up pickup is neutral — combo is unchanged. Shield-absorbed
-/// misses do NOT break the combo (the shield protected the chain).
+/// Tracks gem catches without an unprotected hit. Rush ignores missed gems;
+/// pickups are neutral. Presentation and scoring share the same tier state.
 /// </summary>
 public static class ComboManager
 {
@@ -33,7 +20,7 @@ public static class ComboManager
     }
   }
 
-  private static readonly Tier[] tiers = new[]
+  private static readonly Tier[] legacyTiers = new[]
   {
     new Tier(0, 1f),
     new Tier(3, 1.5f),
@@ -41,6 +28,74 @@ public static class ComboManager
     new Tier(7, 3f),
     new Tier(10, 5f),
   };
+
+  private static readonly Tier[] rushTiers = new[]
+  {
+    new Tier(0, 1f), new Tier(5, 1.5f), new Tier(10, 2f),
+    new Tier(20, 3f), new Tier(30, 5f),
+  };
+
+  private static Tier[] Tiers => GameState.Mode == GameState.GameMode.Rush
+      ? rushTiers : legacyTiers;
+
+  public static bool IsGemRush => GameState.Mode == GameState.GameMode.Rush
+      && CurrentCombo >= 30;
+
+  public static int NextThreshold
+  {
+    get
+    {
+      foreach (Tier tier in Tiers)
+        if (tier.threshold > currentCombo) return tier.threshold;
+      return 0; // Capped.
+    }
+  }
+
+  public static float TierProgress
+  {
+    get
+    {
+      int previous = 0;
+      foreach (Tier tier in Tiers)
+      {
+        if (tier.threshold > currentCombo)
+          return (currentCombo - previous) / (float)(tier.threshold - previous);
+        previous = tier.threshold;
+      }
+      return 1f;
+    }
+  }
+
+  // Small per-catch rises within each tier, with a distinct step at tier-up.
+  public static float CatchPitch
+  {
+    get
+    {
+      int n = currentCombo;
+      if (n < 5) return Mathf.Lerp(1f, 1.09f, Mathf.Clamp01((n - 1) / 3f));
+      if (n < 10) return Mathf.Lerp(1.12f, 1.24f, (n - 5) / 4f);
+      if (n < 20) return Mathf.Lerp(1.26f, 1.44f, (n - 10) / 9f);
+      if (n < 30) return Mathf.Lerp(1.47f, 1.65f, (n - 20) / 9f);
+      return 1.70f;
+    }
+  }
+
+  public static Color CatchColor
+  {
+    get
+    {
+      int n = currentCombo;
+      if (n < 5) return Color.Lerp(Color.white, new Color(0.65f, 1f, 1f),
+          Mathf.Clamp01((n - 1) / 3f));
+      if (n < 10) return Color.Lerp(new Color(0.45f, 1f, 1f),
+          new Color(0.2f, 0.8f, 1f), (n - 5) / 4f);
+      if (n < 20) return Color.Lerp(new Color(0.35f, 0.65f, 1f),
+          new Color(0.8f, 0.45f, 1f), (n - 10) / 9f);
+      if (n < 30) return Color.Lerp(new Color(1f, 0.4f, 0.85f),
+          new Color(1f, 0.8f, 0.25f), (n - 20) / 9f);
+      return new Color(1f, 0.85f, 0.25f);
+    }
+  }
 
   // ---- State -------------------------------------------------------------
 
@@ -72,7 +127,7 @@ public static class ComboManager
 
   public static int CurrentCombo => currentCombo;
   public static float CurrentMultiplier => MultiplierForCount(currentCombo);
-  /// <summary>True once the multiplier is above 1× (i.e. combo ≥ 3).</summary>
+  /// <summary>True once the multiplier is above 1× (threshold depends on mode).</summary>
   public static bool MultiplierActive => CurrentMultiplier > 1f;
 
   /// <summary>
@@ -84,10 +139,10 @@ public static class ComboManager
 
   private static float MultiplierForCount(int count)
   {
-    float result = tiers[0].multiplier;
-    for (int i = 0; i < tiers.Length; i++)
+    float result = Tiers[0].multiplier;
+    for (int i = 0; i < Tiers.Length; i++)
     {
-      if (count >= tiers[i].threshold) result = tiers[i].multiplier;
+      if (count >= Tiers[i].threshold) result = Tiers[i].multiplier;
       else break;
     }
     return result;

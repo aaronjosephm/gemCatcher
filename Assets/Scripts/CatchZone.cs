@@ -286,10 +286,10 @@ public class CatchZone : MonoBehaviour
             return;
         }
 
-        // Register the catch for combo tracking (disabled in Rush Mode).
+        // Count before scoring so the threshold catch earns the new multiplier.
         bool isRush = GameState.Mode == GameState.GameMode.Rush;
-        if (!isRush) ComboManager.RegisterCatch();
-        float comboMultiplier = isRush ? 1f : ComboManager.CurrentMultiplier;
+        ComboManager.RegisterCatch();
+        float comboMultiplier = ComboManager.CurrentMultiplier;
         int comboAfterCatch = isRush ? 0 : ComboManager.CurrentCombo;
 
         // Base points per variant.
@@ -318,6 +318,8 @@ public class CatchZone : MonoBehaviour
         rm.RecordCatch(gemName);
 
         PlayCatchEffect(fo);
+        if (ComboManager.IsGemRush)
+            CatchBurst.Spawn(catchPosition + Vector3.up * 0.15f, ComboManager.CatchColor);
     }
 
     // ---- Bomb handling -----------------------------------------------------
@@ -340,7 +342,7 @@ public class CatchZone : MonoBehaviour
         }
 
         PowerUpManager.RevokeAllOnMiss();
-        if (GameState.Mode != GameState.GameMode.Rush) ComboManager.Break();
+        ComboManager.Break();
 
         rm.NotifyBombHit(worldPosition);
         CameraShake.Shake(0.30f, 0.45f);
