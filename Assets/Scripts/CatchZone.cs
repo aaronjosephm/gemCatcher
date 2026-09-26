@@ -44,6 +44,8 @@ public class CatchZone : MonoBehaviour
 
     void Update()
     {
+        // Bounds checks still run at timeScale zero unless explicitly suspended.
+        if (Time.timeScale <= 0f || (!GameState.IsPlaying && !GameState.IsTutorial)) return;
         if (RoundManager.Instance != null && RoundManager.Instance.IsGameOver) return;
 
         if (isInvincible)

@@ -221,15 +221,18 @@ public static class LevelManager
         return next.id;
     }
 
-    /// <summary>
-    /// Returns the score threshold at which the finish line should appear for the
-    /// current level, or 0 if there's no next level to unlock.
-    /// </summary>
+    /// <summary>Next level in the sequence, including levels already unlocked.</summary>
+    public static LevelId? GetNextLevel()
+    {
+        int idx = System.Array.FindIndex(levels, l => l.id == SelectedLevel);
+        return idx >= 0 && idx < levels.Length - 1 ? levels[idx + 1].id : (LevelId?)null;
+    }
+
+    /// <summary>Run score needed to complete this level; zero for the endless final level.</summary>
     public static int GetFinishLineScore()
     {
-        var next = GetNextLockedLevel();
-        if (next == null) return 0;
-        return GetConfig(next.Value).unlockScore;
+        var next = GetNextLevel();
+        return next.HasValue ? GetConfig(next.Value).unlockScore : 0;
     }
 
     /// <summary>

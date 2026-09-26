@@ -227,31 +227,44 @@ public class CatcherManager : MonoBehaviour
         UpdateGemRushTrail();
     }
 
-    // A short, narrow trail celebrates the cap without obscuring incoming rocks.
+    // Use an explicitly bundled unlit shader and a camera-facing position;
+    // the old thin ribbon at the model center could be hidden inside Catchy.
     void UpdateGemRushTrail()
     {
         bool active = ComboManager.IsGemRush && GameState.IsPlaying
             && !GemCatcher.IsGameOver;
         if (active && gemRushTrail == null && catcherInstance != null)
         {
-            Shader shader = Shader.Find("Sprites/Default");
+            Shader shader = Resources.Load<Shader>("GemRushTrail");
             if (shader == null) return;
             GameObject trail = new GameObject("Gem Rush Trail");
             trail.transform.SetParent(catcherInstance.transform, false);
             gemRushTrailMaterial = new Material(shader);
             gemRushTrail = trail.AddComponent<TrailRenderer>();
             gemRushTrail.sharedMaterial = gemRushTrailMaterial;
-            gemRushTrail.time = 0.22f;
+            gemRushTrail.time = 0.38f;
             gemRushTrail.minVertexDistance = 0.06f;
-            gemRushTrail.startWidth = 0.14f;
+            gemRushTrail.startWidth = 0.32f;
             gemRushTrail.endWidth = 0f;
-            gemRushTrail.startColor = new Color(1f, 0.85f, 0.25f, 0.65f);
+            gemRushTrail.numCapVertices = 4;
+            gemRushTrail.alignment = LineAlignment.View;
+            gemRushTrail.sortingOrder = 110;
+            gemRushTrail.startColor = new Color(1f, 0.85f, 0.25f, 0.95f);
             gemRushTrail.endColor = new Color(1f, 0.6f, 0.1f, 0f);
             gemRushTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             gemRushTrail.receiveShadows = false;
         }
         if (gemRushTrail == null) return;
-        gemRushTrail.emitting = active;
+        if (catcherInstance != null)
+        {
+            BoxCollider body = catcherInstance.GetComponent<BoxCollider>();
+            Bounds bounds = body != null ? body.bounds
+                : new Bounds(catcherInstance.transform.position, Vector3.one);
+            gemRushTrail.transform.position = new Vector3(
+                bounds.center.x, bounds.center.y - bounds.extents.y * 0.25f,
+                bounds.min.z - 0.08f);
+        }
+        gemRushTrail.emitting = active && Time.timeScale > 0f;
         if (!active) gemRushTrail.Clear();
     }
 
