@@ -116,6 +116,7 @@ public class FallingObject : MonoBehaviour
     public bool isRushDiamondGem { get; set; } = false;
     public bool isRushGoldenGem { get; set; } = false;
     public bool isRushSapphireGem { get; set; } = false;
+    public bool isRushMoltenGem { get; set; } = false;
     public bool isRushPlatinumGem { get; set; } = false;
 
     /// <summary>
@@ -238,6 +239,7 @@ public class FallingObject : MonoBehaviour
         isRushGoldenGem = false;
         isRushPlatinumGem = false;
         isRushSapphireGem = false;
+        isRushMoltenGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();

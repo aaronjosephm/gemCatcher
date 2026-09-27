@@ -18,7 +18,7 @@ public static class LevelManager
     public const int LavaUnlockScore = 150_000;
     public const int UnderwaterUnlockScore = 250_000;
     public const int MoltenDepthsUnlockScore = 500_000;
-    public const int FinalLevelGoal = 750_000;
+    public const int FinalLevelGoal = 1_000_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -145,8 +145,8 @@ public static class LevelManager
             id = LevelId.MoltenDepths,
             displayName = "Molten Depths",
             backgroundResource = "Backgrounds/MoltenDepthsBackground",
-            musicResource = "Audio/UnderwaterMusic",
-            extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18" },
+            musicResource = "Audio/MoltenDepthsMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_18", "Gems/Magic_Gem_3" },
             unlockScore = MoltenDepthsUnlockScore,
             cameraColor = new Color(0.055f, 0.025f, 0.035f),
             initialFallSpeed = 3.8f,
