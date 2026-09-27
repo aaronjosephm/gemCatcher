@@ -895,6 +895,15 @@ public class ObjectPooler : MonoBehaviour
                 glow.glowRadius = 0.9f;
             }
 
+            if (isMolten)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(0.72f, 0.18f, 1f, 1f);
+                glow.glowAlpha = 0.85f;
+                glow.glowRadius = 1f;
+            }
+
             if (isSapphire)
             {
                 GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
