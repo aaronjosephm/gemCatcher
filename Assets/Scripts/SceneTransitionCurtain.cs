@@ -14,8 +14,17 @@ public sealed class SceneTransitionCurtain : MonoBehaviour
     private static SceneTransitionCurtain activeTransition;
 
     private Image curtainImage;
+    public static bool IsTransitioning => activeTransition != null;
 
     public static void LoadScene(string sceneName)
+    {
+        LoadSceneWithGate(sceneName, null, null);
+    }
+
+    // Cover the old scene BEFORE opening an ad or changing level state. Keep
+    // the same opaque cover through ad dismissal and destination startup.
+    public static void LoadSceneWithGate(string sceneName,
+        System.Action<System.Action> beforeLoad, System.Action prepareDestination)
     {
         if (activeTransition != null) return;
 
@@ -52,12 +61,21 @@ public sealed class SceneTransitionCurtain : MonoBehaviour
         transition.curtainImage.color = Color.clear;
         transition.curtainImage.raycastTarget = true;
         activeTransition = transition;
-        transition.StartCoroutine(transition.Run(sceneName));
+        transition.StartCoroutine(transition.Run(sceneName, beforeLoad, prepareDestination));
     }
 
-    private IEnumerator Run(string sceneName)
+    private IEnumerator Run(string sceneName, System.Action<System.Action> beforeLoad,
+        System.Action prepareDestination)
     {
         yield return Fade(0f, 1f, FadeToBlackDuration);
+
+        if (beforeLoad != null)
+        {
+            bool ready = false;
+            beforeLoad(() => ready = true);
+            while (!ready) yield return null;
+        }
+        prepareDestination?.Invoke();
 
         AsyncOperation load = SceneManager.LoadSceneAsync(sceneName, LoadSceneMode.Single);
         if (load == null)

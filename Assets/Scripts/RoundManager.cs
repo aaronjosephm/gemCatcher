@@ -41,6 +41,8 @@ public class RoundManager : MonoBehaviour
     public int Lives { get; private set; } = STARTING_LIVES;
     public bool IsGameOver { get; private set; }
     public bool IsContinuePending { get; private set; }
+    public bool HasCompletedLevel => GameState.Mode == GameState.GameMode.Rush
+        && !GameState.IsTutorial && Score >= LevelManager.GetFinishLineScore();
     private bool hasPresentedContinueOffer;
     private bool hasUsedRewardedContinue;
 
@@ -143,8 +145,11 @@ public class RoundManager : MonoBehaviour
     /// <summary>Add (or subtract) points. Score is clamped at 0.</summary>
     public void AddScore(int delta)
     {
-        if (IsGameOver) return;
+        if (IsGameOver || HasCompletedLevel) return;
         Score = Mathf.Max(0, Score + delta);
+        if (GameState.Mode == GameState.GameMode.Rush && !GameState.IsTutorial)
+            Score = Mathf.Min(Score, LevelManager.GetFinishLineScore());
+        if (HasCompletedLevel) Time.timeScale = 0f;
         OnScoreChanged?.Invoke(Score);
     }
 

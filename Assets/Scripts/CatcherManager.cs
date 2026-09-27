@@ -6,8 +6,6 @@ public class CatcherManager : MonoBehaviour
     public static CatcherManager Instance { get; private set; }
     public GameObject catcherPrefab; // The catcher (cube) prefab
     private GameObject catcherInstance;
-    private TrailRenderer gemRushTrail;
-    private Material gemRushTrailMaterial;
     public GameObject CatcherInstance => catcherInstance;
 
     public void BeginContinueInvincibility()
@@ -168,6 +166,9 @@ public class CatcherManager : MonoBehaviour
             rushSpawnDirector = FindObjectOfType<SpawnDirector>();
         }
 
+        if (GameState.Mode == GameState.GameMode.Rush && catcherInstance != null)
+            catcherInstance.AddComponent<ComboLightning>();
+
         // Subscribe to score change events
         GemCatcher.OnScoreChanged += UpdateScoreDisplay;
         // Visual feedback on gameplay events.
@@ -224,48 +225,6 @@ public class CatcherManager : MonoBehaviour
         UpdateShieldBubble();
         UpdateSwapBubble();
         UpdateInvincibilityBubble();
-        UpdateGemRushTrail();
-    }
-
-    // Use an explicitly bundled unlit shader and a camera-facing position;
-    // the old thin ribbon at the model center could be hidden inside Catchy.
-    void UpdateGemRushTrail()
-    {
-        bool active = ComboManager.IsGemRush && GameState.IsPlaying
-            && !GemCatcher.IsGameOver;
-        if (active && gemRushTrail == null && catcherInstance != null)
-        {
-            Shader shader = Resources.Load<Shader>("GemRushTrail");
-            if (shader == null) return;
-            GameObject trail = new GameObject("Gem Rush Trail");
-            trail.transform.SetParent(catcherInstance.transform, false);
-            gemRushTrailMaterial = new Material(shader);
-            gemRushTrail = trail.AddComponent<TrailRenderer>();
-            gemRushTrail.sharedMaterial = gemRushTrailMaterial;
-            gemRushTrail.time = 0.38f;
-            gemRushTrail.minVertexDistance = 0.06f;
-            gemRushTrail.startWidth = 0.32f;
-            gemRushTrail.endWidth = 0f;
-            gemRushTrail.numCapVertices = 4;
-            gemRushTrail.alignment = LineAlignment.View;
-            gemRushTrail.sortingOrder = 110;
-            gemRushTrail.startColor = new Color(1f, 0.85f, 0.25f, 0.95f);
-            gemRushTrail.endColor = new Color(1f, 0.6f, 0.1f, 0f);
-            gemRushTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            gemRushTrail.receiveShadows = false;
-        }
-        if (gemRushTrail == null) return;
-        if (catcherInstance != null)
-        {
-            BoxCollider body = catcherInstance.GetComponent<BoxCollider>();
-            Bounds bounds = body != null ? body.bounds
-                : new Bounds(catcherInstance.transform.position, Vector3.one);
-            gemRushTrail.transform.position = new Vector3(
-                bounds.center.x, bounds.center.y - bounds.extents.y * 0.25f,
-                bounds.min.z - 0.08f);
-        }
-        gemRushTrail.emitting = active && Time.timeScale > 0f;
-        if (!active) gemRushTrail.Clear();
     }
 
     // Tap or drag during the placement countdown. Drag follows the finger
@@ -274,6 +233,7 @@ public class CatcherManager : MonoBehaviour
     // Rush Mode: tap left/right half of screen to step in that direction.
     void HandleCatcherPlacementInput()
     {
+        if (Time.timeScale <= 0f || (!GameState.IsPlaying && !GameState.IsTutorial)) return;
         // In continuous mode the catcher is always movable.
         bool canMove = isPlacementPhase
                        || GameState.Mode == GameState.GameMode.Rush;
@@ -1252,7 +1212,6 @@ public class CatcherManager : MonoBehaviour
 
     void OnDestroy()
     {
-        if (gemRushTrailMaterial != null) Destroy(gemRushTrailMaterial);
         // Unsubscribe from events when this object is destroyed
         GemCatcher.OnScoreChanged -= UpdateScoreDisplay;
         GemCatcher.OnGemCaught -= HandleGemCaughtFeedback;

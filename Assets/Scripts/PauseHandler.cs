@@ -78,6 +78,7 @@ public class PauseHandler : MonoBehaviour
         // capture the hit-stop's reduced timeScale into cachedTimeScale and
         // restore the wrong value on resume, leaving the game in slow-mo.
         if (GemCatcher.IsGameOver) return;
+        if (RoundManager.Instance != null && RoundManager.Instance.HasCompletedLevel) return;
 
         cachedTimeScale = Time.timeScale > 0f ? Time.timeScale : 1f;
         Time.timeScale = 0f;

@@ -157,6 +157,7 @@ public static class ComboManager
   public static void RegisterCatch()
   {
     float prevMult = CurrentMultiplier;
+    if (GameState.Mode == GameState.GameMode.Rush && currentCombo >= 30) return;
     currentCombo++;
     float newMult = CurrentMultiplier;
 
@@ -182,9 +183,15 @@ public static class ComboManager
   }
 
   /// <summary>
-  /// Wipe combo state silently. Used at round start so the new round always
-  /// begins at zero combo without animating a "broken" flash.
+  /// Finish a successful charge cycle without reporting a lost streak.
   /// </summary>
+  public static void CompleteChargeCycle()
+  {
+    currentCombo = 0;
+    OnComboChanged?.Invoke(0, 1f);
+  }
+
+  /// <summary>Reset at round start without presentation events.</summary>
   public static void ClearSilently()
   {
     currentCombo = 0;

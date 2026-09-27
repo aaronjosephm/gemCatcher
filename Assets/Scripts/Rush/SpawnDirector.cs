@@ -60,11 +60,6 @@ public class SpawnDirector : MonoBehaviour
     private const float MasterGemDropInterval = 180f; // every 3 minutes
     private bool pendingMasterGem;
 
-    // Finish line (level unlock)
-    private bool pendingFinishLine;
-    private bool finishLineTriggered; // only one finish line per round
-    private int finishLineScore;
-
     // Tutorial intro
     private int tutorialCatchCount;
     private int tutorialWaveIndex; // Even waves move right; odd waves move left.
@@ -144,15 +139,6 @@ public class SpawnDirector : MonoBehaviour
         else
             nextMasterGemDropTime = MasterGemDropInterval;
 
-        finishLineScore = LevelManager.GetFinishLineScore();
-        finishLineTriggered = finishLineScore <= 0;
-        pendingFinishLine = false;
-
-        if (!finishLineTriggered && RoundManager.Instance != null)
-        {
-            RoundManager.Instance.OnScoreChanged += OnScoreChangedForFinishLine;
-        }
-
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
 
@@ -225,7 +211,7 @@ public class SpawnDirector : MonoBehaviour
 
     void Update()
     {
-        if (!GameState.IsPlaying || GemCatcher.IsGameOver) return;
+        if (!GameState.IsPlaying || GemCatcher.IsGameOver || Time.timeScale <= 0f) return;
 
         // --- Tutorial phase: scripted intro waves before normal gameplay ---
         if (tutorialActive)
@@ -371,14 +357,6 @@ public class SpawnDirector : MonoBehaviour
     void SpawnRow(WaveDefinition.Row row, float fallSpeed)
     {
         float spawnY = ScreenPadding.WorldTop + 1.5f;
-
-        // A finish line replaces the whole row so hazards cannot obscure it.
-        if (pendingFinishLine)
-        {
-            pendingFinishLine = false;
-            SpawnFinishLine(spawnY, fallSpeed);
-            return;
-        }
 
         bool swapped = PowerUpManager.SwapActive;
 
@@ -767,41 +745,6 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
     }
 
-    void OnScoreChangedForFinishLine(int score)
-    {
-        if (finishLineTriggered) return;
-        if (score >= finishLineScore)
-        {
-            finishLineTriggered = true;
-            pendingFinishLine = true;
-            if (RoundManager.Instance != null)
-                RoundManager.Instance.OnScoreChanged -= OnScoreChangedForFinishLine;
-            Debug.Log(
-                $"[SpawnDirector] Finish line triggered at score {score} " +
-                $"(threshold {finishLineScore})");
-        }
-    }
-
-    void SpawnFinishLine(float y, float fallSpeed)
-    {
-        LevelManager.LevelId? nextLevel = LevelManager.GetNextLevel();
-        if (nextLevel == null)
-        {
-            return;
-        }
-
-        FinishLine line = FinishLine.Create(y, fallSpeed, nextLevel.Value);
-        if (line == null)
-        {
-            Debug.LogError("[SpawnDirector] Failed to create finish line.");
-            return;
-        }
-        standaloneDrops.Add(line.gameObject);
-
-        if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Finish line spawned at y={y:F2}");
-    }
-
     // ─── Tutorial intro ─────────────────────────────────────────────────
 
     private GameObject tutorialGem; // track the gem so we know when it's caught
@@ -934,10 +877,6 @@ public class SpawnDirector : MonoBehaviour
 
     void OnDestroy()
     {
-        // Unsubscribe from score changes.
-        if (RoundManager.Instance != null)
-            RoundManager.Instance.OnScoreChanged -= OnScoreChangedForFinishLine;
-
         if (tutorialOverlay != null)
             Destroy(tutorialOverlay.gameObject);
 

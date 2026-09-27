@@ -48,6 +48,10 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private Vector3 origin;
     private int flickerFrames;
     private bool initialized;
+    private float widthScale = 1f;
+    private bool comboEffect;
+    private Transform followTarget;
+    private Vector3 previousFollowPosition;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticState()
@@ -73,26 +77,43 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     /// <summary>Create a lightning bolt that strikes the given world position.</summary>
     public static void Strike(Vector3 targetPosition)
     {
-        EnsurePool();
-
-        LightningSpawnEffect effect = null;
-        for (int i = 0; i < BoltPool.Count; i++)
-        {
-            if (!BoltPool[i].gameObject.activeSelf)
-            {
-                effect = BoltPool[i];
-                break;
-            }
-        }
-
-        if (effect == null)
-        {
-            effect = CreateBolt();
-        }
-
+        LightningSpawnEffect effect = AcquireBolt();
+        effect.comboEffect = false;
+        effect.widthScale = 1f;
         effect.Activate(targetPosition);
         SpawnSparks(targetPosition);
-        PlayZap(targetPosition);
+        PlayZap(targetPosition, false);
+    }
+
+    /// <summary>Reuse the spawn bolt layers for a directed combo arc.</summary>
+    public static void Arc(Vector3 from, Vector3 to, float scale, bool audible = false, Transform follow = null)
+    {
+        LightningSpawnEffect effect = AcquireBolt();
+        effect.comboEffect = true;
+        effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
+        effect.Activate(to);
+        effect.origin = from;
+        effect.followTarget = follow;
+        if (follow != null) effect.previousFollowPosition = follow.position;
+        effect.GenerateBolt();
+        if (audible) PlayZap(from, true);
+    }
+
+    public static void ClearComboEffects()
+    {
+        foreach (LightningSpawnEffect bolt in BoltPool)
+            if (bolt != null && bolt.comboEffect) bolt.gameObject.SetActive(false);
+        if (zapSources != null)
+            foreach (AudioSource source in zapSources)
+                if (source != null) source.Stop();
+    }
+
+    private static LightningSpawnEffect AcquireBolt()
+    {
+        EnsurePool();
+        for (int i = 0; i < BoltPool.Count; i++)
+            if (!BoltPool[i].gameObject.activeSelf) return BoltPool[i];
+        return CreateBolt();
     }
 
     private static void EnsurePool()
@@ -246,7 +267,7 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         }
     }
 
-    private static void PlayZap(Vector3 position)
+    private static void PlayZap(Vector3 position, bool screenSpace)
     {
         if (zapClip == null || zapSources == null || zapSources.Length == 0) return;
 
@@ -262,6 +283,7 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         }
 
         AudioSource source = zapSources[selectedIndex];
+        source.spatialBlend = screenSpace ? 0f : 1f;
         source.transform.position = position;
         source.clip = zapClip;
         source.volume = SoundManager.SfxVolume;
@@ -311,6 +333,7 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     {
         Initialize();
 
+        followTarget = null;
         strikePoint = targetPosition;
         transform.position = targetPosition;
         origin = new Vector3(
@@ -322,8 +345,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
         for (int i = 0; i < LayerCount; i++)
         {
-            layers[i].startWidth = LayerWidths[i];
-            layers[i].endWidth = LayerWidths[i] * 0.3f;
+            layers[i].startWidth = LayerWidths[i] * widthScale;
+            layers[i].endWidth = LayerWidths[i] * 0.3f * widthScale;
         }
 
         gameObject.SetActive(true);
@@ -332,6 +355,15 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale <= 0f) return;
+        if (followTarget != null)
+        {
+            Vector3 delta = followTarget.position - previousFollowPosition;
+            origin += delta;
+            strikePoint += delta;
+            previousFollowPosition = followTarget.position;
+            if (delta.sqrMagnitude > 0f) GenerateBolt();
+        }
         timer -= Time.deltaTime;
         if (timer <= 0f)
         {
@@ -349,8 +381,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         float alpha = timer / Duration;
         for (int i = 0; i < LayerCount; i++)
         {
-            layers[i].startWidth = LayerWidths[i] * alpha;
-            layers[i].endWidth = LayerWidths[i] * 0.3f * alpha;
+            layers[i].startWidth = LayerWidths[i] * widthScale * alpha;
+            layers[i].endWidth = LayerWidths[i] * 0.3f * widthScale * alpha;
         }
     }
 
@@ -363,8 +395,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
             if (i > 0 && i < Segments - 1)
             {
-                point.x += Random.Range(-Jitter, Jitter);
-                point.y += Random.Range(-Jitter * 0.25f, Jitter * 0.25f);
+                point.x += Random.Range(-Jitter, Jitter) * (comboEffect ? widthScale * 3f : 1f);
+                point.y += Random.Range(-Jitter * 0.25f, Jitter * 0.25f) * (comboEffect ? widthScale * 3f : 1f);
             }
             basePoints[i] = point;
         }

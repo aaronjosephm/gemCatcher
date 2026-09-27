@@ -19,6 +19,7 @@ public static class GameTextStyle
 
     private static TMP_FontAsset fontAsset;
     private static Material noOutlineMaterial;
+    private static Material celebrationMaterial;
     private static bool missingFontLogged;
 
     public static TMP_FontAsset FontAsset
@@ -74,7 +75,8 @@ public static class GameTextStyle
 
         bool usesNoOutlineMaterial =
             noOutlineMaterial != null && text.fontSharedMaterial == noOutlineMaterial;
-        if (text.fontSharedMaterial != fredoka.material && !usesNoOutlineMaterial)
+        if (text.fontSharedMaterial != fredoka.material && !usesNoOutlineMaterial
+            && !(celebrationMaterial != null && text.fontSharedMaterial == celebrationMaterial))
         {
             text.fontSharedMaterial = fredoka.material;
         }
@@ -107,6 +109,25 @@ public static class GameTextStyle
         text.fontSharedMaterial = noOutlineMaterial;
     }
 
+    public static void ApplyCelebration(TMP_Text text)
+    {
+        TMP_FontAsset fredoka = FontAsset;
+        if (text == null || fredoka == null) return;
+        if (celebrationMaterial == null)
+        {
+            celebrationMaterial = new Material(fredoka.material)
+            {
+                name = $"{fredoka.material.name} (Gold Panel)",
+                hideFlags = HideFlags.DontSave,
+            };
+            celebrationMaterial.SetColor("_OutlineColor", new Color(0.38f, 0.12f, 0.015f));
+            celebrationMaterial.SetFloat("_OutlineWidth", 0.22f);
+            celebrationMaterial.SetColor("_UnderlayColor", new Color(0.25f, 0.06f, 0.005f));
+        }
+        text.font = fredoka;
+        text.fontSharedMaterial = celebrationMaterial;
+    }
+
     public static void ConfigureMaterial(Material material)
     {
         if (material == null)
@@ -128,6 +149,12 @@ public static class GameTextStyle
 
     public static void ResetCache()
     {
+        if (celebrationMaterial != null)
+        {
+            if (Application.isPlaying) Object.Destroy(celebrationMaterial);
+            else Object.DestroyImmediate(celebrationMaterial);
+            celebrationMaterial = null;
+        }
         if (noOutlineMaterial != null)
         {
             if (Application.isPlaying)
