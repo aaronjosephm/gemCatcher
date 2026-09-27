@@ -53,12 +53,12 @@ public static class ComboProgressionChecks
             RushConfig speedConfig = ScriptableObject.CreateInstance<RushConfig>();
             try
             {
-                for (int level = 0; level < 4; level++)
+                for (int level = 0; level < 5; level++)
                 {
                     var id = (LevelManager.LevelId)level;
-                    int goal = new[] { 25000, 75000, 150000, 250000 }[level];
-                    float start = new[] { 2.4f, 3f, 3.2f, 3.4f }[level];
-                    float end = new[] { 4f, 4.5f, 5f, 5.2f }[level];
+                    int goal = new[] { 25000, 75000, 150000, 250000, 350000 }[level];
+                    float start = new[] { 2.4f, 3f, 3.2f, 3.4f, 3.6f }[level];
+                    float end = new[] { 4f, 4.5f, 5f, 5.2f, 5.4f }[level];
                     Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(0, goal, id), start),
                         "Each level must use its requested starting speed.");
                     for (int step = 1; step <= 10; step++)
@@ -75,8 +75,8 @@ public static class ComboProgressionChecks
             }
             finally { UnityEngine.Object.DestroyImmediate(speedConfig); }
             Require(LevelManager.JungleUnlockScore == 25000 && LevelManager.SpaceUnlockScore == 75000
-                && LevelManager.LavaUnlockScore == 150000 && LevelManager.FinalLevelGoal == 250000,
-                "Level goals must be 25k/75k/150k/250k.");
+                && LevelManager.LavaUnlockScore == 150000 && LevelManager.UnderwaterUnlockScore == 250000 && LevelManager.FinalLevelGoal == 350000,
+                "Level goals must be 25k/75k/150k/250k/350k.");
             GameState.Mode = GameState.GameMode.Normal;
             ComboManager.ClearSilently();
             tiers.Clear();

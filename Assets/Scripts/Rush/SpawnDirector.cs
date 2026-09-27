@@ -135,7 +135,8 @@ public class SpawnDirector : MonoBehaviour
 
         // MasterGem (invincibility) — only levels 3+.
         bool masterGemEnabled = LevelManager.SelectedLevel == LevelManager.LevelId.Space
-                             || LevelManager.SelectedLevel == LevelManager.LevelId.Lava;
+                             || LevelManager.SelectedLevel == LevelManager.LevelId.Lava
+                             || LevelManager.SelectedLevel == LevelManager.LevelId.Underwater;
         if (!masterGemEnabled)
             nextMasterGemDropTime = float.MaxValue;
         else

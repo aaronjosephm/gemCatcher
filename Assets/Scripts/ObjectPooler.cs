@@ -773,10 +773,19 @@ public class ObjectPooler : MonoBehaviour
         bool isRed = false;
         bool isGolden = false;
         bool isPlatinum = false;
+        bool isSapphire = false;
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.Lava)
+        if (level == LevelManager.LevelId.Underwater)
+        {
+            baseGem = "Magic_Gem_22"; // Orange gem from Level 4: 320 points.
+            upgradeGem = "SapphireGem"; // Blue sapphire: 640 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isPlatinum = !isHeart && !useUpgrade;
+            isSapphire = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Lava)
         {
             // Level 4: Magic_Gem_24 (160pts) → Magic_Gem_22 (320pts)
             baseGem = "Magic_Gem_24";
@@ -837,6 +846,7 @@ public class ObjectPooler : MonoBehaviour
             fo.isRushDiamondGem = isDiamond;
             fo.isRushGoldenGem = isGolden;
             fo.isRushPlatinumGem = isPlatinum;
+            fo.isRushSapphireGem = isSapphire;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
@@ -873,6 +883,15 @@ public class ObjectPooler : MonoBehaviour
                 glow.glowColor = new Color(1f, 0.85f, 0.35f, 1f);
                 glow.glowAlpha = 0.85f;
                 glow.glowRadius = 0.9f;
+            }
+
+            if (isSapphire)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(0.15f, 0.55f, 1f, 1f);
+                glow.glowAlpha = 0.8f;
+                glow.glowRadius = 1f;
             }
 
             // Add orange glow to platinum gems (Level 4 upgrade).

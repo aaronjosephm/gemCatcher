@@ -10,13 +10,14 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
     public const int SpaceUnlockScore = 75_000;
     public const int LavaUnlockScore = 150_000;
-    public const int FinalLevelGoal = 250_000;
+    public const int UnderwaterUnlockScore = 250_000;
+    public const int FinalLevelGoal = 350_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -120,6 +121,23 @@ public static class LevelManager
             catcherYOffset = 0f,
             placementDuration = 2.5f,
             backgroundWallZ = 500f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Underwater,
+            displayName = "Sapphire Reef",
+            backgroundResource = "Backgrounds/UnderwaterBackground",
+            musicResource = "Audio/JungleMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/SapphireGem" },
+            unlockScore = UnderwaterUnlockScore,
+            cameraColor = new Color(0.015f, 0.12f, 0.28f),
+            initialFallSpeed = 3.6f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 5.4f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
         },
     };
 

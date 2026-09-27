@@ -18,6 +18,8 @@ public sealed class LevelEnvironmentController : MonoBehaviour
 
     [SerializeField] private EnvironmentEntry[] environments = Array.Empty<EnvironmentEntry>();
 
+    private GameObject underwaterEnvironment;
+
     public LevelManager.LevelId ActiveLevel { get; private set; }
 
     void Awake()
@@ -48,6 +50,20 @@ public sealed class LevelEnvironmentController : MonoBehaviour
 
             foundSelectedEnvironment |= shouldBeActive;
         }
+
+        // The reef uses the shared fitted backdrop plus lightweight procedural ambience.
+        if (selectedLevel == LevelManager.LevelId.Underwater)
+        {
+            if (underwaterEnvironment == null)
+            {
+                underwaterEnvironment = new GameObject("Underwater Environment");
+                underwaterEnvironment.transform.SetParent(transform, false);
+                underwaterEnvironment.AddComponent<UnderwaterAmbience>();
+            }
+            underwaterEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (underwaterEnvironment != null) underwaterEnvironment.SetActive(false);
 
         if (!foundSelectedEnvironment)
         {

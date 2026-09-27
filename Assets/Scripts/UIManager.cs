@@ -2474,7 +2474,12 @@ public partial class UIManager : MonoBehaviour
     cardsRect.anchorMax = new Vector2(0.5f, 0.5f);
     cardsRect.pivot = new Vector2(0.5f, 0.5f);
     cardsRect.anchoredPosition = new Vector2(0f, -50f);
-    cardsRect.sizeDelta = new Vector2(700f, 600f);
+    float cardsHeight = LevelManager.AllLevels.Length * 170f - 30f;
+    cardsRect.sizeDelta = new Vector2(700f, cardsHeight);
+    RectTransform cardsParent = contentParent as RectTransform;
+    if (cardsParent != null && cardsParent.rect.height > 0f)
+      cardsRect.localScale = Vector3.one * Mathf.Min(1f,
+          cardsParent.rect.height * 0.72f / cardsHeight, cardsParent.rect.width * 0.92f / 700f);
     VerticalLayoutGroup vlg = cardsGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 30f;
