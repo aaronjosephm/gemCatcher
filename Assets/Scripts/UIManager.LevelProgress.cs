@@ -60,7 +60,8 @@ public partial class UIManager
 
     public void ShowLevelComplete(LevelManager.LevelId? nextLevel)
     {
-        if (levelCompleted || GemCatcher.IsGameOver || sceneTransitionPending) return;
+        if (levelCompleted || GemCatcher.IsGameOver || sceneTransitionPending
+            || RoundManager.Instance == null || !RoundManager.Instance.HasCompletedLevel) return;
         EnsureHudCanvas();
         if (hudCanvas == null) return;
         levelCompleted = true;
@@ -76,17 +77,13 @@ public partial class UIManager
 
         levelCompletionPanel = BuildFullScreenPanel("LevelComplete",
             new Color(0f, 0f, 0f, 0.52f), out Transform content);
-        // Layered rounded bevels echo ContinueOfferPanel's gold face and blue rim.
-        Image outer = ProgressImage("BlueOutline", content, Color.white);
+        // A single gold face, with no stacked rims, bevel sprites, or outline components.
+        Image outer = ProgressImage("GoldFace", content, new Color(1f, 0.83f, 0.25f));
         levelCompletionCard = outer.rectTransform;
         levelCompletionCard.anchorMin = levelCompletionCard.anchorMax = new Vector2(0.5f, 0.5f);
         levelCompletionCard.sizeDelta = new Vector2(860f, 800f);
         levelCompletionCard.anchoredPosition = new Vector2(0f, 15f);
-        CrystalButtonStyle.Apply(outer.gameObject, new Color(0f, 0.39f, 0.93f));
-        Image rim = InsetPanel("CyanRim", outer.transform, 10f, new Color(0.1f, 0.82f, 1f));
-        Image gold = InsetPanel("GoldFace", rim.transform, 7f, new Color(1f, 0.69f, 0.04f));
-        Image face = InsetPanel("WarmGold", gold.transform, 12f, new Color(1f, 0.83f, 0.25f));
-        RectTransform card = face.rectTransform;
+        RectTransform card = outer.rectTransform;
         CompletionText(card, nextLevel.HasValue ? "LEVEL\nCOMPLETE!" : "ALL LEVELS\nCOMPLETE!",
             78f, Color.white, 210f, 190f);
         CompletionText(card, LevelManager.CurrentConfig.displayName, 38f,
@@ -133,15 +130,6 @@ public partial class UIManager
                 GameState.SkipMainMenuOnLoad = destination.HasValue;
                 Time.timeScale = 1f;
             });
-    }
-
-    static Image InsetPanel(string name, Transform parent, float inset, Color color)
-    {
-        Image image = ProgressImage(name, parent, Color.white);
-        image.rectTransform.offsetMin = Vector2.one * inset;
-        image.rectTransform.offsetMax = Vector2.one * -inset;
-        CrystalButtonStyle.Apply(image.gameObject, color);
-        return image;
     }
 
     static Image ProgressImage(string name, Transform parent, Color color)

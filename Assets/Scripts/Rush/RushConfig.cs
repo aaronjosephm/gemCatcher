@@ -234,6 +234,15 @@ public class RushConfig : ScriptableObject
         return difficultyTiers[0].fallSpeed;
     }
 
+    /// <summary>Adjacent levels share their ending/starting speed. Cave keeps its original curve.</summary>
+    public float GetLevelFallSpeed(float elapsedTime, LevelManager.LevelId level)
+    {
+        float start = GetFallSpeed(0f);
+        float end = GetFallSpeed(float.MaxValue);
+        float step = Mathf.Max(0f, end - start);
+        return GetFallSpeed(elapsedTime) + Mathf.Clamp((int)level, 0, 3) * step;
+    }
+
     /// <summary>Linearly interpolate all numeric fields between two tiers.</summary>
     static DifficultyTier LerpTier(DifficultyTier a, DifficultyTier b, float t)
     {

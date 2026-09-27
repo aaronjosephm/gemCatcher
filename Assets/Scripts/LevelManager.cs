@@ -4,8 +4,8 @@ using UnityEngine;
 /// Central level/theme management. Tracks which level is selected, which
 /// levels are unlocked, and provides difficulty parameters to ObjectPooler.
 ///
-/// Each locked level is unlocked by reaching the score goal in the preceding
-/// level. The selected level and unlocks
+/// Each locked level is unlocked by crossing the finish line after reaching
+/// the score goal in the preceding level. The selected level and unlocks
 /// persist in PlayerPrefs so the player returns to their last choice.
 /// </summary>
 public static class LevelManager
@@ -13,10 +13,10 @@ public static class LevelManager
     public enum LevelId { Cave, Jungle, Space, Lava }
 
     public const string GameplaySceneName = "Gameplay";
-    public const int JungleUnlockScore = 10_000;
-    public const int SpaceUnlockScore = 25_000;
-    public const int LavaUnlockScore = 50_000;
-    public const int FinalLevelGoal = 100_000;
+    public const int JungleUnlockScore = 25_000;
+    public const int SpaceUnlockScore = 50_000;
+    public const int LavaUnlockScore = 100_000;
+    public const int FinalLevelGoal = 200_000;
 
     [System.Serializable]
     public struct LevelConfig

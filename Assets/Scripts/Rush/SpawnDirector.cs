@@ -15,6 +15,7 @@ public class SpawnDirector : MonoBehaviour
 
     // ---- runtime state --------------------------------------------------
     private float roundStartTime;
+    private FinishLine finishLine;
     private float nextWaveSpawnY;        // world-Y where the next wave starts
     private WaveDefinition activeWave;   // wave currently being materialized
     private DecisionPlan activePlan;     // plan for current wave
@@ -108,6 +109,7 @@ public class SpawnDirector : MonoBehaviour
         }
 
         config.EvaluateTier(0f, currentTier);
+        currentTier.fallSpeed = config.GetLevelFallSpeed(0f, LevelManager.SelectedLevel);
         CurrentFallSpeed = currentTier.fallSpeed;
 
         BuildRockPool();
@@ -220,11 +222,18 @@ public class SpawnDirector : MonoBehaviour
             return; // skip normal wave generation during tutorial
         }
 
+        if (RoundManager.Instance != null && RoundManager.Instance.HasReachedLevelGoal)
+        {
+            RevealFinishLine();
+            return; // Existing objects keep falling, but no new waves appear past the finish.
+        }
+
         float elapsed = Time.time - roundStartTime;
         float difficultyElapsed = firstRunWarmupActive
             ? Mathf.Max(0f, elapsed - FirstRunWarmupDuration)
             : elapsed;
         config.EvaluateTier(difficultyElapsed, currentTier);
+        currentTier.fallSpeed = config.GetLevelFallSpeed(difficultyElapsed, LevelManager.SelectedLevel);
         ApplyFirstRunWarmup(elapsed, currentTier);
         RushConfig.DifficultyTier tier = currentTier;
 
@@ -311,8 +320,26 @@ public class SpawnDirector : MonoBehaviour
         }
     }
 
+    private void RevealFinishLine()
+    {
+        if (finishLine != null || RoundManager.Instance.HasCompletedLevel) return;
+        // Lock the finish approach to this level's terminal speed, also used by
+        // the next level at time zero. Place the marker behind all remaining rows.
+        CurrentFallSpeed = config.GetLevelFallSpeed(float.MaxValue, LevelManager.SelectedLevel);
+        float y = ScreenPadding.WorldTop + 2f;
+        foreach (FallingObject falling in FallingObject.ActiveInstances)
+        {
+            if (falling == null || !falling.gameObject.activeInHierarchy) continue;
+            y = Mathf.Max(y, falling.transform.position.y + config.rowSpacing);
+            falling.UpdateFallSpeed(CurrentFallSpeed);
+        }
+        finishLine = FinishLine.Create(y, CurrentFallSpeed, LevelManager.GetNextLevel());
+    }
+
     public void ClearActiveRushObjects()
     {
+        if (finishLine != null) Destroy(finishLine.gameObject);
+        finishLine = null; // A rewarded continue can reveal it again if the goal was reached.
         if (rockPool != null)
         {
             for (int i = 0; i < rockPool.Count; i++)

@@ -50,6 +50,27 @@ public static class ComboProgressionChecks
                 Require(ComboLightning.ZapIntervalForTier(tier) == new[] { 0.5f, 0.2f, 0.125f, 0.1f }[tier - 1],
                     "Zap intervals must be 500/200/125/100 ms.");
             }
+            RushConfig speedConfig = ScriptableObject.CreateInstance<RushConfig>();
+            try
+            {
+                for (int level = 0; level < 4; level++)
+                {
+                    var id = (LevelManager.LevelId)level;
+                    float start = speedConfig.GetLevelFallSpeed(0f, id);
+                    float end = speedConfig.GetLevelFallSpeed(float.MaxValue, id);
+                    Require(end > start, "Every level must accelerate.");
+                    if (level < 3)
+                        Require(Mathf.Approximately(end, speedConfig.GetLevelFallSpeed(0f,
+                            (LevelManager.LevelId)(level + 1))),
+                            "Each level must start at the previous level's ending speed.");
+                }
+                Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(55f, LevelManager.LevelId.Cave),
+                    speedConfig.GetFallSpeed(55f)), "Cave must retain its original speed curve.");
+            }
+            finally { UnityEngine.Object.DestroyImmediate(speedConfig); }
+            Require(LevelManager.JungleUnlockScore == 25000 && LevelManager.SpaceUnlockScore == 50000
+                && LevelManager.LavaUnlockScore == 100000 && LevelManager.FinalLevelGoal == 200000,
+                "Level goals must be 25k/50k/100k/200k.");
             GameState.Mode = GameState.GameMode.Normal;
             ComboManager.ClearSilently();
             tiers.Clear();

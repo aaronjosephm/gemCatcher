@@ -41,7 +41,8 @@ public class RoundManager : MonoBehaviour
     public int Lives { get; private set; } = STARTING_LIVES;
     public bool IsGameOver { get; private set; }
     public bool IsContinuePending { get; private set; }
-    public bool HasCompletedLevel => GameState.Mode == GameState.GameMode.Rush
+    public bool HasCompletedLevel { get; private set; }
+    public bool HasReachedLevelGoal => GameState.Mode == GameState.GameMode.Rush
         && !GameState.IsTutorial && Score >= LevelManager.GetFinishLineScore();
     private bool hasPresentedContinueOffer;
     private bool hasUsedRewardedContinue;
@@ -149,8 +150,17 @@ public class RoundManager : MonoBehaviour
         Score = Mathf.Max(0, Score + delta);
         if (GameState.Mode == GameState.GameMode.Rush && !GameState.IsTutorial)
             Score = Mathf.Min(Score, LevelManager.GetFinishLineScore());
-        if (HasCompletedLevel) Time.timeScale = 0f;
         OnScoreChanged?.Invoke(Score);
+    }
+
+    /// <summary>Only crossing the revealed finish line completes a Rush level.</summary>
+    public bool TryCompleteLevel()
+    {
+        if (!HasReachedLevelGoal || HasCompletedLevel || IsGameOver
+            || !GameState.IsPlaying || Time.timeScale <= 0f) return false;
+        HasCompletedLevel = true;
+        Time.timeScale = 0f;
+        return true;
     }
 
     /// <summary>
@@ -239,6 +249,7 @@ public class RoundManager : MonoBehaviour
 
     public void ResetScore()
     {
+        HasCompletedLevel = false;
         Score = 0;
         CatchesByGemName.Clear();
         ResetContinueState();
