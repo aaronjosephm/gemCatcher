@@ -229,10 +229,17 @@ public static class LevelManager
     /// </summary>
     public static bool IsUnlocked(LevelId id)
     {
+        if (!System.Enum.IsDefined(typeof(LevelId), id)) return false;
+        // Temporary testing access: Editor Play Mode and Development Builds.
+        // Do not persist unlock flags, so release builds retain earned progression.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        return true;
+#else
         EnsureUnlockProgressionInitialized();
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
         return PlayerPrefs.GetInt("KeyUnlocked_" + id, 0) == 1;
+#endif
     }
 
     /// <summary>
