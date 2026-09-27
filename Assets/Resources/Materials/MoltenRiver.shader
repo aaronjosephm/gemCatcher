@@ -4,8 +4,8 @@ Shader "GemCatch/MoltenRiver"
     {
         [MainTexture] _MainTex ("Cavern", 2D) = "black" {}
         _FlowTime ("Flow time", Float) = 0
-        _FlowRate ("Cycles per second", Float) = 0.065
-        _FlowDistance ("Flow distance", Range(0, 0.04)) = 0.016
+        _FlowRate ("Cycles per second", Float) = 0.1
+        _FlowDistance ("Flow distance", Range(0, 0.04)) = 0.03
     }
     SubShader
     {
@@ -41,10 +41,22 @@ Shader "GemCatch/MoltenRiver"
             {
                 // Only bright orange/yellow river pixels, not the dark rock or red-lit walls.
                 // Thresholds operate on linear texture samples.
-                half hot = smoothstep(0.48, 0.82, c.r) * smoothstep(0.09, 0.3, c.g);
+                half hot = smoothstep(0.35, 0.70, c.r) * smoothstep(0.04, 0.20, c.g);
                 half warm = 1.0 - smoothstep(0.12, 0.28, c.b);
                 half river = 1.0 - smoothstep(0.31, 0.40, uv.y);
                 return hot * warm * river;
+            }
+            float Hash(float2 p)
+            {
+                return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453);
+            }
+            float FlowNoise(float2 p)
+            {
+                float2 cell = floor(p);
+                float2 f = frac(p);
+                f = f * f * (3.0 - 2.0 * f);
+                return lerp(lerp(Hash(cell), Hash(cell + float2(1, 0)), f.x),
+                    lerp(Hash(cell + float2(0, 1)), Hash(cell + float2(1, 1)), f.x), f.y);
             }
             half4 Frag(Varyings input) : SV_Target
             {
@@ -64,7 +76,15 @@ Shader "GemCatch/MoltenRiver"
                 // Anchor both river banks; never pull dark rock pixels into moving lava.
                 half3 a = lerp(still.rgb, sampleA, LavaMask(sampleA, uvA));
                 half3 b = lerp(still.rgb, sampleB, LavaMask(sampleB, uvB));
-                return half4(lerp(still.rgb, lerp(b, a, weightA), mask), 1.0);
+                half3 flowing = lerp(b, a, weightA);
+                // Elongated molten streaks travel continuously downstream. This
+                // adds readable movement even where the source lava is nearly flat.
+                float2 driftUV = uv - direction * (_FlowTime * 0.008);
+                float bands = FlowNoise(driftUV * float2(100.0, 32.0));
+                bands = bands * 0.7 + FlowNoise(driftUV * float2(190.0, 65.0)) * 0.3;
+                flowing *= lerp(0.78, 1.15, bands);
+                flowing += half3(0.13, 0.065, 0.006) * smoothstep(0.55, 0.78, bands);
+                return half4(lerp(still.rgb, flowing, mask), 1.0);
             }
             ENDHLSL
         }
