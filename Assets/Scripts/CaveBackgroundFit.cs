@@ -92,7 +92,7 @@ public class CaveBackgroundFit : MonoBehaviour
         mr.material = mat;
       }
     }
-    else
+    else if (cfg.id != LevelManager.LevelId.MoltenDepths)
     {
       Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
       if (tex != null && mr.material != null)

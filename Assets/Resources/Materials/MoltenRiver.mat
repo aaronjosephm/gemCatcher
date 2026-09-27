@@ -26,7 +26,6 @@ Material:
         m_Offset: {x: 0, y: 1}
     m_Ints: []
     m_Floats:
-    - _FlowTime: 0
-    - _FlowRate: 0.1
-    - _FlowDistance: 0.03
+    - _FlowRate: 0.16
+    - _FlowDistance: 0.08
     m_Colors: []

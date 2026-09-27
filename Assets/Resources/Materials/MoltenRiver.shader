@@ -3,9 +3,8 @@ Shader "GemCatch/MoltenRiver"
     Properties
     {
         [MainTexture] _MainTex ("Cavern", 2D) = "black" {}
-        _FlowTime ("Flow time", Float) = 0
-        _FlowRate ("Cycles per second", Float) = 0.1
-        _FlowDistance ("Flow distance", Range(0, 0.04)) = 0.03
+        _FlowRate ("Cycles per second", Float) = 0.16
+        _FlowDistance ("Flow distance", Range(0, 0.15)) = 0.08
     }
     SubShader
     {
@@ -24,7 +23,6 @@ Shader "GemCatch/MoltenRiver"
             SAMPLER(sampler_MainTex);
             CBUFFER_START(UnityPerMaterial)
                 float4 _MainTex_ST;
-                float _FlowTime;
                 float _FlowRate;
                 float _FlowDistance;
             CBUFFER_END
@@ -41,10 +39,12 @@ Shader "GemCatch/MoltenRiver"
             {
                 // Only bright orange/yellow river pixels, not the dark rock or red-lit walls.
                 // Thresholds operate on linear texture samples.
-                half hot = smoothstep(0.35, 0.70, c.r) * smoothstep(0.04, 0.20, c.g);
-                half warm = 1.0 - smoothstep(0.12, 0.28, c.b);
-                half river = 1.0 - smoothstep(0.31, 0.40, uv.y);
-                return hot * warm * river;
+                // Include the orange surface, not just its few white-hot highlights.
+                // Red dominance excludes blue/purple smoke in both gamma and linear projects.
+                half hot = smoothstep(0.18, 0.50, c.r);
+                half orange = smoothstep(0.012, 0.09, c.g) * smoothstep(0.10, 0.30, c.r - c.b);
+                half river = 1.0 - smoothstep(0.32, 0.42, uv.y);
+                return hot * orange * river;
             }
             float Hash(float2 p)
             {
@@ -64,8 +64,8 @@ Shader "GemCatch/MoltenRiver"
                 half4 still = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv);
                 half mask = LavaMask(still.rgb, uv);
                 // Two offset flow phases crossfade so there is no visible loop reset.
-                float phaseA = frac(_FlowTime * _FlowRate);
-                float phaseB = frac(_FlowTime * _FlowRate + 0.5);
+                float phaseA = frac(_Time.y * _FlowRate);
+                float phaseB = frac(_Time.y * _FlowRate + 0.5);
                 float weightA = 1.0 - abs(phaseA * 2.0 - 1.0);
                 // Downstream toward the foreground, bending with the winding river.
                 float2 direction = normalize(float2(0.6 * sin(uv.y * 30.0 + 0.8), -1.0));
@@ -79,15 +79,15 @@ Shader "GemCatch/MoltenRiver"
                 half3 flowing = lerp(b, a, weightA);
                 // Elongated molten streaks travel continuously downstream. This
                 // adds readable movement even where the source lava is nearly flat.
-                float2 driftUV = uv - direction * (_FlowTime * 0.008);
-                float bands = FlowNoise(driftUV * float2(100.0, 32.0));
-                bands = bands * 0.7 + FlowNoise(driftUV * float2(190.0, 65.0)) * 0.3;
-                flowing *= lerp(0.78, 1.15, bands);
-                flowing += half3(0.13, 0.065, 0.006) * smoothstep(0.55, 0.78, bands);
+                float2 driftUV = uv - direction * (_Time.y * 0.022);
+                float bands = FlowNoise(driftUV * float2(55.0, 19.0));
+                bands = bands * 0.7 + FlowNoise(driftUV * float2(110.0, 38.0)) * 0.3;
+                flowing *= lerp(0.45, 1.2, smoothstep(0.2, 0.8, bands));
+                flowing += half3(0.22, 0.11, 0.008) * smoothstep(0.55, 0.78, bands);
                 return half4(lerp(still.rgb, flowing, mask), 1.0);
             }
             ENDHLSL
         }
     }
-    Fallback "Unlit/Texture"
+    Fallback Off
 }
