@@ -5574,15 +5574,15 @@ public partial class UIManager : MonoBehaviour
     GameObject go = new GameObject("ComboDisplay (auto)", typeof(RectTransform));
     go.transform.SetParent(UiRoot, false);
     comboDisplayRoot = go.GetComponent<RectTransform>();
-    comboDisplayRoot.anchorMin = new Vector2(1f, 1f);
-    comboDisplayRoot.anchorMax = new Vector2(1f, 1f);
-    comboDisplayRoot.pivot = new Vector2(1f, 1f);
+    comboDisplayRoot.anchorMin = new Vector2(0.28f, 1f);
+    comboDisplayRoot.anchorMax = new Vector2(0.72f, 1f);
+    comboDisplayRoot.pivot = new Vector2(0.5f, 1f);
     // Keep streak feedback below the centered level meter.
-    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -158f);
-    comboDisplayRoot.sizeDelta = new Vector2(400f, 52f);
+    comboDisplayRoot.anchoredPosition = new Vector2(0f, -142f);
+    comboDisplayRoot.sizeDelta = new Vector2(0f, 52f);
 
     comboDisplayTmp = go.AddComponent<TextMeshProUGUI>();
-    comboDisplayTmp.alignment = TextAlignmentOptions.TopRight;
+    comboDisplayTmp.alignment = TextAlignmentOptions.Top;
     comboDisplayTmp.fontSize = 48f;
     comboDisplayTmp.fontStyle = FontStyles.Bold;
     comboDisplayTmp.color = Color.white;
@@ -5619,7 +5619,7 @@ public partial class UIManager : MonoBehaviour
     chargeRect.pivot = new Vector2(0.5f, 1f);
     chargeRect.sizeDelta = new Vector2(0f, 40f);
     chargeRect.anchoredPosition = new Vector2(0f, -18f);
-    lightningChargeTmp.alignment = TextAlignmentOptions.TopRight;
+    lightningChargeTmp.alignment = TextAlignmentOptions.Top;
     go.SetActive(false);
   }
 

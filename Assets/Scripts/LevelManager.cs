@@ -14,9 +14,9 @@ public static class LevelManager
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
-    public const int SpaceUnlockScore = 50_000;
-    public const int LavaUnlockScore = 100_000;
-    public const int FinalLevelGoal = 200_000;
+    public const int SpaceUnlockScore = 75_000;
+    public const int LavaUnlockScore = 150_000;
+    public const int FinalLevelGoal = 250_000;
 
     [System.Serializable]
     public struct LevelConfig

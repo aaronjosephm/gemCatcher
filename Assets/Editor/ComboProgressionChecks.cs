@@ -56,7 +56,7 @@ public static class ComboProgressionChecks
                 for (int level = 0; level < 4; level++)
                 {
                     var id = (LevelManager.LevelId)level;
-                    int goal = new[] { 25000, 50000, 100000, 200000 }[level];
+                    int goal = new[] { 25000, 75000, 150000, 250000 }[level];
                     float start = new[] { 2.4f, 3f, 3.2f, 3.4f }[level];
                     float end = new[] { 4f, 4.5f, 5f, 5.2f }[level];
                     Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(0, goal, id), start),
@@ -74,9 +74,9 @@ public static class ComboProgressionChecks
                 }
             }
             finally { UnityEngine.Object.DestroyImmediate(speedConfig); }
-            Require(LevelManager.JungleUnlockScore == 25000 && LevelManager.SpaceUnlockScore == 50000
-                && LevelManager.LavaUnlockScore == 100000 && LevelManager.FinalLevelGoal == 200000,
-                "Level goals must be 25k/50k/100k/200k.");
+            Require(LevelManager.JungleUnlockScore == 25000 && LevelManager.SpaceUnlockScore == 75000
+                && LevelManager.LavaUnlockScore == 150000 && LevelManager.FinalLevelGoal == 250000,
+                "Level goals must be 25k/75k/150k/250k.");
             GameState.Mode = GameState.GameMode.Normal;
             ComboManager.ClearSilently();
             tiers.Clear();
