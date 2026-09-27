@@ -3,8 +3,8 @@ Shader "GemCatch/MoltenRiver"
     Properties
     {
         [MainTexture] _MainTex ("Cavern", 2D) = "black" {}
-        _FlowRate ("Cycles per second", Float) = 0.16
-        _FlowDistance ("Flow distance", Range(0, 0.15)) = 0.08
+        _FlowSpeed ("Downstream speed", Range(0, 0.05)) = 0.012
+        _FlowStrength ("Surface contrast", Range(0, 1)) = 0.65
     }
     SubShader
     {
@@ -23,8 +23,8 @@ Shader "GemCatch/MoltenRiver"
             SAMPLER(sampler_MainTex);
             CBUFFER_START(UnityPerMaterial)
                 float4 _MainTex_ST;
-                float _FlowRate;
-                float _FlowDistance;
+                float _FlowSpeed;
+                float _FlowStrength;
             CBUFFER_END
             struct Attributes { float4 positionOS : POSITION; float2 uv : TEXCOORD0; };
             struct Varyings { float4 positionCS : SV_POSITION; float2 uv : TEXCOORD0; };
@@ -63,27 +63,24 @@ Shader "GemCatch/MoltenRiver"
                 float2 uv = input.uv;
                 half4 still = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uv);
                 half mask = LavaMask(still.rgb, uv);
-                // Two offset flow phases crossfade so there is no visible loop reset.
-                float phaseA = frac(_Time.y * _FlowRate);
-                float phaseB = frac(_Time.y * _FlowRate + 0.5);
-                float weightA = 1.0 - abs(phaseA * 2.0 - 1.0);
-                // Downstream toward the foreground, bending with the winding river.
-                float2 direction = normalize(float2(0.6 * sin(uv.y * 30.0 + 0.8), -1.0));
-                float2 uvA = saturate(uv - direction * (phaseA - 0.5) * _FlowDistance);
-                float2 uvB = saturate(uv - direction * (phaseB - 0.5) * _FlowDistance);
-                half3 sampleA = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uvA).rgb;
-                half3 sampleB = SAMPLE_TEXTURE2D(_MainTex, sampler_MainTex, uvB).rgb;
-                // Anchor both river banks; never pull dark rock pixels into moving lava.
-                half3 a = lerp(still.rgb, sampleA, LavaMask(sampleA, uvA));
-                half3 b = lerp(still.rgb, sampleB, LavaMask(sampleB, uvB));
-                half3 flowing = lerp(b, a, weightA);
-                // Elongated molten streaks travel continuously downstream. This
-                // adds readable movement even where the source lava is nearly flat.
-                float2 driftUV = uv - direction * (_Time.y * 0.022);
-                float bands = FlowNoise(driftUV * float2(55.0, 19.0));
-                bands = bands * 0.7 + FlowNoise(driftUV * float2(110.0, 38.0)) * 0.3;
-                flowing *= lerp(0.45, 1.2, smoothstep(0.2, 0.8, bands));
-                flowing += half3(0.22, 0.11, 0.008) * smoothstep(0.55, 0.78, bands);
+                // Sample the artwork only at its original UV. Moving the painted
+                // river and crossfading reset phases made it stretch and breathe.
+                // Bend a fixed coordinate field along the river, then translate
+                // surface detail along its length at a constant rate. Never multiply
+                // a UV-dependent direction by time: that accumulates shear.
+                float across = uv.x + 0.020 * cos(uv.y * 30.0 + 0.8);
+                float downstream = uv.y + _Time.y * _FlowSpeed;
+                float2 surfaceUV = float2(across * 65.0, downstream * 24.0);
+                float crust = FlowNoise(surfaceUV);
+                float detail = FlowNoise(surfaceUV * 2.0 + float2(13.7, 4.2));
+                float surface = crust * 0.75 + detail * 0.25;
+                // Dark rafts and hot seams drift together without a timed pulse,
+                // texture reset, or movement of the silhouette and river banks.
+                float rafts = smoothstep(0.48, 0.72, surface);
+                float seams = smoothstep(0.30, 0.40, surface)
+                    * (1.0 - smoothstep(0.43, 0.51, surface));
+                half3 flowing = still.rgb * (1.0 - rafts * 0.65 * _FlowStrength);
+                flowing += half3(0.28, 0.12, 0.012) * seams * _FlowStrength;
                 return half4(lerp(still.rgb, flowing, mask), 1.0);
             }
             ENDHLSL
