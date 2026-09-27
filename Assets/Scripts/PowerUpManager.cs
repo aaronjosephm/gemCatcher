@@ -123,6 +123,8 @@ public class PowerUpManager : MonoBehaviour
   public static int ShieldCharges => shieldCharges;
 
   public static bool MagnetActive => magnetActive;
+  // Share the pull without granting a separate magnet pickup or changing its timer/HUD.
+  public static bool GemAttractionActive => magnetActive || swapActive;
   public static float MagnetTimeRemaining => magnetTimer;
 
   public static float ShieldTimeRemaining => shieldTimer;

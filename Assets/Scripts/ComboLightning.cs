@@ -12,13 +12,24 @@ public sealed class ComboLightning : MonoBehaviour
     public float Remaining { get; private set; }
     public bool Active => Tier > 0 && Remaining > 0f;
     public static float DurationForTier(int tier) => 5f + 3f * (Mathf.Clamp(tier, 1, 4) - 1);
-    public static float RangeInColumns(int tier) => 0.75f + 0.25f * (Mathf.Clamp(tier, 1, 4) - 1);
+    // Use boulder-slot spacing so reach scales with the playfield.
+    public static float RangeInColumns(int tier) => 2f * Mathf.Clamp(tier, 1, 4);
 
     private CatchZone catchZone;
     private BoxCollider body;
     private float zapTimer;
     private float rippleTimer;
-    private float rippleAngle;
+
+    public static float ZapIntervalForTier(int tier)
+    {
+        switch (Mathf.Clamp(tier, 1, 4))
+        {
+            case 1: return 0.5f;
+            case 2: return 0.2f;
+            case 3: return 0.125f;
+            default: return 0.1f;
+        }
+    }
 
     void Awake()
     {
@@ -34,8 +45,8 @@ public sealed class ComboLightning : MonoBehaviour
         if (GameState.Mode != GameState.GameMode.Rush || !GameState.IsPlaying) return;
         Tier = count >= 30 ? 4 : count >= 20 ? 3 : count >= 10 ? 2 : 1;
         Remaining = DurationForTier(Tier); // Upgrade replaces, rather than stacks, the timer.
-        zapTimer = 0.12f;
-        rippleTimer = 0f;
+        zapTimer = 0f;
+        rippleTimer = Random.Range(0.06f, 0.13f);
         Ripple(true);
         CatchBurst.Spawn(Origin, new Color(0.45f, 0.85f, 1f));
     }
@@ -49,9 +60,7 @@ public sealed class ComboLightning : MonoBehaviour
         LightningSpawnEffect.ClearComboEffects();
     }
 
-    Vector3 Origin => body != null
-        ? new Vector3(body.bounds.center.x, body.bounds.center.y, body.bounds.min.z - 0.1f)
-        : transform.position + Vector3.back * 0.5f;
+    Vector3 Origin => body != null ? body.bounds.center : transform.position;
 
     void Update()
     {
@@ -79,31 +88,35 @@ public sealed class ComboLightning : MonoBehaviour
         rippleTimer -= Time.deltaTime;
         if (rippleTimer <= 0f)
         {
-            rippleTimer = 0.16f;
+            rippleTimer = Random.Range(0.06f, 0.13f);
             Ripple(false);
         }
         zapTimer -= Time.deltaTime;
         if (zapTimer > 0f) return;
-        zapTimer = Mathf.Lerp(0.48f, 0.24f, (Tier - 1) / 3f);
-        ZapNearestGem();
+        // Stay ready when no gem is in range. Never burst several catches in one frame.
+        if (ZapNearestGem()) zapTimer = ZapIntervalForTier(Tier);
     }
 
     void Ripple(bool audible)
     {
         Vector3 center = Origin;
-        float radius = (body != null ? Mathf.Max(body.bounds.extents.x, body.bounds.extents.y) : 0.4f)
+        float radius = (body != null ? body.bounds.extents.magnitude : 0.6f)
             + 0.12f + Tier * 0.07f;
-        rippleAngle += 0.7f;
-        for (int i = 0; i < 3; i++)
+        int count = Random.Range(2, 5);
+        for (int i = 0; i < count; i++)
         {
-            float angle = rippleAngle + i * Mathf.PI * 2f / 3f;
-            Vector3 from = center + new Vector3(Mathf.Cos(angle), Mathf.Sin(angle), 0f) * radius;
-            Vector3 to = center + new Vector3(Mathf.Cos(angle + 1.5f), Mathf.Sin(angle + 1.5f), 0f) * radius;
-            LightningSpawnEffect.Arc(from, to, 0.045f + Tier * 0.015f, audible && i == 0, transform);
+            // Each short arc has its own orientation and sweep on the sphere.
+            Vector3 start = Random.onUnitSphere;
+            Vector3 tangent = Vector3.Cross(start,
+                Mathf.Abs(start.y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+            tangent = Quaternion.AngleAxis(Random.Range(0f, 360f), start) * tangent;
+            LightningSpawnEffect.SphericalArc(center, radius, start, tangent,
+                Random.Range(0.4f, 1.3f), 0.035f + Tier * 0.01f,
+                audible && i == 0, transform);
         }
     }
 
-    void ZapNearestGem()
+    bool ZapNearestGem()
     {
         float columnWidth = RushColumns.ColumnWidth;
         float range = columnWidth * RangeInColumns(Tier);
@@ -121,12 +134,14 @@ public sealed class ComboLightning : MonoBehaviour
             nearestDistance = distance;
             nearest = gem;
         }
-        if (nearest == null) return;
+        if (nearest == null) return false;
         Vector3 target = nearest.transform.position;
         // Tier can change during the catch; use the current tier for this bolt.
         float width = 0.08f + Tier * 0.025f;
-        if (catchZone.TryLightningCatch(nearest))
-            LightningSpawnEffect.Arc(Origin, new Vector3(target.x, target.y, Origin.z), width, true);
+        Vector3 origin = Origin;
+        if (!catchZone.TryLightningCatch(nearest)) return false;
+        LightningSpawnEffect.Arc(origin, target, width, true, transform, true);
+        return true;
     }
 
     void OnDestroy()

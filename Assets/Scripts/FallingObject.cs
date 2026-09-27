@@ -637,8 +637,8 @@ public class FallingObject : MonoBehaviour
         // Move the object
         transform.Translate(movementDirection * dt, Space.World);
 
-        // Magnet attraction: pull gems toward the catcher when magnet is active.
-        if (!isHazard && !isRushMagnet && !isRushShield && !isRushDice && !isRushMasterGem && PowerUpManager.MagnetActive)
+        // Magnet and Probability Drive share the same gem attraction.
+        if (!isHazard && !isRushMagnet && !isRushShield && !isRushDice && !isRushMasterGem && PowerUpManager.GemAttractionActive)
         {
             GameObject catcher = CatcherManager.Instance != null ? CatcherManager.Instance.CatcherInstance : null;
             if (catcher != null)

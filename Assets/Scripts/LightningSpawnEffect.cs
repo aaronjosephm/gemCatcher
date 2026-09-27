@@ -13,7 +13,7 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private const float BoltLength = 4f;
     private const float Jitter = 0.45f;
     private const int LayerCount = 4;
-    private const int InitialBoltPoolSize = 2;
+    private const int InitialBoltPoolSize = 16;
     private const int InitialSparkPoolSize = 20;
     private const int AudioSourcePoolSize = 2;
 
@@ -52,6 +52,13 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private bool comboEffect;
     private Transform followTarget;
     private Vector3 previousFollowPosition;
+    private bool followOriginOnly;
+    private bool sphericalArc;
+    private Vector3 sphereCenter;
+    private Vector3 sphereStart;
+    private Vector3 sphereTangent;
+    private float sphereRadius;
+    private float sphereSweep;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticState()
@@ -86,17 +93,38 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     }
 
     /// <summary>Reuse the spawn bolt layers for a directed combo arc.</summary>
-    public static void Arc(Vector3 from, Vector3 to, float scale, bool audible = false, Transform follow = null)
+    public static void Arc(Vector3 from, Vector3 to, float scale, bool audible = false, Transform follow = null, bool originOnly = false)
     {
         LightningSpawnEffect effect = AcquireBolt();
         effect.comboEffect = true;
         effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
         effect.Activate(to);
         effect.origin = from;
+        effect.followOriginOnly = originOnly;
         effect.followTarget = follow;
         if (follow != null) effect.previousFollowPosition = follow.position;
         effect.GenerateBolt();
         if (audible) PlayZap(from, true);
+    }
+
+    /// <summary>A jagged curved path on a sphere, independent of target strikes.</summary>
+    public static void SphericalArc(Vector3 center, float radius, Vector3 start,
+        Vector3 tangent, float sweep, float scale, bool audible, Transform follow)
+    {
+        LightningSpawnEffect effect = AcquireBolt();
+        effect.comboEffect = true;
+        effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
+        effect.Activate(center);
+        effect.sphericalArc = true;
+        effect.sphereCenter = center;
+        effect.sphereRadius = radius;
+        effect.sphereStart = start;
+        effect.sphereTangent = tangent;
+        effect.sphereSweep = sweep;
+        effect.followTarget = follow;
+        if (follow != null) effect.previousFollowPosition = follow.position;
+        effect.GenerateBolt();
+        if (audible) PlayZap(center, true);
     }
 
     public static void ClearComboEffects()
@@ -334,6 +362,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         Initialize();
 
         followTarget = null;
+        followOriginOnly = false;
+        sphericalArc = false;
         strikePoint = targetPosition;
         transform.position = targetPosition;
         origin = new Vector3(
@@ -360,7 +390,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         {
             Vector3 delta = followTarget.position - previousFollowPosition;
             origin += delta;
-            strikePoint += delta;
+            if (!followOriginOnly) strikePoint += delta;
+            if (sphericalArc) sphereCenter += delta;
             previousFollowPosition = followTarget.position;
             if (delta.sqrMagnitude > 0f) GenerateBolt();
         }
@@ -393,7 +424,15 @@ public sealed class LightningSpawnEffect : MonoBehaviour
             float t = i / (float)(Segments - 1);
             Vector3 point = Vector3.Lerp(origin, strikePoint, t);
 
-            if (i > 0 && i < Segments - 1)
+            if (sphericalArc)
+            {
+                float angle = t * sphereSweep;
+                Vector3 direction = sphereStart * Mathf.Cos(angle) + sphereTangent * Mathf.Sin(angle);
+                // Small 3D perturbations keep the arc jagged without cutting across the shell.
+                direction = (direction + Random.insideUnitSphere * 0.055f).normalized;
+                point = sphereCenter + direction * sphereRadius;
+            }
+            else if (i > 0 && i < Segments - 1)
             {
                 point.x += Random.Range(-Jitter, Jitter) * (comboEffect ? widthScale * 3f : 1f);
                 point.y += Random.Range(-Jitter * 0.25f, Jitter * 0.25f) * (comboEffect ? widthScale * 3f : 1f);

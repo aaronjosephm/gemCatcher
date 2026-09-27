@@ -45,8 +45,10 @@ public static class ComboProgressionChecks
             {
                 Require(ComboLightning.DurationForTier(tier) == new[] { 5f, 8f, 11f, 14f }[tier - 1],
                     "Charge durations must be 5/8/11/14 seconds.");
-                if (tier > 1) Require(ComboLightning.RangeInColumns(tier) > ComboLightning.RangeInColumns(tier - 1),
-                    "Each charge must increase collection range.");
+                Require(ComboLightning.RangeInColumns(tier) == new[] { 2f, 4f, 6f, 8f }[tier - 1],
+                    "Charge reach must be 2/4/6/8 boulder slots.");
+                Require(ComboLightning.ZapIntervalForTier(tier) == new[] { 0.5f, 0.2f, 0.125f, 0.1f }[tier - 1],
+                    "Zap intervals must be 500/200/125/100 ms.");
             }
             GameState.Mode = GameState.GameMode.Normal;
             ComboManager.ClearSilently();
