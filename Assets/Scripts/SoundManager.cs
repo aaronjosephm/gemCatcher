@@ -399,8 +399,11 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
+        // Selecting a level reloads the scene behind the curtain, but this
+        // persistent AudioSource should keep its playback position. Only block
+        // starting a NEW menu track during a transition (e.g. returning from play).
         bool wantMenu = ((!GameState.IsPlaying && !GemCatcher.IsGameOver) || GameState.IsTutorial)
-            && !SceneTransitionCurtain.IsTransitioning
+            && (!SceneTransitionCurtain.IsTransitioning || menu.source.isPlaying)
             && !(RoundManager.Instance != null && RoundManager.Instance.HasCompletedLevel);
         menu.source.volume = menu.volume * MusicVolume;
 
