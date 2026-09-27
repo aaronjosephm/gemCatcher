@@ -36,15 +36,15 @@ public static class ComboProgressionChecks
             Require(broken == 0 && resets == 1, "Successful expiry must refresh HUD without a lost-streak event.");
             tiers.Clear();
             for (int i = 0; i < 5; i++) ComboManager.RegisterCatch();
-            Require(tiers.Count == 1 && tiers[0] == 5, "A new cycle must earn lightning again.");
+            Require(tiers.Count == 1 && tiers[0] == 5, "A new cycle must earn its first multiplier again.");
             ComboManager.Break();
             Require(broken == 1 && ComboManager.CurrentCombo == 0, "A rock hit must break the streak.");
             ComboManager.Break();
             Require(broken == 1, "Repeated break must not duplicate cancellation.");
             for (int tier = 1; tier <= 4; tier++)
             {
-                Require(ComboLightning.DurationForTier(tier) == new[] { 5f, 8f, 11f, 14f }[tier - 1],
-                    "Charge durations must be 5/8/11/14 seconds.");
+                Require(ComboLightning.DurationForTier(tier) == new[] { 0f, 0f, 0f, 10f }[tier - 1],
+                    "Only Gem Rush grants lightning, lasting exactly 10 seconds.");
                 Require(ComboLightning.RangeInColumns(tier) == new[] { 2f, 4f, 6f, 8f }[tier - 1],
                     "Charge reach must be 2/4/6/8 boulder slots.");
                 Require(ComboLightning.ZapIntervalForTier(tier) == new[] { 0.5f, 0.2f, 0.125f, 0.1f }[tier - 1],

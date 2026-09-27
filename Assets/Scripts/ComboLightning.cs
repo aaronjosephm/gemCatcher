@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Rush tier rewards. Uses normal catch routing, so each remotely caught gem
+/// Ten-second lightning reward for the Gem Rush achievement. Uses normal catch routing, so each remotely caught gem
 /// is retired once and awards the same points/combo as a contact catch.
 /// </summary>
 [RequireComponent(typeof(CatchZone))]
@@ -11,7 +11,8 @@ public sealed class ComboLightning : MonoBehaviour
     public int Tier { get; private set; }
     public float Remaining { get; private set; }
     public bool Active => Tier > 0 && Remaining > 0f;
-    public static float DurationForTier(int tier) => 5f + 3f * (Mathf.Clamp(tier, 1, 4) - 1);
+    public const float GemRushDuration = 10f;
+    public static float DurationForTier(int tier) => tier == 4 ? GemRushDuration : 0f;
     // Use boulder-slot spacing so reach scales with the playfield.
     public static float RangeInColumns(int tier) => 2f * Mathf.Clamp(tier, 1, 4);
 
@@ -42,9 +43,10 @@ public sealed class ComboLightning : MonoBehaviour
 
     void Charge(int count, float multiplier)
     {
-        if (GameState.Mode != GameState.GameMode.Rush || !GameState.IsPlaying) return;
-        Tier = count >= 30 ? 4 : count >= 20 ? 3 : count >= 10 ? 2 : 1;
-        Remaining = DurationForTier(Tier); // Upgrade replaces, rather than stacks, the timer.
+        if (GameState.Mode != GameState.GameMode.Rush || !GameState.IsPlaying
+            || !ComboManager.IsGemRush || Active) return;
+        Tier = 4;
+        Remaining = GemRushDuration; // Earlier achievements grant no lightning; catches cannot refresh it.
         zapTimer = 0f;
         rippleTimer = Random.Range(0.06f, 0.13f);
         Ripple(true);
