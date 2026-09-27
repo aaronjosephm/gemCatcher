@@ -10,14 +10,15 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava, Underwater }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
     public const int SpaceUnlockScore = 75_000;
     public const int LavaUnlockScore = 150_000;
     public const int UnderwaterUnlockScore = 250_000;
-    public const int FinalLevelGoal = 500_000;
+    public const int MoltenDepthsUnlockScore = 500_000;
+    public const int FinalLevelGoal = 750_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -136,6 +137,23 @@ public static class LevelManager
             bombChance = 0.15f,
             goldenChance = 0.08f,
             dailyMaxFallSpeed = 5.4f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.MoltenDepths,
+            displayName = "Molten Depths",
+            backgroundResource = "Backgrounds/MoltenDepthsBackground",
+            musicResource = "Audio/UnderwaterMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18" },
+            unlockScore = MoltenDepthsUnlockScore,
+            cameraColor = new Color(0.055f, 0.025f, 0.035f),
+            initialFallSpeed = 3.8f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 5.6f,
             dailyMinSpawnInterval = 1f,
             placementDuration = 2.5f,
         },

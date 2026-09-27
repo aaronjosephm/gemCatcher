@@ -777,7 +777,7 @@ public class ObjectPooler : MonoBehaviour
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.Underwater)
+        if (level == LevelManager.LevelId.Underwater || level == LevelManager.LevelId.MoltenDepths)
         {
             baseGem = "Magic_Gem_22"; // Orange gem from Level 4: 320 points.
             upgradeGem = "Magic_Gem_18"; // Blue sapphire: 640 points.

@@ -80,6 +80,9 @@ public class CaveBackgroundFit : MonoBehaviour
     MeshRenderer mr = GetComponent<MeshRenderer>();
     if (mr == null) return;
 
+    LavaRiverBackground river = GetComponent<LavaRiverBackground>();
+    if (cfg.id != LevelManager.LevelId.MoltenDepths && river != null) river.enabled = false;
+
     // If the level defines a full material (e.g. water shader), apply it directly.
     if (!string.IsNullOrEmpty(cfg.backgroundMaterialResource))
     {
@@ -96,6 +99,12 @@ public class CaveBackgroundFit : MonoBehaviour
       {
         mr.material.mainTexture = tex;
       }
+    }
+
+    if (cfg.id == LevelManager.LevelId.MoltenDepths)
+    {
+      if (river == null) river = gameObject.AddComponent<LavaRiverBackground>();
+      river.Apply(Resources.Load<Texture2D>(cfg.backgroundResource));
     }
 
     ReadAspectFromMaterial();
