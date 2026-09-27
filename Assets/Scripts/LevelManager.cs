@@ -16,9 +16,9 @@ public static class LevelManager
     public const int JungleUnlockScore = 25_000;
     public const int SpaceUnlockScore = 75_000;
     public const int LavaUnlockScore = 150_000;
-    public const int UnderwaterUnlockScore = 250_000;
-    public const int MoltenDepthsUnlockScore = 500_000;
-    public const int FinalLevelGoal = 1_000_000;
+    public const int UnderwaterUnlockScore = 350_000;
+    public const int MoltenDepthsUnlockScore = 700_000;
+    public const int FinalLevelGoal = 1_400_000;
 
     [System.Serializable]
     public struct LevelConfig
