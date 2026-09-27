@@ -23,7 +23,7 @@ public partial class UIManager : MonoBehaviour
   public float fadeOutDuration = 0.5f; // Duration of the fade out animation in seconds
 
   [Header("HUD (auto-created if not assigned)")]
-  [Tooltip("Top-right score tracker. Auto-created on a screen-space canvas if left blank.")]
+  [Tooltip("Top-center score tracker. Auto-created on a screen-space canvas if left blank.")]
   public TextMeshProUGUI scoreDisplay;
   [Tooltip("Top-left lives tracker. Auto-created on a screen-space canvas if left blank.")]
   public TextMeshProUGUI livesDisplay;
@@ -528,8 +528,8 @@ public partial class UIManager : MonoBehaviour
       if (rendered != lastRenderedScore)
       {
         lastRenderedScore = rendered;
-        if (scoreText != null) scoreText.text = "Score: " + rendered;
-        if (scoreDisplay != null) scoreDisplay.text = "Score: " + rendered;
+        if (scoreText != null) scoreText.text = rendered.ToString("N0");
+        if (scoreDisplay != null) scoreDisplay.text = rendered.ToString("N0");
 
         // Quick scale pop on the score display when the number changes — a tiny detail
         // that makes the HUD feel alive. The ease-back below pulls it to 1.0 again.
@@ -743,7 +743,7 @@ public partial class UIManager : MonoBehaviour
     }
   }
 
-  // Auto-create a TMP score display anchored to the top right if none is wired up.
+  // Auto-create a TMP score display anchored to the top center if none is wired up.
   void EnsureScoreDisplay()
   {
     if (scoreDisplay != null || hudCanvas == null) return;
@@ -752,18 +752,24 @@ public partial class UIManager : MonoBehaviour
     go.transform.SetParent(UiRoot, false);
 
     RectTransform rect = go.GetComponent<RectTransform>();
-    rect.anchorMin = new Vector2(1f, 1f);
-    rect.anchorMax = new Vector2(1f, 1f);
-    rect.pivot = new Vector2(1f, 1f);
-    rect.anchoredPosition = new Vector2(-40f, -20f);
-    rect.sizeDelta = new Vector2(500f, 100f);
+    rect.anchorMin = new Vector2(0.5f, 1f);
+    rect.anchorMax = new Vector2(0.5f, 1f);
+    rect.pivot = new Vector2(0.5f, 1f);
+    rect.anchoredPosition = new Vector2(0f, -20f);
+    rect.anchorMin = new Vector2(0.28f, 1f);
+    rect.anchorMax = new Vector2(0.72f, 1f);
+    rect.sizeDelta = new Vector2(0f, 90f);
 
     scoreDisplay = go.AddComponent<TextMeshProUGUI>();
-    scoreDisplay.alignment = TextAlignmentOptions.TopRight;
+    scoreDisplay.alignment = TextAlignmentOptions.Center;
     scoreDisplay.fontSize = 64f;
+    scoreDisplay.enableAutoSizing = true;
+    scoreDisplay.fontSizeMin = 42f;
+    scoreDisplay.fontSizeMax = 64f;
+    scoreDisplay.raycastTarget = false;
     scoreDisplay.fontStyle = FontStyles.Bold;
     scoreDisplay.color = Color.white;
-    scoreDisplay.text = "Score: " + GemCatcher.Score;
+    scoreDisplay.text = GemCatcher.Score.ToString("N0");
   }
 
   // Auto-create a TMP lives display anchored to the top left if none is wired up.
@@ -778,12 +784,13 @@ public partial class UIManager : MonoBehaviour
     rect.anchorMin = new Vector2(0f, 1f);
     rect.anchorMax = new Vector2(0f, 1f);
     rect.pivot = new Vector2(0f, 1f);
-    rect.anchoredPosition = new Vector2(40f, -20f);
-    rect.sizeDelta = new Vector2(500f, 100f);
+    rect.anchoredPosition = new Vector2(32f, -36f);
+    rect.sizeDelta = new Vector2(240f, 80f);
 
     livesDisplay = go.AddComponent<TextMeshProUGUI>();
     livesDisplay.alignment = TextAlignmentOptions.TopLeft;
-    livesDisplay.fontSize = 64f;
+    livesDisplay.fontSize = 52f;
+    livesDisplay.raycastTarget = false;
     livesDisplay.fontStyle = FontStyles.Bold;
     livesDisplay.color = Color.white;
   }
@@ -792,7 +799,7 @@ public partial class UIManager : MonoBehaviour
   {
     if (livesDisplay == null) return;
     // Use the standard Black Heart Suit char so we don't depend on emoji fonts.
-    livesDisplay.text = "Lives: " + new string('\u2665', Mathf.Max(0, newLives));
+    livesDisplay.text = new string('\u2665', Mathf.Max(0, newLives));
     // Tint red when only one life is left for a bit of urgency.
     livesDisplay.color = newLives <= 1 ? new Color(1f, 0.45f, 0.45f) : Color.white;
   }
@@ -2536,7 +2543,7 @@ public partial class UIManager : MonoBehaviour
 
     if (!unlocked)
     {
-      statusTmp.text = $"Cross finish line ({config.unlockScore:N0} pts)";
+      statusTmp.text = $"Beat previous level ({config.unlockScore:N0} pts)";
       statusTmp.color = new Color(0.6f, 0.4f, 0.3f);
     }
     else if (selected)
@@ -5567,16 +5574,15 @@ public partial class UIManager : MonoBehaviour
     GameObject go = new GameObject("ComboDisplay (auto)", typeof(RectTransform));
     go.transform.SetParent(UiRoot, false);
     comboDisplayRoot = go.GetComponent<RectTransform>();
-    comboDisplayRoot.anchorMin = new Vector2(1f, 1f);
-    comboDisplayRoot.anchorMax = new Vector2(1f, 1f);
-    comboDisplayRoot.pivot = new Vector2(1f, 1f);
-    // Sit just below the score. Score occupies y = -40 to ~-140; combo
-    // anchors at -150 so the two never overlap on portrait phones.
-    comboDisplayRoot.anchoredPosition = new Vector2(-40f, -130f);
-    comboDisplayRoot.sizeDelta = new Vector2(500f, 70f);
+    comboDisplayRoot.anchorMin = new Vector2(0.28f, 1f);
+    comboDisplayRoot.anchorMax = new Vector2(0.72f, 1f);
+    comboDisplayRoot.pivot = new Vector2(0.5f, 1f);
+    // Keep streak feedback below the centered level meter.
+    comboDisplayRoot.anchoredPosition = new Vector2(0f, -142f);
+    comboDisplayRoot.sizeDelta = new Vector2(0f, 52f);
 
     comboDisplayTmp = go.AddComponent<TextMeshProUGUI>();
-    comboDisplayTmp.alignment = TextAlignmentOptions.TopRight;
+    comboDisplayTmp.alignment = TextAlignmentOptions.Top;
     comboDisplayTmp.fontSize = 48f;
     comboDisplayTmp.fontStyle = FontStyles.Bold;
     comboDisplayTmp.color = Color.white;
@@ -5584,7 +5590,7 @@ public partial class UIManager : MonoBehaviour
     comboDisplayTmp.raycastTarget = false;
     comboDisplayTmp.enableAutoSizing = true;
     comboDisplayTmp.fontSizeMin = 26f;
-    comboDisplayTmp.fontSizeMax = 40f;
+    comboDisplayTmp.fontSizeMax = 34f;
     GameTextStyle.Apply(comboDisplayTmp);
 
     GameObject track = new GameObject("NextTierProgress", typeof(RectTransform), typeof(Image));
@@ -5606,6 +5612,14 @@ public partial class UIManager : MonoBehaviour
     comboProgressFill.offsetMax = Vector2.zero;
     comboProgressImage = fill.GetComponent<Image>();
     comboProgressImage.raycastTarget = false;
+    lightningChargeTmp = ProgressText("LightningTimer", go.transform, "", 28f, new Color(0.55f, 0.9f, 1f));
+    RectTransform chargeRect = lightningChargeTmp.rectTransform;
+    chargeRect.anchorMin = new Vector2(0f, 0f);
+    chargeRect.anchorMax = new Vector2(1f, 0f);
+    chargeRect.pivot = new Vector2(0.5f, 1f);
+    chargeRect.sizeDelta = new Vector2(0f, 40f);
+    chargeRect.anchoredPosition = new Vector2(0f, -18f);
+    lightningChargeTmp.alignment = TextAlignmentOptions.Top;
     go.SetActive(false);
   }
 
@@ -5660,6 +5674,12 @@ public partial class UIManager : MonoBehaviour
   void TickComboDisplay()
   {
     if (comboDisplayRoot == null) return;
+    if (lightningChargeTmp != null)
+    {
+      ComboLightning charge = ComboLightning.Instance;
+      lightningChargeTmp.text = charge != null && charge.Active
+          ? $"CHARGED · {Mathf.CeilToInt(charge.Remaining)}s" : "";
+    }
     if (!GameState.IsPlaying || GemCatcher.IsGameOver)
       comboDisplayRoot.gameObject.SetActive(false);
 

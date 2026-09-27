@@ -15,6 +15,7 @@ public class SpawnDirector : MonoBehaviour
 
     // ---- runtime state --------------------------------------------------
     private float roundStartTime;
+    private FinishLine finishLine;
     private float nextWaveSpawnY;        // world-Y where the next wave starts
     private WaveDefinition activeWave;   // wave currently being materialized
     private DecisionPlan activePlan;     // plan for current wave
@@ -59,11 +60,6 @@ public class SpawnDirector : MonoBehaviour
     private float nextMasterGemDropTime;
     private const float MasterGemDropInterval = 180f; // every 3 minutes
     private bool pendingMasterGem;
-
-    // Finish line (level unlock)
-    private bool pendingFinishLine;
-    private bool finishLineTriggered; // only one finish line per round
-    private int finishLineScore;
 
     // Tutorial intro
     private int tutorialCatchCount;
@@ -113,6 +109,7 @@ public class SpawnDirector : MonoBehaviour
         }
 
         config.EvaluateTier(0f, currentTier);
+        currentTier.fallSpeed = config.GetLevelFallSpeed(0, LevelManager.GetFinishLineScore(), LevelManager.SelectedLevel);
         CurrentFallSpeed = currentTier.fallSpeed;
 
         BuildRockPool();
@@ -143,15 +140,6 @@ public class SpawnDirector : MonoBehaviour
             nextMasterGemDropTime = float.MaxValue;
         else
             nextMasterGemDropTime = MasterGemDropInterval;
-
-        finishLineScore = LevelManager.GetFinishLineScore();
-        finishLineTriggered = finishLineScore <= 0;
-        pendingFinishLine = false;
-
-        if (!finishLineTriggered && RoundManager.Instance != null)
-        {
-            RoundManager.Instance.OnScoreChanged += OnScoreChangedForFinishLine;
-        }
 
         if (config.logValidation)
             Debug.Log($"[SpawnDirector] Run seed: {runSeed}");
@@ -225,7 +213,7 @@ public class SpawnDirector : MonoBehaviour
 
     void Update()
     {
-        if (!GameState.IsPlaying || GemCatcher.IsGameOver) return;
+        if (!GameState.IsPlaying || GemCatcher.IsGameOver || Time.timeScale <= 0f) return;
 
         // --- Tutorial phase: scripted intro waves before normal gameplay ---
         if (tutorialActive)
@@ -234,12 +222,22 @@ public class SpawnDirector : MonoBehaviour
             return; // skip normal wave generation during tutorial
         }
 
+        if (RoundManager.Instance != null && RoundManager.Instance.HasReachedLevelGoal)
+        {
+            RevealFinishLine();
+            return; // Existing objects keep falling, but no new waves appear past the finish.
+        }
+
         float elapsed = Time.time - roundStartTime;
         float difficultyElapsed = firstRunWarmupActive
             ? Mathf.Max(0f, elapsed - FirstRunWarmupDuration)
             : elapsed;
         config.EvaluateTier(difficultyElapsed, currentTier);
         ApplyFirstRunWarmup(elapsed, currentTier);
+        // Pattern variety still follows its existing curve; speed only follows points.
+        currentTier.fallSpeed = config.GetLevelFallSpeed(GemCatcher.Score,
+            LevelManager.GetFinishLineScore(), LevelManager.SelectedLevel);
+        ApplyScoreSpeed(currentTier.fallSpeed);
         RushConfig.DifficultyTier tier = currentTier;
 
         // Mark power-ups as pending when timers elapse.
@@ -325,8 +323,38 @@ public class SpawnDirector : MonoBehaviour
         }
     }
 
+    private void ApplyScoreSpeed(float speed)
+    {
+        if (Mathf.Approximately(CurrentFallSpeed, speed)) return;
+        CurrentFallSpeed = speed;
+        if (activeWave != null) activeWave.fallSpeed = speed;
+        // Apply each milestone to the whole playfield immediately, rather than
+        // mixing old and new wave speeds until the old objects disappear.
+        foreach (FallingObject falling in FallingObject.ActiveInstances)
+            if (falling != null && falling.gameObject.activeInHierarchy)
+                falling.UpdateFallSpeed(speed);
+    }
+
+    private void RevealFinishLine()
+    {
+        if (finishLine != null || RoundManager.Instance.HasCompletedLevel) return;
+        // The 100% score step sets the finish speed, without a separate speed jump.
+        CurrentFallSpeed = config.GetLevelFallSpeed(GemCatcher.Score,
+            LevelManager.GetFinishLineScore(), LevelManager.SelectedLevel);
+        float y = ScreenPadding.WorldTop + 2f;
+        foreach (FallingObject falling in FallingObject.ActiveInstances)
+        {
+            if (falling == null || !falling.gameObject.activeInHierarchy) continue;
+            y = Mathf.Max(y, falling.transform.position.y + config.rowSpacing);
+            falling.UpdateFallSpeed(CurrentFallSpeed);
+        }
+        finishLine = FinishLine.Create(y, CurrentFallSpeed, LevelManager.GetNextLevel());
+    }
+
     public void ClearActiveRushObjects()
     {
+        if (finishLine != null) Destroy(finishLine.gameObject);
+        finishLine = null; // A rewarded continue can reveal it again if the goal was reached.
         if (rockPool != null)
         {
             for (int i = 0; i < rockPool.Count; i++)
@@ -358,7 +386,6 @@ public class SpawnDirector : MonoBehaviour
             0f,
             1f,
             Mathf.Clamp01(elapsed / FirstRunWarmupDuration));
-        tier.fallSpeed = Mathf.Lerp(1.9f, tier.fallSpeed, t);
         tier.maxRows = Mathf.RoundToInt(Mathf.Lerp(2f, tier.maxRows, t));
         tier.safeCorridorFraction =
             Mathf.Lerp(0.65f, tier.safeCorridorFraction, t);
@@ -371,14 +398,6 @@ public class SpawnDirector : MonoBehaviour
     void SpawnRow(WaveDefinition.Row row, float fallSpeed)
     {
         float spawnY = ScreenPadding.WorldTop + 1.5f;
-
-        // A finish line replaces the whole row so hazards cannot obscure it.
-        if (pendingFinishLine)
-        {
-            pendingFinishLine = false;
-            SpawnFinishLine(spawnY, fallSpeed);
-            return;
-        }
 
         bool swapped = PowerUpManager.SwapActive;
 
@@ -767,41 +786,6 @@ public class SpawnDirector : MonoBehaviour
             Debug.Log($"[SpawnDirector] MasterGem (invincibility) spawned at ({x:F2}, {y:F2})");
     }
 
-    void OnScoreChangedForFinishLine(int score)
-    {
-        if (finishLineTriggered) return;
-        if (score >= finishLineScore)
-        {
-            finishLineTriggered = true;
-            pendingFinishLine = true;
-            if (RoundManager.Instance != null)
-                RoundManager.Instance.OnScoreChanged -= OnScoreChangedForFinishLine;
-            Debug.Log(
-                $"[SpawnDirector] Finish line triggered at score {score} " +
-                $"(threshold {finishLineScore})");
-        }
-    }
-
-    void SpawnFinishLine(float y, float fallSpeed)
-    {
-        LevelManager.LevelId? nextLevel = LevelManager.GetNextLevel();
-        if (nextLevel == null)
-        {
-            return;
-        }
-
-        FinishLine line = FinishLine.Create(y, fallSpeed, nextLevel.Value);
-        if (line == null)
-        {
-            Debug.LogError("[SpawnDirector] Failed to create finish line.");
-            return;
-        }
-        standaloneDrops.Add(line.gameObject);
-
-        if (config.logValidation)
-            Debug.Log($"[SpawnDirector] Finish line spawned at y={y:F2}");
-    }
-
     // ─── Tutorial intro ─────────────────────────────────────────────────
 
     private GameObject tutorialGem; // track the gem so we know when it's caught
@@ -934,10 +918,6 @@ public class SpawnDirector : MonoBehaviour
 
     void OnDestroy()
     {
-        // Unsubscribe from score changes.
-        if (RoundManager.Instance != null)
-            RoundManager.Instance.OnScoreChanged -= OnScoreChangedForFinishLine;
-
         if (tutorialOverlay != null)
             Destroy(tutorialOverlay.gameObject);
 

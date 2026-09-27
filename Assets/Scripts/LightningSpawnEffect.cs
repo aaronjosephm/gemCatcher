@@ -13,9 +13,9 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private const float BoltLength = 4f;
     private const float Jitter = 0.45f;
     private const int LayerCount = 4;
-    private const int InitialBoltPoolSize = 2;
+    private const int InitialBoltPoolSize = 16;
     private const int InitialSparkPoolSize = 20;
-    private const int AudioSourcePoolSize = 2;
+    private const int AudioSourcePoolSize = 12;
 
     private static readonly float[] LayerWidths = { 3.5f, 1.8f, 0.8f, 0.4f };
     private static readonly Color[] LayerColors =
@@ -37,7 +37,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private static Transform sparkPoolRoot;
     private static Material[] boltMaterials;
     private static Material sparkMaterial;
-    private static AudioClip zapClip;
+    private static AudioClip[] zapClips;
+    private static int nextZapClip;
     private static AudioSource[] zapSources;
     private static int nextZapSource;
 
@@ -48,6 +49,17 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private Vector3 origin;
     private int flickerFrames;
     private bool initialized;
+    private float widthScale = 1f;
+    private bool comboEffect;
+    private Transform followTarget;
+    private Vector3 previousFollowPosition;
+    private bool followOriginOnly;
+    private bool sphericalArc;
+    private Vector3 sphereCenter;
+    private Vector3 sphereStart;
+    private Vector3 sphereTangent;
+    private float sphereRadius;
+    private float sphereSweep;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     private static void ResetStaticState()
@@ -59,7 +71,11 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         sparkPoolRoot = null;
         boltMaterials = null;
         sparkMaterial = null;
-        zapClip = null;
+        if (zapClips != null)
+            foreach (AudioClip clip in zapClips)
+                if (clip != null) Destroy(clip);
+        zapClips = null;
+        nextZapClip = 0;
         zapSources = null;
         nextZapSource = 0;
     }
@@ -73,26 +89,64 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     /// <summary>Create a lightning bolt that strikes the given world position.</summary>
     public static void Strike(Vector3 targetPosition)
     {
-        EnsurePool();
-
-        LightningSpawnEffect effect = null;
-        for (int i = 0; i < BoltPool.Count; i++)
-        {
-            if (!BoltPool[i].gameObject.activeSelf)
-            {
-                effect = BoltPool[i];
-                break;
-            }
-        }
-
-        if (effect == null)
-        {
-            effect = CreateBolt();
-        }
-
+        LightningSpawnEffect effect = AcquireBolt();
+        effect.comboEffect = false;
+        effect.widthScale = 1f;
         effect.Activate(targetPosition);
         SpawnSparks(targetPosition);
-        PlayZap(targetPosition);
+        PlayZap(targetPosition, false);
+    }
+
+    /// <summary>Reuse the spawn bolt layers for a directed combo arc.</summary>
+    public static void Arc(Vector3 from, Vector3 to, float scale, bool audible = false, Transform follow = null, bool originOnly = false)
+    {
+        LightningSpawnEffect effect = AcquireBolt();
+        effect.comboEffect = true;
+        effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
+        effect.Activate(to);
+        effect.origin = from;
+        effect.followOriginOnly = originOnly;
+        effect.followTarget = follow;
+        if (follow != null) effect.previousFollowPosition = follow.position;
+        effect.GenerateBolt();
+        if (audible) PlayZap(from, true);
+    }
+
+    /// <summary>A jagged curved path on a sphere, independent of target strikes.</summary>
+    public static void SphericalArc(Vector3 center, float radius, Vector3 start,
+        Vector3 tangent, float sweep, float scale, bool audible, Transform follow)
+    {
+        LightningSpawnEffect effect = AcquireBolt();
+        effect.comboEffect = true;
+        effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
+        effect.Activate(center);
+        effect.sphericalArc = true;
+        effect.sphereCenter = center;
+        effect.sphereRadius = radius;
+        effect.sphereStart = start;
+        effect.sphereTangent = tangent;
+        effect.sphereSweep = sweep;
+        effect.followTarget = follow;
+        if (follow != null) effect.previousFollowPosition = follow.position;
+        effect.GenerateBolt();
+        if (audible) PlayZap(center, true);
+    }
+
+    public static void ClearComboEffects()
+    {
+        foreach (LightningSpawnEffect bolt in BoltPool)
+            if (bolt != null && bolt.comboEffect) bolt.gameObject.SetActive(false);
+        if (zapSources != null)
+            foreach (AudioSource source in zapSources)
+                if (source != null) source.Stop();
+    }
+
+    private static LightningSpawnEffect AcquireBolt()
+    {
+        EnsurePool();
+        for (int i = 0; i < BoltPool.Count; i++)
+            if (!BoltPool[i].gameObject.activeSelf) return BoltPool[i];
+        return CreateBolt();
     }
 
     private static void EnsurePool()
@@ -118,7 +172,9 @@ public sealed class LightningSpawnEffect : MonoBehaviour
             CreateSpark();
         }
 
-        zapClip = Resources.Load<AudioClip>("Audio/LightningZap");
+        // Build once during prewarm; no synthesis/allocation on individual strikes.
+        zapClips = new AudioClip[3];
+        for (int i = 0; i < zapClips.Length; i++) zapClips[i] = CreateThunderCrack(i);
     }
 
     private static Transform CreatePoolChild(string name)
@@ -246,9 +302,46 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         }
     }
 
-    private static void PlayZap(Vector3 position)
+    // Broadband cracks and filtered noise give thunder a percussive attack and
+    // low rolling tail, without the pitched buzz of the old electrical zap.
+    private static AudioClip CreateThunderCrack(int variant)
     {
-        if (zapClip == null || zapSources == null || zapSources.Length == 0) return;
+        const int sampleRate = 24000;
+        const float seconds = 0.7f;
+        float[] samples = new float[(int)(sampleRate * seconds)];
+        var noise = new System.Random(7193 + variant * 997);
+        float low = 0f;
+        float body = 0f;
+        float peak = 0.001f;
+        float echoDelay = 0.027f + variant * 0.009f;
+        for (int i = 0; i < samples.Length; i++)
+        {
+            float t = i / (float)sampleRate;
+            float white = (float)(noise.NextDouble() * 2.0 - 1.0);
+            low += 0.035f * (white - low);
+            body += 0.19f * (white - body);
+            float crack = Mathf.Exp(-t * 85f);
+            float echo = t > echoDelay ? Mathf.Exp(-(t - echoDelay) * 100f) * 0.45f : 0f;
+            float rumble = (1f - Mathf.Exp(-t * 75f)) * Mathf.Exp(-t * 7f);
+            float attack = Mathf.Clamp01(t / 0.001f);
+            float fade = Mathf.Clamp01((seconds - t) / 0.08f);
+            float sample = ((white - body) * (crack + echo) * 0.7f
+                + body * Mathf.Exp(-t * 24f) * 1.2f
+                + low * rumble * 3.5f) * attack * fade;
+            samples[i] = sample;
+            peak = Mathf.Max(peak, Mathf.Abs(sample));
+        }
+        // Leave headroom for overlapping strikes at the 100 ms Gem Rush cadence.
+        for (int i = 0; i < samples.Length; i++) samples[i] *= 0.8f / peak;
+        AudioClip clip = AudioClip.Create($"Thunder Crack {variant + 1}", samples.Length, 1, sampleRate, false);
+        clip.hideFlags = HideFlags.DontSave;
+        clip.SetData(samples, 0);
+        return clip;
+    }
+
+    private static void PlayZap(Vector3 position, bool screenSpace)
+    {
+        if (zapClips == null || zapSources == null || zapSources.Length == 0) return;
 
         int selectedIndex = nextZapSource;
         for (int i = 0; i < zapSources.Length; i++)
@@ -262,9 +355,12 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         }
 
         AudioSource source = zapSources[selectedIndex];
+        source.spatialBlend = screenSpace ? 0f : 1f;
         source.transform.position = position;
-        source.clip = zapClip;
-        source.volume = SoundManager.SfxVolume;
+        source.clip = zapClips[nextZapClip];
+        nextZapClip = (nextZapClip + 1) % zapClips.Length;
+        source.pitch = Random.Range(0.93f, 1.07f);
+        source.volume = SoundManager.SfxVolume * 0.48f;
         source.Play();
         nextZapSource = (selectedIndex + 1) % zapSources.Length;
     }
@@ -311,6 +407,9 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     {
         Initialize();
 
+        followTarget = null;
+        followOriginOnly = false;
+        sphericalArc = false;
         strikePoint = targetPosition;
         transform.position = targetPosition;
         origin = new Vector3(
@@ -322,8 +421,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
         for (int i = 0; i < LayerCount; i++)
         {
-            layers[i].startWidth = LayerWidths[i];
-            layers[i].endWidth = LayerWidths[i] * 0.3f;
+            layers[i].startWidth = LayerWidths[i] * widthScale;
+            layers[i].endWidth = LayerWidths[i] * 0.3f * widthScale;
         }
 
         gameObject.SetActive(true);
@@ -332,6 +431,16 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
     private void Update()
     {
+        if (Time.timeScale <= 0f) return;
+        if (followTarget != null)
+        {
+            Vector3 delta = followTarget.position - previousFollowPosition;
+            origin += delta;
+            if (!followOriginOnly) strikePoint += delta;
+            if (sphericalArc) sphereCenter += delta;
+            previousFollowPosition = followTarget.position;
+            if (delta.sqrMagnitude > 0f) GenerateBolt();
+        }
         timer -= Time.deltaTime;
         if (timer <= 0f)
         {
@@ -349,8 +458,8 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         float alpha = timer / Duration;
         for (int i = 0; i < LayerCount; i++)
         {
-            layers[i].startWidth = LayerWidths[i] * alpha;
-            layers[i].endWidth = LayerWidths[i] * 0.3f * alpha;
+            layers[i].startWidth = LayerWidths[i] * widthScale * alpha;
+            layers[i].endWidth = LayerWidths[i] * 0.3f * widthScale * alpha;
         }
     }
 
@@ -361,10 +470,18 @@ public sealed class LightningSpawnEffect : MonoBehaviour
             float t = i / (float)(Segments - 1);
             Vector3 point = Vector3.Lerp(origin, strikePoint, t);
 
-            if (i > 0 && i < Segments - 1)
+            if (sphericalArc)
             {
-                point.x += Random.Range(-Jitter, Jitter);
-                point.y += Random.Range(-Jitter * 0.25f, Jitter * 0.25f);
+                float angle = t * sphereSweep;
+                Vector3 direction = sphereStart * Mathf.Cos(angle) + sphereTangent * Mathf.Sin(angle);
+                // Small 3D perturbations keep the arc jagged without cutting across the shell.
+                direction = (direction + Random.insideUnitSphere * 0.055f).normalized;
+                point = sphereCenter + direction * sphereRadius;
+            }
+            else if (i > 0 && i < Segments - 1)
+            {
+                point.x += Random.Range(-Jitter, Jitter) * (comboEffect ? widthScale * 3f : 1f);
+                point.y += Random.Range(-Jitter * 0.25f, Jitter * 0.25f) * (comboEffect ? widthScale * 3f : 1f);
             }
             basePoints[i] = point;
         }

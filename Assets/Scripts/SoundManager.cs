@@ -350,7 +350,9 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver && !GameState.IsTutorial;
+        bool wantMusic = GameState.IsPlaying && !GemCatcher.IsGameOver && !GameState.IsTutorial
+            && !SceneTransitionCurtain.IsTransitioning
+            && !(RoundManager.Instance != null && RoundManager.Instance.HasCompletedLevel);
         bgm.source.volume = bgm.volume * MusicVolume;
 
         if (RoundManager.Instance != null && RoundManager.Instance.IsContinuePending)
@@ -397,7 +399,9 @@ public class SoundManager : MonoBehaviour
             return;
         }
 
-        bool wantMenu = (!GameState.IsPlaying && !GemCatcher.IsGameOver) || GameState.IsTutorial;
+        bool wantMenu = ((!GameState.IsPlaying && !GemCatcher.IsGameOver) || GameState.IsTutorial)
+            && !SceneTransitionCurtain.IsTransitioning
+            && !(RoundManager.Instance != null && RoundManager.Instance.HasCompletedLevel);
         menu.source.volume = menu.volume * MusicVolume;
 
         if (wantMenu)

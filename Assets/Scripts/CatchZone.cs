@@ -99,12 +99,31 @@ public class CatchZone : MonoBehaviour
         return withinX && withinY && withinZ;
     }
 
+    public bool CanLightningCatch(FallingObject fo)
+    {
+        return !isInvincible && fo != null && fo.gameObject.activeInHierarchy
+            && !fo.isHazard && !fo.isPoisonGem && !fo.isPowerUp
+            && !fo.isRushHeart && !fo.isRushMagnet && !fo.isRushShield
+            && !fo.isRushDice && !fo.isRushMasterGem
+            && fo.specialType != SpecialGemType.Bomb
+            && fo.specialType != SpecialGemType.MasterGem;
+    }
+
+    public bool TryLightningCatch(FallingObject fo)
+    {
+        if (!GameState.IsPlaying || Time.timeScale <= 0f
+            || RoundManager.Instance == null || RoundManager.Instance.IsGameOver
+            || RoundManager.Instance.HasCompletedLevel || !CanLightningCatch(fo)) return false;
+        ProcessCatch(fo);
+        return !fo.gameObject.activeSelf;
+    }
+
     private void ProcessCatch(FallingObject fo)
     {
         if (!fo.gameObject.activeInHierarchy) return;
 
         RoundManager rm = RoundManager.Instance;
-        if (rm == null) return;
+        if (rm == null || rm.IsGameOver || rm.HasCompletedLevel) return;
 
         Vector3 catchPosition = fo.transform.position;
 
@@ -120,8 +139,9 @@ public class CatchZone : MonoBehaviour
             // MasterGem invincibility: catch rocks for points.
             if (PowerUpManager.InvincibilityActive)
             {
+                int beforeRock = rm.Score;
                 rm.AddScore(50);
-                UIManager.Instance?.SpawnFloatingText("+50", new Color(1f, 0.85f, 0.2f), catchPosition);
+                UIManager.Instance?.SpawnFloatingText($"+{rm.Score - beforeRock}", new Color(1f, 0.85f, 0.2f), catchPosition);
                 CatchBurst.Spawn(catchPosition, new Color(0.6f, 0.6f, 0.6f));
                 if (SoundManager.Instance != null)
                     SoundManager.Instance.PlayWithPitch("RockBreak", 1f);
@@ -178,8 +198,9 @@ public class CatchZone : MonoBehaviour
                 }
                 else
                 {
+                    int beforeHeart = rm2.Score;
                     rm2.AddScore(100);
-                    rm2.NotifyGemCaught(100, catchPosition);
+                    rm2.NotifyGemCaught(rm2.Score - beforeHeart, catchPosition);
                 }
             }
             PlayCatchEffect(fo);
@@ -306,8 +327,9 @@ public class CatchZone : MonoBehaviour
 
         // 2× SCORE power-up stacks multiplicatively with combo.
         int awarded = Mathf.RoundToInt(basePoints * comboMultiplier * PowerUpManager.DoubleScoreMultiplier);
+        int before = rm.Score;
         rm.AddScore(awarded);
-        rm.NotifyGemCaught(awarded, catchPosition);
+        rm.NotifyGemCaught(rm.Score - before, catchPosition);
 
         // Every third consecutive catch grants +1 life (disabled in Rush — hearts only).
         if (!isRush && comboAfterCatch > 0 && comboAfterCatch % 3 == 0)

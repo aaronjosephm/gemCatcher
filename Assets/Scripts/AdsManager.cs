@@ -772,6 +772,11 @@ public class AdsManager : MonoBehaviour
         interstitialCadence.BeginRound();
     }
 
+    public void NotifyLevelCompleted()
+    {
+        interstitialCadence.CompleteRound();
+    }
+
     private void HandleRoundFinalized()
     {
         interstitialCadence.CompleteRound();

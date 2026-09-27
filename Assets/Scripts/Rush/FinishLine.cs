@@ -16,7 +16,7 @@ public sealed class FinishLine : MonoBehaviour
     private Texture2D checkerTexture;
     private Material runtimeMaterial;
     private float fallSpeed;
-    private LevelManager.LevelId targetLevel;
+    private LevelManager.LevelId? targetLevel;
     private bool initialized;
     private bool crossed;
 
@@ -26,7 +26,7 @@ public sealed class FinishLine : MonoBehaviour
     public static FinishLine Create(
         float spawnY,
         float speed,
-        LevelManager.LevelId levelToUnlock)
+        LevelManager.LevelId? levelToUnlock)
     {
         GameObject root = new GameObject("FinishLine");
         FinishLine finishLine = root.AddComponent<FinishLine>();
@@ -37,7 +37,7 @@ public sealed class FinishLine : MonoBehaviour
     public void Initialize(
         float spawnY,
         float speed,
-        LevelManager.LevelId levelToUnlock)
+        LevelManager.LevelId? levelToUnlock)
     {
         fallSpeed = Mathf.Max(0.1f, speed);
         targetLevel = levelToUnlock;
@@ -203,8 +203,8 @@ public sealed class FinishLine : MonoBehaviour
 
     void CompleteCrossing()
     {
+        if (RoundManager.Instance == null || !RoundManager.Instance.TryCompleteLevel()) return;
         crossed = true;
-        LevelManager.UnlockLevel(targetLevel);
         UIManager.Instance?.ShowLevelComplete(targetLevel);
         SoundManager.Instance?.PlayWithPitch("GemCaught", 1.8f);
     }
