@@ -127,7 +127,7 @@ public static class LevelManager
             id = LevelId.Underwater,
             displayName = "Sapphire Reef",
             backgroundResource = "Backgrounds/UnderwaterBackground",
-            musicResource = "Audio/JungleMusic",
+            musicResource = "Audio/UnderwaterMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/SapphireGem" },
             unlockScore = UnderwaterUnlockScore,
             cameraColor = new Color(0.015f, 0.12f, 0.28f),
