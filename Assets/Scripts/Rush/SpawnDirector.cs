@@ -109,7 +109,7 @@ public class SpawnDirector : MonoBehaviour
         }
 
         config.EvaluateTier(0f, currentTier);
-        currentTier.fallSpeed = config.GetLevelFallSpeed(0f, LevelManager.SelectedLevel);
+        currentTier.fallSpeed = config.GetLevelFallSpeed(0, LevelManager.GetFinishLineScore(), LevelManager.SelectedLevel);
         CurrentFallSpeed = currentTier.fallSpeed;
 
         BuildRockPool();
@@ -233,8 +233,11 @@ public class SpawnDirector : MonoBehaviour
             ? Mathf.Max(0f, elapsed - FirstRunWarmupDuration)
             : elapsed;
         config.EvaluateTier(difficultyElapsed, currentTier);
-        currentTier.fallSpeed = config.GetLevelFallSpeed(difficultyElapsed, LevelManager.SelectedLevel);
         ApplyFirstRunWarmup(elapsed, currentTier);
+        // Pattern variety still follows its existing curve; speed only follows points.
+        currentTier.fallSpeed = config.GetLevelFallSpeed(GemCatcher.Score,
+            LevelManager.GetFinishLineScore(), LevelManager.SelectedLevel);
+        ApplyScoreSpeed(currentTier.fallSpeed);
         RushConfig.DifficultyTier tier = currentTier;
 
         // Mark power-ups as pending when timers elapse.
@@ -320,12 +323,24 @@ public class SpawnDirector : MonoBehaviour
         }
     }
 
+    private void ApplyScoreSpeed(float speed)
+    {
+        if (Mathf.Approximately(CurrentFallSpeed, speed)) return;
+        CurrentFallSpeed = speed;
+        if (activeWave != null) activeWave.fallSpeed = speed;
+        // Apply each milestone to the whole playfield immediately, rather than
+        // mixing old and new wave speeds until the old objects disappear.
+        foreach (FallingObject falling in FallingObject.ActiveInstances)
+            if (falling != null && falling.gameObject.activeInHierarchy)
+                falling.UpdateFallSpeed(speed);
+    }
+
     private void RevealFinishLine()
     {
         if (finishLine != null || RoundManager.Instance.HasCompletedLevel) return;
-        // Lock the finish approach to this level's terminal speed, also used by
-        // the next level at time zero. Place the marker behind all remaining rows.
-        CurrentFallSpeed = config.GetLevelFallSpeed(float.MaxValue, LevelManager.SelectedLevel);
+        // The 100% score step sets the finish speed, without a separate speed jump.
+        CurrentFallSpeed = config.GetLevelFallSpeed(GemCatcher.Score,
+            LevelManager.GetFinishLineScore(), LevelManager.SelectedLevel);
         float y = ScreenPadding.WorldTop + 2f;
         foreach (FallingObject falling in FallingObject.ActiveInstances)
         {
@@ -371,7 +386,6 @@ public class SpawnDirector : MonoBehaviour
             0f,
             1f,
             Mathf.Clamp01(elapsed / FirstRunWarmupDuration));
-        tier.fallSpeed = Mathf.Lerp(1.9f, tier.fallSpeed, t);
         tier.maxRows = Mathf.RoundToInt(Mathf.Lerp(2f, tier.maxRows, t));
         tier.safeCorridorFraction =
             Mathf.Lerp(0.65f, tier.safeCorridorFraction, t);

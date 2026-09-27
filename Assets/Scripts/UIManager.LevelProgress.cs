@@ -12,6 +12,7 @@ public partial class UIManager
     private GameObject levelCompletionPanel;
     private RectTransform levelCompletionCard;
     private TextMeshProUGUI lightningChargeTmp;
+    private static Sprite completionRoundedSprite;
 
     void TickLevelProgress()
     {
@@ -22,7 +23,7 @@ public partial class UIManager
         if (levelCompletionOpen && levelCompletionCard != null)
         {
             RectTransform parent = (RectTransform)levelCompletionCard.parent;
-            float scale = Mathf.Min(parent.rect.width * 0.9f / 860f, parent.rect.height * 0.86f / 800f);
+            float scale = Mathf.Min(parent.rect.width * 0.88f / 760f, parent.rect.height * 0.86f / 820f);
             levelCompletionCard.localScale = Vector3.one * Mathf.Max(0.1f, scale);
         }
         bool visible = GameState.Mode == GameState.GameMode.Rush
@@ -77,29 +78,50 @@ public partial class UIManager
 
         levelCompletionPanel = BuildFullScreenPanel("LevelComplete",
             new Color(0f, 0f, 0f, 0.52f), out Transform content);
-        // A single gold face, with no stacked rims, bevel sprites, or outline components.
-        Image outer = ProgressImage("GoldFace", content, new Color(1f, 0.83f, 0.25f));
-        levelCompletionCard = outer.rectTransform;
+        Image face = ProgressImage("GoldFace", content, new Color(1f, 0.82f, 0.32f));
+        face.sprite = CompletionRoundedSprite();
+        face.type = Image.Type.Sliced;
+        face.raycastTarget = true;
+        levelCompletionCard = face.rectTransform;
         levelCompletionCard.anchorMin = levelCompletionCard.anchorMax = new Vector2(0.5f, 0.5f);
-        levelCompletionCard.sizeDelta = new Vector2(860f, 800f);
-        levelCompletionCard.anchoredPosition = new Vector2(0f, 15f);
-        RectTransform card = outer.rectTransform;
-        CompletionText(card, nextLevel.HasValue ? "LEVEL\nCOMPLETE!" : "ALL LEVELS\nCOMPLETE!",
-            78f, Color.white, 210f, 190f);
-        CompletionText(card, LevelManager.CurrentConfig.displayName, 38f,
-            new Color(0.38f, 0.16f, 0.025f), 70f, 65f);
-        CompletionText(card, $"{GemCatcher.Score:N0}", 60f, Color.white, -5f, 80f);
+        levelCompletionCard.sizeDelta = new Vector2(760f, 820f);
+        levelCompletionCard.anchoredPosition = Vector2.zero;
+        Shadow shadow = face.gameObject.AddComponent<Shadow>();
+        shadow.effectColor = new Color(0.06f, 0.025f, 0f, 0.24f);
+        shadow.effectDistance = new Vector2(0f, -12f);
+        RectTransform card = levelCompletionCard;
+        Color ink = new Color(0.23f, 0.12f, 0.035f);
+        Color mutedInk = new Color(0.43f, 0.27f, 0.08f);
+        CompletionText(card, $"LEVEL {(int)LevelManager.SelectedLevel + 1:00} CLEARED",
+            27f, mutedInk, 310f, 44f);
+        CompletionText(card, nextLevel.HasValue ? "LEVEL COMPLETE!" : "YOU DID IT!",
+            58f, ink, 237f, 84f);
+        CompletionText(card, LevelManager.CurrentConfig.displayName, 32f,
+            mutedInk, 169f, 48f);
+        CompletionText(card, $"{GemCatcher.Score:N0}", 88f, ink, 70f, 110f);
+        CompletionText(card, "POINTS COLLECTED", 23f, mutedInk, 0f, 34f);
+        Image divider = ProgressImage("Divider", card, new Color(0.43f, 0.27f, 0.08f, 0.18f));
+        divider.rectTransform.anchorMin = new Vector2(0.16f, 0.5f);
+        divider.rectTransform.anchorMax = new Vector2(0.84f, 0.5f);
+        divider.rectTransform.sizeDelta = new Vector2(0f, 2f);
+        divider.rectTransform.anchoredPosition = new Vector2(0f, -49f);
+        CompletionText(card, nextLevel.HasValue
+            ? $"UP NEXT: {LevelManager.GetConfig(nextLevel.Value).displayName}"
+            : "Every level conquered!", 27f, mutedInk, -96f, 46f);
         if (nextLevel.HasValue)
         {
             Button next = BuildPanelButton(card, "NextLevel", "Next level",
-                new Color(0.12f, 0.65f, 0.24f), Vector2.zero, new Vector2(500f, 108f),
+                new Color(0.08f, 0.28f, 0.20f), Vector2.zero, new Vector2(500f, 96f),
                 () => LeaveCompletedLevel(nextLevel));
-            PositionCompletionButton(next, -125f);
+            PositionCompletionButton(next, -186f);
+            StyleCompletionButton(next, new Color(0.08f, 0.28f, 0.20f), new Color(1f, 0.97f, 0.85f));
         }
         Button menu = BuildPanelButton(card, "MainMenu", "Main menu",
-            new Color(0.04f, 0.42f, 0.86f), Vector2.zero, new Vector2(500f, 108f),
+            Color.clear, Vector2.zero, new Vector2(500f, 96f),
             () => LeaveCompletedLevel(null));
-        PositionCompletionButton(menu, nextLevel.HasValue ? -260f : -160f);
+        PositionCompletionButton(menu, nextLevel.HasValue ? -297f : -186f);
+        StyleCompletionButton(menu, nextLevel.HasValue ? Color.clear : new Color(0.08f, 0.28f, 0.20f),
+            nextLevel.HasValue ? ink : new Color(1f, 0.97f, 0.85f));
         StartCoroutine(SpawnConfetti());
     }
 
@@ -130,6 +152,45 @@ public partial class UIManager
                 GameState.SkipMainMenuOnLoad = destination.HasValue;
                 Time.timeScale = 1f;
             });
+    }
+
+    static Sprite CompletionRoundedSprite()
+    {
+        if (completionRoundedSprite != null) return completionRoundedSprite;
+        const int size = 128;
+        const float radius = 24f;
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = "Completion Rounded Face";
+        texture.hideFlags = HideFlags.DontSave;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+        Color[] pixels = new Color[size * size];
+        for (int y = 0; y < size; y++)
+            for (int x = 0; x < size; x++)
+            {
+                float dx = Mathf.Max(Mathf.Abs(x + 0.5f - size * 0.5f) - (size * 0.5f - radius), 0f);
+                float dy = Mathf.Max(Mathf.Abs(y + 0.5f - size * 0.5f) - (size * 0.5f - radius), 0f);
+                float alpha = Mathf.Clamp01(radius - Mathf.Sqrt(dx * dx + dy * dy));
+                pixels[y * size + x] = new Color(1f, 1f, 1f, alpha);
+            }
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        completionRoundedSprite = Sprite.Create(texture, new Rect(0f, 0f, size, size),
+            new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, Vector4.one * 26f);
+        completionRoundedSprite.hideFlags = HideFlags.DontSave;
+        return completionRoundedSprite;
+    }
+
+    static void StyleCompletionButton(Button button, Color background, Color text)
+    {
+        Image image = button.GetComponent<Image>();
+        image.sprite = CompletionRoundedSprite();
+        image.type = Image.Type.Sliced;
+        image.color = background;
+        foreach (Outline outline in button.GetComponents<Outline>()) outline.enabled = false;
+        TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
+        GameTextStyle.ApplyCelebration(label);
+        label.color = text;
     }
 
     static Image ProgressImage(string name, Transform parent, Color color)
@@ -165,7 +226,7 @@ public partial class UIManager
     static void CompletionText(Transform parent, string text, float size, Color color, float y, float height)
     {
         TextMeshProUGUI label = ProgressText("Label", parent, text, size, color);
-        // Match the warm brown lettering outline of the illustrated ad card.
+        // Clean dark lettering lets the gold card breathe.
         GameTextStyle.ApplyCelebration(label);
         RectTransform rect = label.rectTransform;
         rect.anchorMin = new Vector2(0f, 0.5f);
@@ -180,11 +241,11 @@ public partial class UIManager
         rect.anchorMin = new Vector2(0.14f, 0.5f);
         rect.anchorMax = new Vector2(0.86f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.sizeDelta = new Vector2(0f, 108f);
+        rect.sizeDelta = new Vector2(0f, 96f);
         TextMeshProUGUI label = button.GetComponentInChildren<TextMeshProUGUI>();
         label.enableAutoSizing = true;
         label.fontSizeMin = 30f;
-        label.fontSizeMax = 48f;
+        label.fontSizeMax = 38f;
         label.enableWordWrapping = false;
         rect.anchoredPosition = new Vector2(0f, y);
     }

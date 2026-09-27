@@ -234,13 +234,20 @@ public class RushConfig : ScriptableObject
         return difficultyTiers[0].fallSpeed;
     }
 
-    /// <summary>Adjacent levels share their ending/starting speed. Cave keeps its original curve.</summary>
-    public float GetLevelFallSpeed(float elapsedTime, LevelManager.LevelId level)
+    /// <summary>Fixed speed steps at 0%, 10%, ... 100% of the level's point goal.</summary>
+    public float GetLevelFallSpeed(int score, int goal, LevelManager.LevelId level)
     {
-        float start = GetFallSpeed(0f);
-        float end = GetFallSpeed(float.MaxValue);
-        float step = Mathf.Max(0f, end - start);
-        return GetFallSpeed(elapsedTime) + Mathf.Clamp((int)level, 0, 3) * step;
+        float start, end;
+        switch (level)
+        {
+            case LevelManager.LevelId.Jungle: start = 3f; end = 4.5f; break;
+            case LevelManager.LevelId.Space: start = 3.2f; end = 5f; break;
+            case LevelManager.LevelId.Lava: start = 3.4f; end = 5.2f; break;
+            default: start = 2.4f; end = 4f; break;
+        }
+        // Integer arithmetic keeps exact score milestones stable; long avoids overflow.
+        int step = goal > 0 ? (int)(Mathf.Clamp(score, 0, goal) * 10L / goal) : 0;
+        return Mathf.Lerp(start, end, step / 10f);
     }
 
     /// <summary>Linearly interpolate all numeric fields between two tiers.</summary>

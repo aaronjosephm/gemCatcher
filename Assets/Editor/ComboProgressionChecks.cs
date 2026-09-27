@@ -56,16 +56,22 @@ public static class ComboProgressionChecks
                 for (int level = 0; level < 4; level++)
                 {
                     var id = (LevelManager.LevelId)level;
-                    float start = speedConfig.GetLevelFallSpeed(0f, id);
-                    float end = speedConfig.GetLevelFallSpeed(float.MaxValue, id);
-                    Require(end > start, "Every level must accelerate.");
-                    if (level < 3)
-                        Require(Mathf.Approximately(end, speedConfig.GetLevelFallSpeed(0f,
-                            (LevelManager.LevelId)(level + 1))),
-                            "Each level must start at the previous level's ending speed.");
+                    int goal = new[] { 25000, 50000, 100000, 200000 }[level];
+                    float start = new[] { 2.4f, 3f, 3.2f, 3.4f }[level];
+                    float end = new[] { 4f, 4.5f, 5f, 5.2f }[level];
+                    Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(0, goal, id), start),
+                        "Each level must use its requested starting speed.");
+                    for (int step = 1; step <= 10; step++)
+                    {
+                        int milestone = goal / 10 * step;
+                        Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(milestone - 1, goal, id),
+                            Mathf.Lerp(start, end, (step - 1) / 10f)), "Speed must hold until the next milestone.");
+                        Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(milestone, goal, id),
+                            Mathf.Lerp(start, end, step / 10f)), "Speed must advance at exactly each 10% milestone.");
+                    }
+                    Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(goal * 2, goal, id), end),
+                        "Speed must never exceed the level cap.");
                 }
-                Require(Mathf.Approximately(speedConfig.GetLevelFallSpeed(55f, LevelManager.LevelId.Cave),
-                    speedConfig.GetFallSpeed(55f)), "Cave must retain its original speed curve.");
             }
             finally { UnityEngine.Object.DestroyImmediate(speedConfig); }
             Require(LevelManager.JungleUnlockScore == 25000 && LevelManager.SpaceUnlockScore == 50000

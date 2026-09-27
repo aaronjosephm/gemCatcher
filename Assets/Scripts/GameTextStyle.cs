@@ -121,7 +121,10 @@ public static class GameTextStyle
                 hideFlags = HideFlags.DontSave,
             };
             celebrationMaterial.SetColor("_OutlineColor", new Color(0.38f, 0.12f, 0.015f));
-            celebrationMaterial.SetFloat("_OutlineWidth", 0.22f);
+            celebrationMaterial.SetFloat("_OutlineWidth", 0f);
+            celebrationMaterial.DisableKeyword("OUTLINE_ON");
+            celebrationMaterial.DisableKeyword("UNDERLAY_ON");
+            celebrationMaterial.DisableKeyword("UNDERLAY_INNER");
             celebrationMaterial.SetColor("_UnderlayColor", new Color(0.25f, 0.06f, 0.005f));
         }
         text.font = fredoka;
