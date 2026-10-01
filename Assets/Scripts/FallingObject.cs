@@ -36,6 +36,7 @@ public class FallingObject : MonoBehaviour
     // Read-only accessor for the current velocity vector (used by trajectory prediction).
     public Vector3 MovementDirection => movementDirection;
     private Vector3 rotationSpeed;
+    public bool uprightSpin { get; set; } = false;
     private float objectHalfWidth;
     private float objectHalfHeight;
     private float leftBoundary;
@@ -644,7 +645,10 @@ public class FallingObject : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Rotate the object
-        transform.Rotate(rotationSpeed * dt);
+        if (uprightSpin)
+            transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y + rotationSpeed.y * dt, 0f);
+        else
+            transform.Rotate(rotationSpeed * dt);
 
         // Move the object
         transform.Translate(movementDirection * dt, Space.World);

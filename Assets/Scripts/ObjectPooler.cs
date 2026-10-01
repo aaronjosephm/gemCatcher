@@ -277,6 +277,7 @@ public class ObjectPooler : MonoBehaviour
                     obj.SetActive(false);
                     FallingObject fallingObj = obj.GetComponent<FallingObject>();
                     if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
+                    fallingObj.uprightSpin = extraPrefab.name == "Magic_Gem_9";
                     fallingObj.fallSpeed = currentFallSpeed;
                     // Match scale of main pool gems (raw prefabs are 1x, game is 4x).
                     obj.transform.localScale = Vector3.one * 4f;
