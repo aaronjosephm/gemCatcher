@@ -200,7 +200,7 @@ public static class LevelManager
             id = LevelId.DiamondCave,
             displayName = "Diamond Cave",
             backgroundResource = "Backgrounds/DiamondCaveBackground",
-            musicResource = "Audio/BackgroundMusic",
+            musicResource = "Audio/DiamondCaveMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
             unlockScore = DiamondCaveUnlockScore,
             cameraColor = new Color(0.04f, 0.08f, 0.25f),
