@@ -216,7 +216,7 @@ public static class LevelManager
         {
             id = LevelId.BlackHole,
             displayName = "Black Hole",
-            musicResource = "Audio/SpaceMusic",
+            musicResource = "Audio/BlackHoleMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18", "Gems/Magic_Gem_3", "Gems/Magic_Gem_20", "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
             unlockScore = BlackHoleUnlockScore,
             cameraColor = Color.black,
