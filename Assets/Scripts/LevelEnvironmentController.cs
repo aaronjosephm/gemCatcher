@@ -19,6 +19,7 @@ public sealed class LevelEnvironmentController : MonoBehaviour
     [SerializeField] private EnvironmentEntry[] environments = Array.Empty<EnvironmentEntry>();
 
     private GameObject underwaterEnvironment;
+    private GameObject snowEnvironment;
 
     public LevelManager.LevelId ActiveLevel { get; private set; }
 
@@ -65,9 +66,22 @@ public sealed class LevelEnvironmentController : MonoBehaviour
         }
         else if (underwaterEnvironment != null) underwaterEnvironment.SetActive(false);
 
+        // Snow ambience sits behind gameplay and is reused if the environment is reapplied.
+        if (selectedLevel == LevelManager.LevelId.Snow)
+        {
+            if (snowEnvironment == null)
+            {
+                snowEnvironment = new GameObject("Snow Environment");
+                snowEnvironment.transform.SetParent(transform, false);
+                snowEnvironment.AddComponent<SnowAmbience>();
+            }
+            snowEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (snowEnvironment != null) snowEnvironment.SetActive(false);
+
         // Molten Depths animates the shared fitted plane directly.
-        if (selectedLevel == LevelManager.LevelId.MoltenDepths
-            || selectedLevel == LevelManager.LevelId.Snow) foundSelectedEnvironment = true;
+        if (selectedLevel == LevelManager.LevelId.MoltenDepths) foundSelectedEnvironment = true;
 
         if (!foundSelectedEnvironment)
         {
