@@ -37,6 +37,9 @@ public class FallingObject : MonoBehaviour
     public Vector3 MovementDirection => movementDirection;
     private Vector3 rotationSpeed;
     public bool uprightSpin { get; set; } = false;
+    private float uprightSpinAngle;
+    // The model's forward axis must point up before applying world-Y spin.
+    private static readonly Quaternion UprightModelTilt = Quaternion.Euler(-90f, 0f, 0f);
     private float objectHalfWidth;
     private float objectHalfHeight;
     private float leftBoundary;
@@ -229,6 +232,8 @@ public class FallingObject : MonoBehaviour
     // Method to reset the object when it's reused from the pool
     public void ResetObject()
     {
+        uprightSpinAngle = 0f;
+        if (uprightSpin) transform.rotation = UprightModelTilt;
         // Re-initialize components in case anything has changed
         InitializeComponents();
         ClearPowerUp();
@@ -646,7 +651,10 @@ public class FallingObject : MonoBehaviour
 
         // Rotate the object
         if (uprightSpin)
-            transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y + rotationSpeed.y * dt, 0f);
+        {
+            uprightSpinAngle = Mathf.Repeat(uprightSpinAngle + rotationSpeed.y * dt, 360f);
+            transform.rotation = Quaternion.AngleAxis(uprightSpinAngle, Vector3.up) * UprightModelTilt;
+        }
         else
             transform.Rotate(rotationSpeed * dt);
 
