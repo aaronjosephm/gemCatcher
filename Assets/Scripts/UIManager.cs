@@ -5634,7 +5634,7 @@ public partial class UIManager : MonoBehaviour
         && (rush || combo > 0));
     int next = ComboManager.NextThreshold;
     comboDisplayTmp.text = ComboManager.IsGemRush
-        ? $"GEM RUSH! ×5 · {combo}"
+        ? $"{ComboManager.RushName}! ×{multiplier:0.#} · {combo}"
         : next > 0 ? $"×{multiplier:0.#} · {combo}/{next}"
         : $"×{multiplier:0.#} · {combo}";
     comboDisplayTmp.color = rush ? ComboManager.CatchColor : ColorForMultiplier(multiplier);
@@ -5655,7 +5655,7 @@ public partial class UIManager : MonoBehaviour
     Color color = GameState.Mode == GameState.GameMode.Rush
         ? ComboManager.CatchColor : ColorForMultiplier(newMultiplier);
     SpawnBannerNotification(ComboManager.IsGemRush
-        ? "GEM RUSH! ×5" : $"×{newMultiplier:0.#} STREAK!", color);
+        ? $"{ComboManager.RushName}! ×{newMultiplier:0.#}" : $"×{newMultiplier:0.#} STREAK!", color);
     GameObject catcher = CatcherManager.Instance?.CatcherInstance;
     if (catcher != null) CatchBurst.Spawn(catcher.transform.position, color);
   }
@@ -5680,7 +5680,8 @@ public partial class UIManager : MonoBehaviour
     {
       ComboLightning charge = ComboLightning.Instance;
       lightningChargeTmp.text = charge != null && charge.Active
-          ? $"CHARGED · {Mathf.CeilToInt(charge.Remaining)}s" : "";
+          ? $"{(charge.IsUltra ? "ULTRA RUSH" : "CHARGED")} · {Mathf.CeilToInt(charge.Remaining)}s" : "";
+      if (charge != null && charge.Active) lightningChargeTmp.color = charge.ChargeColor;
     }
     if (!GameState.IsPlaying || GemCatcher.IsGameOver)
       comboDisplayRoot.gameObject.SetActive(false);

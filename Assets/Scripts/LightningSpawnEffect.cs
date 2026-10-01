@@ -51,6 +51,14 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     private bool initialized;
     private float widthScale = 1f;
     private bool comboEffect;
+    private bool ultraEffect;
+    private MaterialPropertyBlock boltColors;
+    private static readonly Color[] UltraLayerColors = {
+        new Color(1f, 0.01f, 0.03f, 0.25f),
+        new Color(1f, 0.025f, 0.05f, 0.5f),
+        new Color(1f, 0.12f, 0.18f, 0.85f),
+        new Color(1f, 0.55f, 0.6f, 1f)
+    };
     private Transform followTarget;
     private Vector3 previousFollowPosition;
     private bool followOriginOnly;
@@ -91,6 +99,7 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     {
         LightningSpawnEffect effect = AcquireBolt();
         effect.comboEffect = false;
+        effect.ultraEffect = false;
         effect.widthScale = 1f;
         effect.Activate(targetPosition);
         SpawnSparks(targetPosition);
@@ -98,10 +107,11 @@ public sealed class LightningSpawnEffect : MonoBehaviour
     }
 
     /// <summary>Reuse the spawn bolt layers for a directed combo arc.</summary>
-    public static void Arc(Vector3 from, Vector3 to, float scale, bool audible = false, Transform follow = null, bool originOnly = false)
+    public static void Arc(Vector3 from, Vector3 to, float scale, bool audible = false, Transform follow = null, bool originOnly = false, bool ultra = false)
     {
         LightningSpawnEffect effect = AcquireBolt();
         effect.comboEffect = true;
+        effect.ultraEffect = ultra;
         effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
         effect.Activate(to);
         effect.origin = from;
@@ -114,10 +124,11 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
     /// <summary>A jagged curved path on a sphere, independent of target strikes.</summary>
     public static void SphericalArc(Vector3 center, float radius, Vector3 start,
-        Vector3 tangent, float sweep, float scale, bool audible, Transform follow)
+        Vector3 tangent, float sweep, float scale, bool audible, Transform follow, bool ultra = false)
     {
         LightningSpawnEffect effect = AcquireBolt();
         effect.comboEffect = true;
+        effect.ultraEffect = ultra;
         effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
         effect.Activate(center);
         effect.sphericalArc = true;
@@ -371,6 +382,7 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
         layers = new LineRenderer[LayerCount];
         basePoints = new Vector3[Segments];
+        boltColors = new MaterialPropertyBlock();
 
         for (int i = 0; i < LayerCount; i++)
         {
@@ -421,6 +433,11 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
         for (int i = 0; i < LayerCount; i++)
         {
+            // Per-bolt overrides leave shared spawn materials untouched. Reset on every pool reuse.
+            Color color = ultraEffect ? UltraLayerColors[i] : LayerColors[i];
+            boltColors.SetColor("_BaseColor", color);
+            boltColors.SetColor("_Color", color);
+            layers[i].SetPropertyBlock(boltColors);
             layers[i].startWidth = LayerWidths[i] * widthScale;
             layers[i].endWidth = LayerWidths[i] * 0.3f * widthScale;
         }

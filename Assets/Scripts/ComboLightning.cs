@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Ten-second lightning reward for the Gem Rush achievement. Uses normal catch routing, so each remotely caught gem
+/// Lightning reward for Gem Rush (10 seconds) or Black Hole Ultra Rush (20 seconds). Uses normal catch routing, so each remotely caught gem
 /// is retired once and awards the same points/combo as a contact catch.
 /// </summary>
 [RequireComponent(typeof(CatchZone))]
@@ -12,7 +12,10 @@ public sealed class ComboLightning : MonoBehaviour
     public float Remaining { get; private set; }
     public bool Active => Tier > 0 && Remaining > 0f;
     public const float GemRushDuration = 10f;
-    public static float DurationForTier(int tier) => tier == 4 ? GemRushDuration : 0f;
+    public bool IsUltra { get; private set; }
+    public float Strength => IsUltra ? 2f : 1f;
+    public Color ChargeColor => IsUltra ? ComboManager.UltraRushColor : new Color(0.45f, 0.85f, 1f);
+    public static float DurationForTier(int tier) => tier == 4 ? GemRushDuration * (ComboManager.IsUltraRushLevel ? 2f : 1f) : 0f;
     // Use boulder-slot spacing so reach scales with the playfield.
     public static float RangeInColumns(int tier) => 2f * Mathf.Clamp(tier, 1, 4);
 
@@ -46,17 +49,19 @@ public sealed class ComboLightning : MonoBehaviour
         if (GameState.Mode != GameState.GameMode.Rush || !GameState.IsPlaying
             || !ComboManager.IsGemRush || Active) return;
         Tier = 4;
-        Remaining = GemRushDuration; // Earlier achievements grant no lightning; catches cannot refresh it.
+        IsUltra = ComboManager.IsUltraRush;
+        Remaining = DurationForTier(Tier); // Earlier achievements grant no lightning; catches cannot refresh it.
         zapTimer = 0f;
         rippleTimer = Random.Range(0.06f, 0.13f);
         Ripple(true);
-        CatchBurst.Spawn(Origin, new Color(0.45f, 0.85f, 1f));
+        CatchBurst.Spawn(Origin, ChargeColor);
     }
 
     void OnComboBroken(int count, float multiplier) => Cancel();
 
     public void Cancel()
     {
+        IsUltra = false;
         Tier = 0;
         Remaining = 0f;
         LightningSpawnEffect.ClearComboEffects();
@@ -78,11 +83,12 @@ public sealed class ComboLightning : MonoBehaviour
         if (Remaining <= 0f)
         {
             bool finalTier = Tier == 4;
+            Color completedColor = ChargeColor;
             Cancel();
             if (finalTier)
             {
                 ComboManager.CompleteChargeCycle();
-                UIManager.Instance?.SpawnBannerNotification("CHARGE COMPLETE!", new Color(0.4f, 0.9f, 1f));
+                UIManager.Instance?.SpawnBannerNotification("CHARGE COMPLETE!", completedColor);
             }
             return;
         }
@@ -96,7 +102,7 @@ public sealed class ComboLightning : MonoBehaviour
         zapTimer -= Time.deltaTime;
         if (zapTimer > 0f) return;
         // Stay ready when no gem is in range. Never burst several catches in one frame.
-        if (ZapNearestGem()) zapTimer = ZapIntervalForTier(Tier);
+        if (ZapNearestGem()) zapTimer = ZapIntervalForTier(Tier) / Strength;
     }
 
     void Ripple(bool audible)
@@ -114,14 +120,14 @@ public sealed class ComboLightning : MonoBehaviour
             tangent = Quaternion.AngleAxis(Random.Range(0f, 360f), start) * tangent;
             LightningSpawnEffect.SphericalArc(center, radius, start, tangent,
                 Random.Range(0.4f, 1.3f), 0.035f + Tier * 0.01f,
-                audible && i == 0, transform);
+                audible && i == 0, transform, IsUltra);
         }
     }
 
     bool ZapNearestGem()
     {
         float columnWidth = RushColumns.ColumnWidth;
-        float range = columnWidth * RangeInColumns(Tier);
+        float range = columnWidth * RangeInColumns(Tier) * Strength;
         float nearestDistance = range * range;
         FallingObject nearest = null;
         Vector3 center = body != null ? body.bounds.center : transform.position;
@@ -141,8 +147,9 @@ public sealed class ComboLightning : MonoBehaviour
         // Tier can change during the catch; use the current tier for this bolt.
         float width = 0.08f + Tier * 0.025f;
         Vector3 origin = Origin;
+        bool ultra = IsUltra; // Catch routing may reset the combo or finish the level.
         if (!catchZone.TryLightningCatch(nearest)) return false;
-        LightningSpawnEffect.Arc(origin, target, width, true, transform, true);
+        LightningSpawnEffect.Arc(origin, target, width, true, transform, true, ultra);
         return true;
     }
 

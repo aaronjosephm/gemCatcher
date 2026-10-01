@@ -41,6 +41,11 @@ public static class ComboManager
   public static bool IsGemRush => GameState.Mode == GameState.GameMode.Rush
       && CurrentCombo >= 30;
 
+  public static bool IsUltraRushLevel => LevelManager.SelectedLevel == LevelManager.LevelId.BlackHole;
+  public static bool IsUltraRush => IsGemRush && IsUltraRushLevel;
+  public static string RushName => IsUltraRushLevel ? "ULTRA RUSH" : "GEM RUSH";
+  public static readonly Color UltraRushColor = new Color(1f, 0.12f, 0.18f);
+
   public static int NextThreshold
   {
     get
@@ -93,7 +98,7 @@ public static class ComboManager
           new Color(0.8f, 0.45f, 1f), (n - 10) / 9f);
       if (n < 30) return Color.Lerp(new Color(1f, 0.4f, 0.85f),
           new Color(1f, 0.8f, 0.25f), (n - 20) / 9f);
-      return new Color(1f, 0.85f, 0.25f);
+      return IsUltraRush ? UltraRushColor : new Color(1f, 0.85f, 0.25f);
     }
   }
 
@@ -145,6 +150,9 @@ public static class ComboManager
       if (count >= Tiers[i].threshold) result = Tiers[i].multiplier;
       else break;
     }
+    // The same 30-catch achievement becomes a double-strength rush in Black Hole.
+    if (GameState.Mode == GameState.GameMode.Rush && count >= 30 && IsUltraRushLevel)
+      result *= 2f;
     return result;
   }
 
