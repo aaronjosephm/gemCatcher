@@ -176,8 +176,8 @@ public class FallingObject : MonoBehaviour
 
         // Rush golden gems (Level 3 upgrade) glow gold.
         if (isRushCrystalGem) return new Color(0.82f, 0.88f, 1f, 1f);
-        if (isRushDesertGem) return new Color(1f, 0.72f, 0.30f, 1f);
-        if (isRushSnowGem) return new Color(0.65f, 0.90f, 1f, 1f);
+        if (isRushDesertGem) return new Color(1f, 0.12f, 0.18f, 1f); // Magic_Gem_9: red aura.
+        if (isRushSnowGem) return new Color(0.15f, 1f, 0.3f, 1f); // Magic_Gem_20: green aura.
         if (isRushMoltenGem) return new Color(0.72f, 0.18f, 1f, 1f);
         if (isRushSapphireGem) return new Color(0.15f, 0.55f, 1f, 1f);
         if (isRushPlatinumGem) return new Color(1f, 0.55f, 0.1f, 1f);
