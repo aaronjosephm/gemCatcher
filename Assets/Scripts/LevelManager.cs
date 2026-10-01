@@ -166,7 +166,7 @@ public static class LevelManager
             id = LevelId.Snow,
             displayName = "Frostpeak Summit",
             backgroundResource = "Backgrounds/SnowBackground",
-            musicResource = "Audio/BackgroundMusic",
+            musicResource = "Audio/SnowMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_3", "Gems/Magic_Gem_20" },
             unlockScore = SnowUnlockScore,
             cameraColor = new Color(0.12f, 0.20f, 0.36f),
