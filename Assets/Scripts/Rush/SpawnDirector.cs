@@ -137,7 +137,8 @@ public class SpawnDirector : MonoBehaviour
         bool masterGemEnabled = LevelManager.SelectedLevel == LevelManager.LevelId.Space
                              || LevelManager.SelectedLevel == LevelManager.LevelId.Lava
                              || LevelManager.SelectedLevel == LevelManager.LevelId.Underwater
-                             || LevelManager.SelectedLevel == LevelManager.LevelId.MoltenDepths;
+                             || LevelManager.SelectedLevel == LevelManager.LevelId.MoltenDepths
+                             || LevelManager.SelectedLevel == LevelManager.LevelId.Snow;
         if (!masterGemEnabled)
             nextMasterGemDropTime = float.MaxValue;
         else

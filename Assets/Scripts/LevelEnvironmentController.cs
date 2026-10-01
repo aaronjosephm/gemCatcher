@@ -66,7 +66,8 @@ public sealed class LevelEnvironmentController : MonoBehaviour
         else if (underwaterEnvironment != null) underwaterEnvironment.SetActive(false);
 
         // Molten Depths animates the shared fitted plane directly.
-        if (selectedLevel == LevelManager.LevelId.MoltenDepths) foundSelectedEnvironment = true;
+        if (selectedLevel == LevelManager.LevelId.MoltenDepths
+            || selectedLevel == LevelManager.LevelId.Snow) foundSelectedEnvironment = true;
 
         if (!foundSelectedEnvironment)
         {

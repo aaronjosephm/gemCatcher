@@ -10,7 +10,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
@@ -18,7 +18,8 @@ public static class LevelManager
     public const int LavaUnlockScore = 150_000;
     public const int UnderwaterUnlockScore = 350_000;
     public const int MoltenDepthsUnlockScore = 700_000;
-    public const int FinalLevelGoal = 1_500_000;
+    public const int SnowUnlockScore = 1_500_000;
+    public const int FinalLevelGoal = 3_000_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -154,6 +155,23 @@ public static class LevelManager
             bombChance = 0.15f,
             goldenChance = 0.08f,
             dailyMaxFallSpeed = 5.6f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Snow,
+            displayName = "Frostpeak Summit",
+            backgroundResource = "Backgrounds/SnowBackground",
+            musicResource = "Audio/BackgroundMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_3", "Gems/Magic_Gem_20" },
+            unlockScore = SnowUnlockScore,
+            cameraColor = new Color(0.12f, 0.20f, 0.36f),
+            initialFallSpeed = 4.0f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 5.8f,
             dailyMinSpawnInterval = 1f,
             placementDuration = 2.5f,
         },

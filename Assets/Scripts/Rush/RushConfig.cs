@@ -242,6 +242,7 @@ public class RushConfig : ScriptableObject
         {
             case LevelManager.LevelId.Jungle: start = 3f; end = 4.5f; break;
             case LevelManager.LevelId.Space: start = 3.2f; end = 5f; break;
+            case LevelManager.LevelId.Snow: start = 4f; end = 5.8f; break;
             case LevelManager.LevelId.MoltenDepths: start = 3.8f; end = 5.6f; break;
             case LevelManager.LevelId.Underwater: start = 3.6f; end = 5.4f; break;
             case LevelManager.LevelId.Lava: start = 3.4f; end = 5.2f; break;
