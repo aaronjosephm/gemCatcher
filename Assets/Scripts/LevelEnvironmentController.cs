@@ -20,6 +20,7 @@ public sealed class LevelEnvironmentController : MonoBehaviour
 
     private GameObject underwaterEnvironment;
     private GameObject snowEnvironment;
+    private GameObject desertEnvironment;
 
     public LevelManager.LevelId ActiveLevel { get; private set; }
 
@@ -79,6 +80,19 @@ public sealed class LevelEnvironmentController : MonoBehaviour
             foundSelectedEnvironment = true;
         }
         else if (snowEnvironment != null) snowEnvironment.SetActive(false);
+
+        if (selectedLevel == LevelManager.LevelId.Desert)
+        {
+            if (desertEnvironment == null)
+            {
+                desertEnvironment = new GameObject("Desert Environment");
+                desertEnvironment.transform.SetParent(transform, false);
+                desertEnvironment.AddComponent<SandAmbience>();
+            }
+            desertEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (desertEnvironment != null) desertEnvironment.SetActive(false);
 
         // Molten Depths animates the shared fitted plane directly.
         if (selectedLevel == LevelManager.LevelId.MoltenDepths) foundSelectedEnvironment = true;

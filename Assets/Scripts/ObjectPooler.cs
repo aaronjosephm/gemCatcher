@@ -776,10 +776,19 @@ public class ObjectPooler : MonoBehaviour
         bool isSapphire = false;
         bool isMolten = false;
         bool isSnow = false;
+        bool isDesert = false;
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.Snow)
+        if (level == LevelManager.LevelId.Desert)
+        {
+            baseGem = "Magic_Gem_20"; // 2560 points.
+            upgradeGem = "Magic_Gem_9"; // 5120 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isSnow = !isHeart && !useUpgrade;
+            isDesert = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Snow)
         {
             baseGem = "Magic_Gem_3"; // Purple primary: 1280 points.
             upgradeGem = "Magic_Gem_20"; // Snow upgrade: 2560 points.
@@ -867,6 +876,7 @@ public class ObjectPooler : MonoBehaviour
             fo.isRushSapphireGem = isSapphire;
             fo.isRushMoltenGem = isMolten;
             fo.isRushSnowGem = isSnow;
+            fo.isRushDesertGem = isDesert;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.

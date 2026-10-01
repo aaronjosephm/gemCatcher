@@ -10,7 +10,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow, Desert }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
@@ -19,7 +19,8 @@ public static class LevelManager
     public const int UnderwaterUnlockScore = 350_000;
     public const int MoltenDepthsUnlockScore = 700_000;
     public const int SnowUnlockScore = 1_500_000;
-    public const int FinalLevelGoal = 3_000_000;
+    public const int DesertUnlockScore = 3_000_000;
+    public const int FinalLevelGoal = 6_000_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -172,6 +173,23 @@ public static class LevelManager
             bombChance = 0.15f,
             goldenChance = 0.08f,
             dailyMaxFallSpeed = 5.8f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Desert,
+            displayName = "Amber Dunes",
+            backgroundResource = "Backgrounds/DesertBackground",
+            musicResource = "Audio/BackgroundMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_20", "Gems/Magic_Gem_9" },
+            unlockScore = DesertUnlockScore,
+            cameraColor = new Color(0.60f, 0.36f, 0.18f),
+            initialFallSpeed = 4.2f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 6.0f,
             dailyMinSpawnInterval = 1f,
             placementDuration = 2.5f,
         },
