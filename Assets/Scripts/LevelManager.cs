@@ -10,7 +10,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow, Desert, DiamondCave }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow, Desert, DiamondCave, BlackHole }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
@@ -21,6 +21,7 @@ public static class LevelManager
     public const int SnowUnlockScore = 1_500_000;
     public const int DesertUnlockScore = 3_000_000;
     public const int DiamondCaveUnlockScore = 6_000_000;
+    public const int BlackHoleUnlockScore = 12_000_000;
     public const int FinalLevelGoal = 12_000_000;
 
     [System.Serializable]
@@ -208,6 +209,22 @@ public static class LevelManager
             bombChance = 0.15f,
             goldenChance = 0.08f,
             dailyMaxFallSpeed = 6.2f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.BlackHole,
+            displayName = "Black Hole",
+            musicResource = "Audio/SpaceMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18", "Gems/Magic_Gem_3", "Gems/Magic_Gem_20", "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
+            unlockScore = BlackHoleUnlockScore,
+            cameraColor = new Color(0.005f, 0.003f, 0.025f),
+            initialFallSpeed = 4.6f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 6.4f,
             dailyMinSpawnInterval = 1f,
             placementDuration = 2.5f,
         },

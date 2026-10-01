@@ -762,6 +762,12 @@ public class ObjectPooler : MonoBehaviour
     private const float RushHeartGemInterval = 30f;
     private bool rushHeartGemReady = false;
 
+    // Equal chance for each regular collectible tier; hearts retain their timer.
+    private static readonly string[] BlackHoleGems = {
+        "GreenVolcom", "RedDiamond", "Magic_Gem_1", "Magic_Gem_24", "Magic_Gem_22",
+        "Magic_Gem_18", "Magic_Gem_3", "Magic_Gem_20", "Magic_Gem_9", "Magic_Gem_5"
+    };
+
     public void SpawnRushGemAt(float x, float y, float speed, float redGemChance = 0f)
     {
         // Heart gem spawns on a fixed 30-second timer.
@@ -782,7 +788,21 @@ public class ObjectPooler : MonoBehaviour
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.DiamondCave)
+        if (level == LevelManager.LevelId.BlackHole)
+        {
+            int tier = isHeart ? 0 : UnityEngine.Random.Range(0, BlackHoleGems.Length);
+            baseGem = upgradeGem = BlackHoleGems[tier];
+            isRed = !isHeart && tier == 1;
+            isDiamond = !isHeart && tier == 2;
+            isGolden = !isHeart && tier == 3;
+            isPlatinum = !isHeart && tier == 4;
+            isSapphire = !isHeart && tier == 5;
+            isMolten = !isHeart && tier == 6;
+            isSnow = !isHeart && tier == 7;
+            isDesert = !isHeart && tier == 8;
+            isCrystal = !isHeart && tier == 9;
+        }
+        else if (level == LevelManager.LevelId.DiamondCave)
         {
             baseGem = "Magic_Gem_9"; // 5120 points.
             upgradeGem = "Magic_Gem_5"; // 10240 points.

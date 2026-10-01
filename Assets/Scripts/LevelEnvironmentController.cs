@@ -109,7 +109,8 @@ public sealed class LevelEnvironmentController : MonoBehaviour
         else if (diamondCaveEnvironment != null) diamondCaveEnvironment.SetActive(false);
 
         // Molten Depths animates the shared fitted plane directly.
-        if (selectedLevel == LevelManager.LevelId.MoltenDepths) foundSelectedEnvironment = true;
+        if (selectedLevel == LevelManager.LevelId.MoltenDepths
+            || selectedLevel == LevelManager.LevelId.BlackHole) foundSelectedEnvironment = true;
 
         if (!foundSelectedEnvironment)
         {

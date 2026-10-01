@@ -242,6 +242,7 @@ public class RushConfig : ScriptableObject
         {
             case LevelManager.LevelId.Jungle: start = 3f; end = 4.5f; break;
             case LevelManager.LevelId.Space: start = 3.2f; end = 5f; break;
+            case LevelManager.LevelId.BlackHole: start = 4.6f; end = 6.4f; break;
             case LevelManager.LevelId.DiamondCave: start = 4.4f; end = 6.2f; break;
             case LevelManager.LevelId.Desert: start = 4.2f; end = 6f; break;
             case LevelManager.LevelId.Snow: start = 4f; end = 5.8f; break;
