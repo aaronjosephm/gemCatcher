@@ -342,8 +342,6 @@ public partial class UIManager : MonoBehaviour
     ComboManager.OnComboTierUp += HandleComboTierUp;
     ComboManager.OnComboBroken += HandleComboBroken;
 
-    // Score milestones — full-screen banner + power-up gift.
-    MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
 
     // Bomb special-gem events — distinct floating text +
     // extra fx beyond the standard catch / miss visuals.
@@ -5542,7 +5540,6 @@ public partial class UIManager : MonoBehaviour
     ComboManager.OnComboChanged -= HandleComboChanged;
     ComboManager.OnComboTierUp -= HandleComboTierUp;
     ComboManager.OnComboBroken -= HandleComboBroken;
-    MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
     if (IAPManager.RemoveAdsPurchaseEnabled)
     {
@@ -5712,38 +5709,6 @@ public partial class UIManager : MonoBehaviour
     if (mult >= 2f) return new Color(1.00f, 0.85f, 0.30f); // amber
     if (mult >= 1.5f) return new Color(1.00f, 1.00f, 0.55f); // pale yellow
     return Color.white;
-  }
-
-  // ----------------------------------------------------------------------
-  // Milestone celebrations — full-screen banner + tinted flash + a quick
-  // CatchBurst at the catcher position.
-  // ----------------------------------------------------------------------
-
-  void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
-  {
-    Color tint = ColorForMilestoneScore(milestone.score);
-    // Big banner — the existing helper handles the auto-sizing layout.
-    SpawnBannerNotification(milestone.title, tint);
-
-    // Particle pop at the catcher so the eye is drawn down to the play area.
-    GameObject catcher = GameObject.FindWithTag("Catcher");
-    if (catcher != null)
-    {
-      CatchBurst.Spawn(catcher.transform.position, tint);
-    }
-
-    // Camera shake scaled to the milestone — bigger crossings hit harder.
-    float intensity = Mathf.Lerp(0.18f, 0.40f, Mathf.Clamp01(milestone.score / 10000f));
-    CameraShake.Shake(intensity, 0.45f);
-  }
-
-  static Color ColorForMilestoneScore(int score)
-  {
-    if (score >= 10000) return new Color(1.00f, 0.30f, 0.85f); // hot pink for godmode
-    if (score >= 5000) return new Color(0.55f, 0.85f, 1.00f); // ice blue legendary
-    if (score >= 2500) return new Color(1.00f, 0.40f, 0.40f); // red
-    if (score >= 1000) return new Color(1.00f, 0.65f, 0.20f); // orange
-    return new Color(1.00f, 0.90f, 0.40f); // warm yellow
   }
 
   // ----------------------------------------------------------------------

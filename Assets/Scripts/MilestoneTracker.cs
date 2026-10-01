@@ -1,19 +1,8 @@
 using UnityEngine;
 
 /// <summary>
-/// Watches the player's score and fires "milestone reached" events at the
-/// thresholds below. Each milestone shows a celebratory banner AND grants a
-/// gameplay reward (a free power-up, a life, etc.). Static; auto-bootstraps
-/// from RuntimeInitialize so it works regardless of scene setup.
-///
-/// Reward rules:
-///   - Power-up rewards activate the same flag as catching a pickup —
-///     persistent until the next unshielded miss, just like normal pickups.
-///   - Life rewards are currently disabled across all milestones (only the
-///     ExtraLife power-up and the every-third-catch combo award grant lives
-///     under the current design). The bonusLives field is retained so
-///     future tunings can re-enable per-milestone life gifts without
-///     plumbing changes.
+/// Applies legacy score-threshold rewards in non-Rush modes.
+/// Score-rank banners and their audiovisual celebrations have been removed.
 /// </summary>
 public static class MilestoneTracker
 {
@@ -21,44 +10,37 @@ public static class MilestoneTracker
   public struct Milestone
   {
     public int score;
-    public string title;
     /// <summary>Power-ups to auto-activate when this milestone is reached. Use null/empty for no power-up reward.</summary>
     public PowerUpType[] powerUpRewards;
     /// <summary>Lives to gift on this milestone. 0 = none.</summary>
     public int bonusLives;
   }
 
-  // Tuned so each milestone feels like a "graduation". The big one at 10k
-  // grants every remaining power-up at once — huge dopamine hit for the whales.
+  // Preserve existing non-Rush reward balancing without displaying score ranks.
   private static readonly Milestone[] milestones = new Milestone[]
   {
     new Milestone {
       score = 500,
-      title = "HEATING UP!",
       powerUpRewards = new[] { PowerUpType.Shield },
       bonusLives = 0,
     },
     new Milestone {
       score = 1000,
-      title = "ON FIRE!",
       powerUpRewards = new[] { PowerUpType.WiderCatcher },
       bonusLives = 0,
     },
     new Milestone {
       score = 2500,
-      title = "UNSTOPPABLE!",
       powerUpRewards = new[] { PowerUpType.DoubleScore },
       bonusLives = 0,
     },
     new Milestone {
       score = 5000,
-      title = "LEGENDARY!",
       powerUpRewards = new[] { PowerUpType.WiderCatcher, PowerUpType.Shield },
       bonusLives = 0,
     },
     new Milestone {
       score = 10000,
-      title = "GODMODE!",
       powerUpRewards = new[] {
         PowerUpType.WiderCatcher,
         PowerUpType.DoubleScore,
@@ -72,13 +54,6 @@ public static class MilestoneTracker
   // ResetForNewRound at round start. We don't track by score directly because
   // future tunings might insert/reorder thresholds.
   private static int highestAwardedIndex = -1;
-
-  /// <summary>
-  /// Fires when a milestone is reached. Subscribers (UIManager) show a
-  /// celebratory banner + screen flash. The reward (power-up activation, life
-  /// gift) is applied BEFORE this event fires so the UI sees the new state.
-  /// </summary>
-  public static event System.Action<Milestone> OnMilestoneReached;
 
   /// <summary>
   /// Reset all "highest reached" bookkeeping. Called by ObjectPooler at the
@@ -102,7 +77,6 @@ public static class MilestoneTracker
       {
         highestAwardedIndex = i;
         ApplyReward(milestones[i]);
-        OnMilestoneReached?.Invoke(milestones[i]);
       }
     }
   }
@@ -131,7 +105,6 @@ public static class MilestoneTracker
   private static void ResetStaticState()
   {
     highestAwardedIndex = -1;
-    OnMilestoneReached = null;
   }
 
   // Subscribe AFTER scene load so GemCatcher's events have been initialized
