@@ -123,6 +123,7 @@ public class FallingObject : MonoBehaviour
     public bool isRushMoltenGem { get; set; } = false;
     public bool isRushSnowGem { get; set; } = false;
     public bool isRushDesertGem { get; set; } = false;
+    public bool isRushCrystalGem { get; set; } = false;
     public bool isRushPlatinumGem { get; set; } = false;
 
     /// <summary>
@@ -174,6 +175,7 @@ public class FallingObject : MonoBehaviour
         if (isRushDiamondGem) return new Color(1f, 1f, 1f, 1f);
 
         // Rush golden gems (Level 3 upgrade) glow gold.
+        if (isRushCrystalGem) return new Color(0.82f, 0.88f, 1f, 1f);
         if (isRushDesertGem) return new Color(1f, 0.72f, 0.30f, 1f);
         if (isRushSnowGem) return new Color(0.65f, 0.90f, 1f, 1f);
         if (isRushMoltenGem) return new Color(0.72f, 0.18f, 1f, 1f);
@@ -253,6 +255,7 @@ public class FallingObject : MonoBehaviour
         isRushMoltenGem = false;
         isRushSnowGem = false;
         isRushDesertGem = false;
+        isRushCrystalGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();

@@ -10,7 +10,7 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow, Desert }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow, Desert, DiamondCave }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
@@ -20,7 +20,8 @@ public static class LevelManager
     public const int MoltenDepthsUnlockScore = 700_000;
     public const int SnowUnlockScore = 1_500_000;
     public const int DesertUnlockScore = 3_000_000;
-    public const int FinalLevelGoal = 6_000_000;
+    public const int DiamondCaveUnlockScore = 6_000_000;
+    public const int FinalLevelGoal = 12_000_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -190,6 +191,23 @@ public static class LevelManager
             bombChance = 0.15f,
             goldenChance = 0.08f,
             dailyMaxFallSpeed = 6.0f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.DiamondCave,
+            displayName = "Diamond Cave",
+            backgroundResource = "Backgrounds/DiamondCaveBackground",
+            musicResource = "Audio/BackgroundMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
+            unlockScore = DiamondCaveUnlockScore,
+            cameraColor = new Color(0.04f, 0.08f, 0.25f),
+            initialFallSpeed = 4.4f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 6.2f,
             dailyMinSpawnInterval = 1f,
             placementDuration = 2.5f,
         },

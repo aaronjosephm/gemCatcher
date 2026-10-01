@@ -21,6 +21,7 @@ public sealed class LevelEnvironmentController : MonoBehaviour
     private GameObject underwaterEnvironment;
     private GameObject snowEnvironment;
     private GameObject desertEnvironment;
+    private GameObject diamondCaveEnvironment;
 
     public LevelManager.LevelId ActiveLevel { get; private set; }
 
@@ -93,6 +94,19 @@ public sealed class LevelEnvironmentController : MonoBehaviour
             foundSelectedEnvironment = true;
         }
         else if (desertEnvironment != null) desertEnvironment.SetActive(false);
+
+        if (selectedLevel == LevelManager.LevelId.DiamondCave)
+        {
+            if (diamondCaveEnvironment == null)
+            {
+                diamondCaveEnvironment = new GameObject("Diamond Cave Sparkles");
+                diamondCaveEnvironment.transform.SetParent(transform, false);
+                diamondCaveEnvironment.AddComponent<DiamondCaveAmbience>();
+            }
+            diamondCaveEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (diamondCaveEnvironment != null) diamondCaveEnvironment.SetActive(false);
 
         // Molten Depths animates the shared fitted plane directly.
         if (selectedLevel == LevelManager.LevelId.MoltenDepths) foundSelectedEnvironment = true;
