@@ -183,7 +183,7 @@ public static class LevelManager
             id = LevelId.Desert,
             displayName = "Amber Dunes",
             backgroundResource = "Backgrounds/DesertBackground",
-            musicResource = "Audio/BackgroundMusic",
+            musicResource = "Audio/DesertMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_20", "Gems/Magic_Gem_9" },
             unlockScore = DesertUnlockScore,
             cameraColor = new Color(0.60f, 0.36f, 0.18f),
