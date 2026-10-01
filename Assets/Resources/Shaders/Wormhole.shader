@@ -3,11 +3,12 @@ Shader "GemCatch/Wormhole"
     Properties { _AnimationTime ("Animation time", Float) = 0 }
     SubShader
     {
-        Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Background" }
+        Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Geometry" }
         Pass
         {
             Tags { "LightMode"="SRPDefaultUnlit" }
-            Cull Off ZWrite Off ZTest LEqual
+            // Keep the later skybox pass from overwriting the backdrop.
+            Cull Off ZWrite On ZTest LEqual
             HLSLPROGRAM
             #pragma vertex Vert
             #pragma fragment Frag
@@ -44,9 +45,9 @@ Shader "GemCatch/Wormhole"
                 float fineRibbons = pow(saturate(0.5+0.5*sin(twist*9.0-depth*4.0+t*0.2)),18.0);
                 float ringPhase = depth*24.0+t*2.4+sin(angle*3.0-t*0.25)*0.7;
                 float rings = pow(saturate(0.5+0.5*sin(ringPhase)),14.0);
-                float3 color = float3(0.008,0.006,0.035);
+                float3 color = float3(0.0,0.0,0.0);
                 float3 spectrum = Rainbow(angle/6.2831853+depth*0.22-t*0.035);
-                color += spectrum*(0.09+ribbons*0.32+fineRibbons*0.12+rings*0.18);
+                color += spectrum*(ribbons*0.65+fineRibbons*0.25+rings*0.35);
                 // A softly luminous accretion ring outlines the nearly black core.
                 float rim = exp(-abs(r-0.062)*125.0);
                 color += Rainbow(angle/6.2831853+t*0.04)*rim*0.65;

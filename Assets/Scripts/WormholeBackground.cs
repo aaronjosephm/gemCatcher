@@ -8,12 +8,28 @@ public sealed class WormholeBackground : MonoBehaviour
     private Material originalMaterial;
     private Material wormholeMaterial;
     private float animationTime;
+    private Camera backgroundCamera;
+    private CameraClearFlags originalClearFlags;
+    private Color originalCameraColor;
+    private bool cameraConfigured;
     private static readonly int AnimationTime = Shader.PropertyToID("_AnimationTime");
 
     public void Apply()
     {
         if (backdrop == null) backdrop = GetComponent<MeshRenderer>();
         if (backdrop == null) return;
+        if (!cameraConfigured)
+        {
+            backgroundCamera = Camera.main;
+            if (backgroundCamera != null)
+            {
+                originalClearFlags = backgroundCamera.clearFlags;
+                originalCameraColor = backgroundCamera.backgroundColor;
+                cameraConfigured = true;
+                backgroundCamera.clearFlags = CameraClearFlags.SolidColor;
+                backgroundCamera.backgroundColor = Color.black;
+            }
+        }
         if (wormholeMaterial == null)
         {
             // Loading from Resources also retains the shader in player builds.
@@ -33,7 +49,8 @@ public sealed class WormholeBackground : MonoBehaviour
     void LateUpdate()
     {
         if (wormholeMaterial == null || backdrop == null) return;
-        if (GameState.IsPlaying && !GemCatcher.IsGameOver)
+        // Animate previews as well as gameplay; scaled time still respects pause.
+        if (!GemCatcher.IsGameOver)
             animationTime += Time.deltaTime;
         wormholeMaterial.SetFloat(AnimationTime, animationTime);
         backdrop.sharedMaterial = wormholeMaterial;
@@ -41,6 +58,12 @@ public sealed class WormholeBackground : MonoBehaviour
 
     void OnDisable()
     {
+        if (cameraConfigured && backgroundCamera != null)
+        {
+            backgroundCamera.clearFlags = originalClearFlags;
+            backgroundCamera.backgroundColor = originalCameraColor;
+        }
+        cameraConfigured = false;
         if (backdrop != null && backdrop.sharedMaterial == wormholeMaterial)
             backdrop.sharedMaterial = originalMaterial;
     }

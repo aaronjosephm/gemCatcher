@@ -219,7 +219,7 @@ public static class LevelManager
             musicResource = "Audio/SpaceMusic",
             extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18", "Gems/Magic_Gem_3", "Gems/Magic_Gem_20", "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
             unlockScore = BlackHoleUnlockScore,
-            cameraColor = new Color(0.005f, 0.003f, 0.025f),
+            cameraColor = Color.black,
             initialFallSpeed = 4.6f,
             initialSpawnInterval = 1.8f,
             bombChance = 0.15f,
