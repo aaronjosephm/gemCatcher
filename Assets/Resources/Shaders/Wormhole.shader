@@ -25,9 +25,9 @@ Shader "GemCatch/Wormhole"
                 return o;
             }
             float Hash(float2 p) { return frac(sin(dot(p,float2(127.1,311.7)))*43758.5453); }
-            float3 Rainbow(float phase)
+            float Silver(float phase)
             {
-                return 0.5 + 0.5*cos(6.2831853*(phase+float3(0.0,0.33,0.67)));
+                return 0.65 + 0.25*cos(6.2831853*phase);
             }
             half4 Frag(Varyings i) : SV_Target
             {
@@ -45,13 +45,13 @@ Shader "GemCatch/Wormhole"
                 float fineRibbons = pow(saturate(0.5+0.5*sin(twist*9.0-depth*4.0+t*0.2)),18.0);
                 float ringPhase = depth*24.0+t*2.4+sin(angle*3.0-t*0.25)*0.7;
                 float rings = pow(saturate(0.5+0.5*sin(ringPhase)),14.0);
-                float3 color = float3(0.0,0.0,0.0);
-                float3 spectrum = Rainbow(angle/6.2831853+depth*0.22-t*0.035);
-                color += spectrum*(ribbons*0.65+fineRibbons*0.25+rings*0.35);
+                float brightness = 0.0;
+                float shade = Silver(angle/6.2831853+depth*0.22-t*0.035);
+                brightness += shade*(ribbons*0.65+fineRibbons*0.25+rings*0.35);
                 // A softly luminous accretion ring outlines the nearly black core.
                 float rim = exp(-abs(r-0.062)*125.0);
-                color += Rainbow(angle/6.2831853+t*0.04)*rim*0.65;
-                color *= smoothstep(0.035,0.075,r);
+                brightness += Silver(angle/6.2831853+t*0.04)*rim*0.65;
+                brightness *= smoothstep(0.035,0.075,r);
                 // Sparse background stars drifting slowly, without particle GameObjects.
                 float2 starUV = p*95.0+float2(t*0.22,t*0.13);
                 float2 cell = floor(starUV);
@@ -59,10 +59,10 @@ Shader "GemCatch/Wormhole"
                 float2 offset = float2(Hash(cell+19.0),Hash(cell+43.0));
                 float star = 1.0-smoothstep(0.025,0.10,length(frac(starUV)-offset));
                 star *= step(0.987,seed)*(0.55+0.25*sin(t*1.5+seed*100.0));
-                color += float3(0.55,0.75,1.0)*star*smoothstep(0.10,0.22,r);
+                brightness += 0.75*star*smoothstep(0.10,0.22,r);
                 // Keep foreground gems readable: no bloom dependency or full-screen flashes.
-                color *= 0.85-0.25*smoothstep(0.25,0.85,length(p));
-                return half4(color,1.0);
+                brightness *= 0.85-0.25*smoothstep(0.25,0.85,length(p));
+                return half4(brightness,brightness,brightness,1.0);
             }
             ENDHLSL
         }

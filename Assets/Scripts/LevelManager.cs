@@ -22,7 +22,7 @@ public static class LevelManager
     public const int DesertUnlockScore = 3_000_000;
     public const int DiamondCaveUnlockScore = 6_000_000;
     public const int BlackHoleUnlockScore = 12_000_000;
-    public const int FinalLevelGoal = 8_000_000;
+    public const int FinalLevelGoal = 12_000_000;
 
     [System.Serializable]
     public struct LevelConfig
