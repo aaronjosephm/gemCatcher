@@ -735,9 +735,11 @@ public class SpawnDirector : MonoBehaviour
             sc.isTrigger = true;
         }
 
-        // Blue glow via GemGlowVolume.
+        // Black Hole dice telegraph their enhanced duration with red lightning.
+        bool enhanced = LevelManager.SelectedLevel == LevelManager.LevelId.BlackHole;
+        if (enhanced) obj.AddComponent<DiceLightning>();
         var glow = obj.AddComponent<GemGlowVolume>();
-        glow.glowColor = new Color(0.2f, 0.5f, 1f, 1f);
+        glow.glowColor = enhanced ? ComboManager.UltraRushColor : new Color(0.2f, 0.5f, 1f, 1f);
         glow.glowAlpha = 0.9f;
         glow.glowRadius = 1.5f;
 

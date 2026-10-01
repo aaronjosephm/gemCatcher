@@ -177,8 +177,8 @@ public class PowerUpManager : MonoBehaviour
         break;
       case PowerUpType.Swap:
         swapActive = true;
-        swapTimer = SwapDuration;
-        OnActivated?.Invoke(type, SwapDuration);
+        swapTimer = SwapDuration * (LevelManager.SelectedLevel == LevelManager.LevelId.BlackHole ? 2f : 1f);
+        OnActivated?.Invoke(type, swapTimer);
         break;
       case PowerUpType.Invincibility:
         invincibilityActive = true;

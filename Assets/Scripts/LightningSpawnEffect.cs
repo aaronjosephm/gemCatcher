@@ -124,10 +124,10 @@ public sealed class LightningSpawnEffect : MonoBehaviour
 
     /// <summary>A jagged curved path on a sphere, independent of target strikes.</summary>
     public static void SphericalArc(Vector3 center, float radius, Vector3 start,
-        Vector3 tangent, float sweep, float scale, bool audible, Transform follow, bool ultra = false)
+        Vector3 tangent, float sweep, float scale, bool audible, Transform follow, bool ultra = false, bool combo = true)
     {
         LightningSpawnEffect effect = AcquireBolt();
-        effect.comboEffect = true;
+        effect.comboEffect = combo;
         effect.ultraEffect = ultra;
         effect.widthScale = Mathf.Clamp(scale, 0.03f, 1f);
         effect.Activate(center);
@@ -141,6 +141,13 @@ public sealed class LightningSpawnEffect : MonoBehaviour
         if (follow != null) effect.previousFollowPosition = follow.position;
         effect.GenerateBolt();
         if (audible) PlayZap(center, true);
+    }
+
+    // Remove only arcs attached to this pickup, without interrupting Catchy's charge.
+    public static void ClearFollowingEffects(Transform owner)
+    {
+        foreach (LightningSpawnEffect bolt in BoltPool)
+            if (bolt != null && bolt.followTarget == owner) bolt.gameObject.SetActive(false);
     }
 
     public static void ClearComboEffects()
