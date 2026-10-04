@@ -342,8 +342,6 @@ public partial class UIManager : MonoBehaviour
     ComboManager.OnComboTierUp += HandleComboTierUp;
     ComboManager.OnComboBroken += HandleComboBroken;
 
-    // Score milestones — full-screen banner + power-up gift.
-    MilestoneTracker.OnMilestoneReached += HandleMilestoneReached;
 
     // Bomb special-gem events — distinct floating text +
     // extra fx beyond the standard catch / miss visuals.
@@ -2474,7 +2472,12 @@ public partial class UIManager : MonoBehaviour
     cardsRect.anchorMax = new Vector2(0.5f, 0.5f);
     cardsRect.pivot = new Vector2(0.5f, 0.5f);
     cardsRect.anchoredPosition = new Vector2(0f, -50f);
-    cardsRect.sizeDelta = new Vector2(700f, 600f);
+    float cardsHeight = LevelManager.AllLevels.Length * 170f - 30f;
+    cardsRect.sizeDelta = new Vector2(700f, cardsHeight);
+    RectTransform cardsParent = contentParent as RectTransform;
+    if (cardsParent != null && cardsParent.rect.height > 0f)
+      cardsRect.localScale = Vector3.one * Mathf.Min(1f,
+          cardsParent.rect.height * 0.72f / cardsHeight, cardsParent.rect.width * 0.92f / 700f);
     VerticalLayoutGroup vlg = cardsGo.GetComponent<VerticalLayoutGroup>();
     vlg.childAlignment = TextAnchor.MiddleCenter;
     vlg.spacing = 30f;
@@ -5537,7 +5540,6 @@ public partial class UIManager : MonoBehaviour
     ComboManager.OnComboChanged -= HandleComboChanged;
     ComboManager.OnComboTierUp -= HandleComboTierUp;
     ComboManager.OnComboBroken -= HandleComboBroken;
-    MilestoneTracker.OnMilestoneReached -= HandleMilestoneReached;
     GemCatcher.OnBombHit -= HandleBombHit;
     if (IAPManager.RemoveAdsPurchaseEnabled)
     {
@@ -5632,7 +5634,7 @@ public partial class UIManager : MonoBehaviour
         && (rush || combo > 0));
     int next = ComboManager.NextThreshold;
     comboDisplayTmp.text = ComboManager.IsGemRush
-        ? $"GEM RUSH! ×5 · {combo}"
+        ? $"{ComboManager.RushName}! ×{multiplier:0.#} · {combo}"
         : next > 0 ? $"×{multiplier:0.#} · {combo}/{next}"
         : $"×{multiplier:0.#} · {combo}";
     comboDisplayTmp.color = rush ? ComboManager.CatchColor : ColorForMultiplier(multiplier);
@@ -5653,7 +5655,7 @@ public partial class UIManager : MonoBehaviour
     Color color = GameState.Mode == GameState.GameMode.Rush
         ? ComboManager.CatchColor : ColorForMultiplier(newMultiplier);
     SpawnBannerNotification(ComboManager.IsGemRush
-        ? "GEM RUSH! ×5" : $"×{newMultiplier:0.#} STREAK!", color);
+        ? $"{ComboManager.RushName}! ×{newMultiplier:0.#}" : $"×{newMultiplier:0.#} STREAK!", color);
     GameObject catcher = CatcherManager.Instance?.CatcherInstance;
     if (catcher != null) CatchBurst.Spawn(catcher.transform.position, color);
   }
@@ -5678,7 +5680,8 @@ public partial class UIManager : MonoBehaviour
     {
       ComboLightning charge = ComboLightning.Instance;
       lightningChargeTmp.text = charge != null && charge.Active
-          ? $"CHARGED · {Mathf.CeilToInt(charge.Remaining)}s" : "";
+          ? $"{(charge.IsUltra ? "ULTRA RUSH" : "CHARGED")} · {Mathf.CeilToInt(charge.Remaining)}s" : "";
+      if (charge != null && charge.Active) lightningChargeTmp.color = charge.ChargeColor;
     }
     if (!GameState.IsPlaying || GemCatcher.IsGameOver)
       comboDisplayRoot.gameObject.SetActive(false);
@@ -5707,38 +5710,6 @@ public partial class UIManager : MonoBehaviour
     if (mult >= 2f) return new Color(1.00f, 0.85f, 0.30f); // amber
     if (mult >= 1.5f) return new Color(1.00f, 1.00f, 0.55f); // pale yellow
     return Color.white;
-  }
-
-  // ----------------------------------------------------------------------
-  // Milestone celebrations — full-screen banner + tinted flash + a quick
-  // CatchBurst at the catcher position.
-  // ----------------------------------------------------------------------
-
-  void HandleMilestoneReached(MilestoneTracker.Milestone milestone)
-  {
-    Color tint = ColorForMilestoneScore(milestone.score);
-    // Big banner — the existing helper handles the auto-sizing layout.
-    SpawnBannerNotification(milestone.title, tint);
-
-    // Particle pop at the catcher so the eye is drawn down to the play area.
-    GameObject catcher = GameObject.FindWithTag("Catcher");
-    if (catcher != null)
-    {
-      CatchBurst.Spawn(catcher.transform.position, tint);
-    }
-
-    // Camera shake scaled to the milestone — bigger crossings hit harder.
-    float intensity = Mathf.Lerp(0.18f, 0.40f, Mathf.Clamp01(milestone.score / 10000f));
-    CameraShake.Shake(intensity, 0.45f);
-  }
-
-  static Color ColorForMilestoneScore(int score)
-  {
-    if (score >= 10000) return new Color(1.00f, 0.30f, 0.85f); // hot pink for godmode
-    if (score >= 5000) return new Color(0.55f, 0.85f, 1.00f); // ice blue legendary
-    if (score >= 2500) return new Color(1.00f, 0.40f, 0.40f); // red
-    if (score >= 1000) return new Color(1.00f, 0.65f, 0.20f); // orange
-    return new Color(1.00f, 0.90f, 0.40f); // warm yellow
   }
 
   // ----------------------------------------------------------------------

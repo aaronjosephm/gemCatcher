@@ -277,6 +277,7 @@ public class ObjectPooler : MonoBehaviour
                     obj.SetActive(false);
                     FallingObject fallingObj = obj.GetComponent<FallingObject>();
                     if (fallingObj == null) fallingObj = obj.AddComponent<FallingObject>();
+                    fallingObj.uprightSpin = extraPrefab.name == "Magic_Gem_9";
                     fallingObj.fallSpeed = currentFallSpeed;
                     // Match scale of main pool gems (raw prefabs are 1x, game is 4x).
                     obj.transform.localScale = Vector3.one * 4f;
@@ -761,6 +762,12 @@ public class ObjectPooler : MonoBehaviour
     private const float RushHeartGemInterval = 30f;
     private bool rushHeartGemReady = false;
 
+    // Equal chance for each regular collectible tier; hearts retain their timer.
+    private static readonly string[] BlackHoleGems = {
+        "GreenVolcom", "RedDiamond", "Magic_Gem_1", "Magic_Gem_24", "Magic_Gem_22",
+        "Magic_Gem_18", "Magic_Gem_3", "Magic_Gem_20", "Magic_Gem_9", "Magic_Gem_5"
+    };
+
     public void SpawnRushGemAt(float x, float y, float speed, float redGemChance = 0f)
     {
         // Heart gem spawns on a fixed 30-second timer.
@@ -773,10 +780,69 @@ public class ObjectPooler : MonoBehaviour
         bool isRed = false;
         bool isGolden = false;
         bool isPlatinum = false;
+        bool isSapphire = false;
+        bool isMolten = false;
+        bool isSnow = false;
+        bool isDesert = false;
+        bool isCrystal = false;
         bool useUpgrade = false;
 
         var level = LevelManager.SelectedLevel;
-        if (level == LevelManager.LevelId.Lava)
+        if (level == LevelManager.LevelId.BlackHole)
+        {
+            int tier = isHeart ? 0 : UnityEngine.Random.Range(0, BlackHoleGems.Length);
+            baseGem = upgradeGem = BlackHoleGems[tier];
+            isRed = !isHeart && tier == 1;
+            isDiamond = !isHeart && tier == 2;
+            isGolden = !isHeart && tier == 3;
+            isPlatinum = !isHeart && tier == 4;
+            isSapphire = !isHeart && tier == 5;
+            isMolten = !isHeart && tier == 6;
+            isSnow = !isHeart && tier == 7;
+            isDesert = !isHeart && tier == 8;
+            isCrystal = !isHeart && tier == 9;
+        }
+        else if (level == LevelManager.LevelId.DiamondCave)
+        {
+            baseGem = "Magic_Gem_9"; // 5120 points.
+            upgradeGem = "Magic_Gem_5"; // 10240 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isDesert = !isHeart && !useUpgrade;
+            isCrystal = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Desert)
+        {
+            baseGem = "Magic_Gem_20"; // 2560 points.
+            upgradeGem = "Magic_Gem_9"; // 5120 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isSnow = !isHeart && !useUpgrade;
+            isDesert = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Snow)
+        {
+            baseGem = "Magic_Gem_3"; // Purple primary: 1280 points.
+            upgradeGem = "Magic_Gem_20"; // Snow upgrade: 2560 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isMolten = !isHeart && !useUpgrade;
+            isSnow = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.MoltenDepths)
+        {
+            baseGem = "Magic_Gem_18"; // Sapphire: 640 points.
+            upgradeGem = "Magic_Gem_3"; // Molten upgrade: 1280 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isSapphire = !isHeart && !useUpgrade;
+            isMolten = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Underwater)
+        {
+            baseGem = "Magic_Gem_22"; // Orange gem from Level 4: 320 points.
+            upgradeGem = "Magic_Gem_18"; // Blue sapphire: 640 points.
+            useUpgrade = !isHeart && redGemChance > 0f && UnityEngine.Random.value < redGemChance;
+            isPlatinum = !isHeart && !useUpgrade;
+            isSapphire = useUpgrade;
+        }
+        else if (level == LevelManager.LevelId.Lava)
         {
             // Level 4: Magic_Gem_24 (160pts) → Magic_Gem_22 (320pts)
             baseGem = "Magic_Gem_24";
@@ -837,6 +903,11 @@ public class ObjectPooler : MonoBehaviour
             fo.isRushDiamondGem = isDiamond;
             fo.isRushGoldenGem = isGolden;
             fo.isRushPlatinumGem = isPlatinum;
+            fo.isRushSapphireGem = isSapphire;
+            fo.isRushMoltenGem = isMolten;
+            fo.isRushSnowGem = isSnow;
+            fo.isRushDesertGem = isDesert;
+            fo.isRushCrystalGem = isCrystal;
             fo.ApplySpecialType(SpecialGemType.Normal);
 
             // Tint heart gems red so they stand out.
@@ -873,6 +944,24 @@ public class ObjectPooler : MonoBehaviour
                 glow.glowColor = new Color(1f, 0.85f, 0.35f, 1f);
                 glow.glowAlpha = 0.85f;
                 glow.glowRadius = 0.9f;
+            }
+
+            if (isMolten)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(0.72f, 0.18f, 1f, 1f);
+                glow.glowAlpha = 0.85f;
+                glow.glowRadius = 1f;
+            }
+
+            if (isSapphire)
+            {
+                GemGlowVolume glow = obj.GetComponent<GemGlowVolume>();
+                if (glow == null) glow = obj.AddComponent<GemGlowVolume>();
+                glow.glowColor = new Color(0.15f, 0.55f, 1f, 1f);
+                glow.glowAlpha = 0.8f;
+                glow.glowRadius = 1f;
             }
 
             // Add orange glow to platinum gems (Level 4 upgrade).

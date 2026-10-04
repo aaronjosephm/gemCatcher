@@ -36,6 +36,10 @@ public class FallingObject : MonoBehaviour
     // Read-only accessor for the current velocity vector (used by trajectory prediction).
     public Vector3 MovementDirection => movementDirection;
     private Vector3 rotationSpeed;
+    public bool uprightSpin { get; set; } = false;
+    private float uprightSpinAngle;
+    // The model's forward axis must point up before applying world-Y spin.
+    private static readonly Quaternion UprightModelTilt = Quaternion.Euler(-90f, 0f, 0f);
     private float objectHalfWidth;
     private float objectHalfHeight;
     private float leftBoundary;
@@ -115,6 +119,11 @@ public class FallingObject : MonoBehaviour
     public bool isRushMasterGem { get; set; } = false;
     public bool isRushDiamondGem { get; set; } = false;
     public bool isRushGoldenGem { get; set; } = false;
+    public bool isRushSapphireGem { get; set; } = false;
+    public bool isRushMoltenGem { get; set; } = false;
+    public bool isRushSnowGem { get; set; } = false;
+    public bool isRushDesertGem { get; set; } = false;
+    public bool isRushCrystalGem { get; set; } = false;
     public bool isRushPlatinumGem { get; set; } = false;
 
     /// <summary>
@@ -166,6 +175,11 @@ public class FallingObject : MonoBehaviour
         if (isRushDiamondGem) return new Color(1f, 1f, 1f, 1f);
 
         // Rush golden gems (Level 3 upgrade) glow gold.
+        if (isRushCrystalGem) return new Color(0.82f, 0.88f, 1f, 1f);
+        if (isRushDesertGem) return new Color(1f, 0.12f, 0.18f, 1f); // Magic_Gem_9: red aura.
+        if (isRushSnowGem) return new Color(0.15f, 1f, 0.3f, 1f); // Magic_Gem_20: green aura.
+        if (isRushMoltenGem) return new Color(0.72f, 0.18f, 1f, 1f);
+        if (isRushSapphireGem) return new Color(0.15f, 0.55f, 1f, 1f);
         if (isRushPlatinumGem) return new Color(1f, 0.55f, 0.1f, 1f);
         if (isRushGoldenGem) return new Color(1f, 0.85f, 0.35f, 1f);
 
@@ -220,6 +234,8 @@ public class FallingObject : MonoBehaviour
     // Method to reset the object when it's reused from the pool
     public void ResetObject()
     {
+        uprightSpinAngle = 0f;
+        if (uprightSpin) transform.rotation = UprightModelTilt;
         // Re-initialize components in case anything has changed
         InitializeComponents();
         ClearPowerUp();
@@ -235,6 +251,11 @@ public class FallingObject : MonoBehaviour
         isRushDiamondGem = false;
         isRushGoldenGem = false;
         isRushPlatinumGem = false;
+        isRushSapphireGem = false;
+        isRushMoltenGem = false;
+        isRushSnowGem = false;
+        isRushDesertGem = false;
+        isRushCrystalGem = false;
 
         // Clear any MaterialPropertyBlock tint (heart red / poison purple).
         Renderer rr = GetComponent<Renderer>();
@@ -632,7 +653,13 @@ public class FallingObject : MonoBehaviour
         float dt = Time.deltaTime;
 
         // Rotate the object
-        transform.Rotate(rotationSpeed * dt);
+        if (uprightSpin)
+        {
+            uprightSpinAngle = Mathf.Repeat(uprightSpinAngle + rotationSpeed.y * dt, 360f);
+            transform.rotation = Quaternion.AngleAxis(uprightSpinAngle, Vector3.up) * UprightModelTilt;
+        }
+        else
+            transform.Rotate(rotationSpeed * dt);
 
         // Move the object
         transform.Translate(movementDirection * dt, Space.World);

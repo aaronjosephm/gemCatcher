@@ -120,7 +120,6 @@ public class HapticManager : MonoBehaviour
         GemCatcher.OnBombHit += HandleBombHit;
         GemCatcher.OnBonusLifeAwarded += HandleBonusLife;
         GemCatcher.OnGameOver += HandleGameOver;
-        MilestoneTracker.OnMilestoneReached += HandleMilestone;
         PowerUpManager.OnActivated += HandlePowerUpActivated;
     }
 
@@ -130,7 +129,6 @@ public class HapticManager : MonoBehaviour
         GemCatcher.OnBombHit -= HandleBombHit;
         GemCatcher.OnBonusLifeAwarded -= HandleBonusLife;
         GemCatcher.OnGameOver -= HandleGameOver;
-        MilestoneTracker.OnMilestoneReached -= HandleMilestone;
         PowerUpManager.OnActivated -= HandlePowerUpActivated;
     }
 
@@ -138,7 +136,6 @@ public class HapticManager : MonoBehaviour
     void HandleBombHit(Vector3 worldPosition) => Trigger(Intensity.Heavy);
     void HandleBonusLife(int newLifeTotal) => Trigger(Intensity.Success);
     void HandleGameOver() => Trigger(Intensity.Heavy);
-    void HandleMilestone(MilestoneTracker.Milestone _) => Trigger(Intensity.Success);
     void HandlePowerUpActivated(PowerUpType _, float __) => Trigger(Intensity.Light);
 
     // -- Public trigger -------------------------------------------------------

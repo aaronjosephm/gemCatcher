@@ -80,6 +80,20 @@ public class CaveBackgroundFit : MonoBehaviour
     MeshRenderer mr = GetComponent<MeshRenderer>();
     if (mr == null) return;
 
+    LavaRiverBackground river = GetComponent<LavaRiverBackground>();
+    if (cfg.id != LevelManager.LevelId.MoltenDepths && river != null) river.enabled = false;
+
+    WormholeBackground wormhole = GetComponent<WormholeBackground>();
+    if (cfg.id != LevelManager.LevelId.BlackHole && wormhole != null) wormhole.enabled = false;
+    if (cfg.id == LevelManager.LevelId.BlackHole)
+    {
+      if (wormhole == null) wormhole = gameObject.AddComponent<WormholeBackground>();
+      wormhole.Apply();
+      if (cam != null) cam.backgroundColor = cfg.cameraColor;
+      FitCover();
+      return;
+    }
+
     // If the level defines a full material (e.g. water shader), apply it directly.
     if (!string.IsNullOrEmpty(cfg.backgroundMaterialResource))
     {
@@ -89,13 +103,19 @@ public class CaveBackgroundFit : MonoBehaviour
         mr.material = mat;
       }
     }
-    else
+    else if (cfg.id != LevelManager.LevelId.MoltenDepths)
     {
       Texture2D tex = Resources.Load<Texture2D>(cfg.backgroundResource);
       if (tex != null && mr.material != null)
       {
         mr.material.mainTexture = tex;
       }
+    }
+
+    if (cfg.id == LevelManager.LevelId.MoltenDepths)
+    {
+      if (river == null) river = gameObject.AddComponent<LavaRiverBackground>();
+      river.Apply(Resources.Load<Texture2D>(cfg.backgroundResource));
     }
 
     ReadAspectFromMaterial();
@@ -135,7 +155,7 @@ public class CaveBackgroundFit : MonoBehaviour
 
     float viewH = ortho * 2f;
     float viewW = viewH * aspect;
-    float texAspect = Mathf.Max(0.01f, textureAspect);
+    float texAspect = cfg.id == LevelManager.LevelId.BlackHole ? aspect : Mathf.Max(0.01f, textureAspect);
 
     float worldH = viewH;
     float worldW = worldH * texAspect;

@@ -18,6 +18,11 @@ public sealed class LevelEnvironmentController : MonoBehaviour
 
     [SerializeField] private EnvironmentEntry[] environments = Array.Empty<EnvironmentEntry>();
 
+    private GameObject underwaterEnvironment;
+    private GameObject snowEnvironment;
+    private GameObject desertEnvironment;
+    private GameObject diamondCaveEnvironment;
+
     public LevelManager.LevelId ActiveLevel { get; private set; }
 
     void Awake()
@@ -48,6 +53,64 @@ public sealed class LevelEnvironmentController : MonoBehaviour
 
             foundSelectedEnvironment |= shouldBeActive;
         }
+
+        // The reef uses the shared fitted backdrop plus lightweight procedural ambience.
+        if (selectedLevel == LevelManager.LevelId.Underwater)
+        {
+            if (underwaterEnvironment == null)
+            {
+                underwaterEnvironment = new GameObject("Underwater Environment");
+                underwaterEnvironment.transform.SetParent(transform, false);
+                underwaterEnvironment.AddComponent<UnderwaterAmbience>();
+            }
+            underwaterEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (underwaterEnvironment != null) underwaterEnvironment.SetActive(false);
+
+        // Snow ambience sits behind gameplay and is reused if the environment is reapplied.
+        if (selectedLevel == LevelManager.LevelId.Snow)
+        {
+            if (snowEnvironment == null)
+            {
+                snowEnvironment = new GameObject("Snow Environment");
+                snowEnvironment.transform.SetParent(transform, false);
+                snowEnvironment.AddComponent<SnowAmbience>();
+            }
+            snowEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (snowEnvironment != null) snowEnvironment.SetActive(false);
+
+        if (selectedLevel == LevelManager.LevelId.Desert)
+        {
+            if (desertEnvironment == null)
+            {
+                desertEnvironment = new GameObject("Desert Environment");
+                desertEnvironment.transform.SetParent(transform, false);
+                desertEnvironment.AddComponent<SandAmbience>();
+            }
+            desertEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (desertEnvironment != null) desertEnvironment.SetActive(false);
+
+        if (selectedLevel == LevelManager.LevelId.DiamondCave)
+        {
+            if (diamondCaveEnvironment == null)
+            {
+                diamondCaveEnvironment = new GameObject("Diamond Cave Sparkles");
+                diamondCaveEnvironment.transform.SetParent(transform, false);
+                diamondCaveEnvironment.AddComponent<DiamondCaveAmbience>();
+            }
+            diamondCaveEnvironment.SetActive(true);
+            foundSelectedEnvironment = true;
+        }
+        else if (diamondCaveEnvironment != null) diamondCaveEnvironment.SetActive(false);
+
+        // Molten Depths animates the shared fitted plane directly.
+        if (selectedLevel == LevelManager.LevelId.MoltenDepths
+            || selectedLevel == LevelManager.LevelId.BlackHole) foundSelectedEnvironment = true;
 
         if (!foundSelectedEnvironment)
         {

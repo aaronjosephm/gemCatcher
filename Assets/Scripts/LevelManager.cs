@@ -10,13 +10,19 @@ using UnityEngine;
 /// </summary>
 public static class LevelManager
 {
-    public enum LevelId { Cave, Jungle, Space, Lava }
+    public enum LevelId { Cave, Jungle, Space, Lava, Underwater, MoltenDepths, Snow, Desert, DiamondCave, BlackHole }
 
     public const string GameplaySceneName = "Gameplay";
     public const int JungleUnlockScore = 25_000;
     public const int SpaceUnlockScore = 75_000;
     public const int LavaUnlockScore = 150_000;
-    public const int FinalLevelGoal = 250_000;
+    public const int UnderwaterUnlockScore = 350_000;
+    public const int MoltenDepthsUnlockScore = 700_000;
+    public const int SnowUnlockScore = 1_500_000;
+    public const int DesertUnlockScore = 3_000_000;
+    public const int DiamondCaveUnlockScore = 6_000_000;
+    public const int BlackHoleUnlockScore = 12_000_000;
+    public const int FinalLevelGoal = 12_000_000;
 
     [System.Serializable]
     public struct LevelConfig
@@ -121,6 +127,107 @@ public static class LevelManager
             placementDuration = 2.5f,
             backgroundWallZ = 500f,
         },
+        new LevelConfig
+        {
+            id = LevelId.Underwater,
+            displayName = "Sapphire Reef",
+            backgroundResource = "Backgrounds/UnderwaterBackground",
+            musicResource = "Audio/UnderwaterMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18" },
+            unlockScore = UnderwaterUnlockScore,
+            cameraColor = new Color(0.015f, 0.12f, 0.28f),
+            initialFallSpeed = 3.6f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 5.4f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.MoltenDepths,
+            displayName = "Molten Depths",
+            backgroundResource = "Backgrounds/MoltenDepthsBackground",
+            musicResource = "Audio/MoltenDepthsMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_18", "Gems/Magic_Gem_3" },
+            unlockScore = MoltenDepthsUnlockScore,
+            cameraColor = new Color(0.055f, 0.025f, 0.035f),
+            initialFallSpeed = 3.8f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 5.6f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Snow,
+            displayName = "Frostpeak Summit",
+            backgroundResource = "Backgrounds/SnowBackground",
+            musicResource = "Audio/SnowMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_3", "Gems/Magic_Gem_20" },
+            unlockScore = SnowUnlockScore,
+            cameraColor = new Color(0.12f, 0.20f, 0.36f),
+            initialFallSpeed = 4.0f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 5.8f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.Desert,
+            displayName = "Amber Dunes",
+            backgroundResource = "Backgrounds/DesertBackground",
+            musicResource = "Audio/DesertMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_20", "Gems/Magic_Gem_9" },
+            unlockScore = DesertUnlockScore,
+            cameraColor = new Color(0.60f, 0.36f, 0.18f),
+            initialFallSpeed = 4.2f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 6.0f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.DiamondCave,
+            displayName = "Diamond Cave",
+            backgroundResource = "Backgrounds/DiamondCaveBackground",
+            musicResource = "Audio/DiamondCaveMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
+            unlockScore = DiamondCaveUnlockScore,
+            cameraColor = new Color(0.04f, 0.08f, 0.25f),
+            initialFallSpeed = 4.4f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 6.2f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
+        new LevelConfig
+        {
+            id = LevelId.BlackHole,
+            displayName = "Black Hole",
+            musicResource = "Audio/BlackHoleMusic",
+            extraGemPrefabs = new[] { "Gems/Magic_Gem_22", "Gems/Magic_Gem_18", "Gems/Magic_Gem_3", "Gems/Magic_Gem_20", "Gems/Magic_Gem_9", "Gems/Magic_Gem_5" },
+            unlockScore = BlackHoleUnlockScore,
+            cameraColor = Color.black,
+            initialFallSpeed = 4.6f,
+            initialSpawnInterval = 1.8f,
+            bombChance = 0.15f,
+            goldenChance = 0.08f,
+            dailyMaxFallSpeed = 6.4f,
+            dailyMinSpawnInterval = 1f,
+            placementDuration = 2.5f,
+        },
     };
 
     private const string SelectedKey = "SelectedLevel";
@@ -193,10 +300,17 @@ public static class LevelManager
     /// </summary>
     public static bool IsUnlocked(LevelId id)
     {
+        if (!System.Enum.IsDefined(typeof(LevelId), id)) return false;
+        // Temporary testing access: Editor Play Mode and Development Builds.
+        // Do not persist unlock flags, so release builds retain earned progression.
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        return true;
+#else
         EnsureUnlockProgressionInitialized();
         var config = GetConfig(id);
         if (config.unlockScore <= 0) return true;
         return PlayerPrefs.GetInt("KeyUnlocked_" + id, 0) == 1;
+#endif
     }
 
     /// <summary>
