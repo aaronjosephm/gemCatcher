@@ -6,7 +6,7 @@ using UnityEngine;
 /// </summary>
 public static class SkinManager
 {
-    public enum SkinType { SolidColor, Camo, PrefabMaterial }
+    public enum SkinType { SolidColor, Camo, PrefabMaterial, MaterialResource }
 
     [System.Serializable]
     public struct SkinDef
@@ -18,6 +18,7 @@ public static class SkinManager
         public Color primaryColor;
         public Color secondaryColor; // for patterns like camo
         public string materialPrefabPath; // for PrefabMaterial type
+        public string materialResourcePath; // for MaterialResource type
     }
 
     private static readonly SkinDef[] catalog = new SkinDef[]
@@ -102,6 +103,24 @@ public static class SkinManager
         },
         new SkinDef
         {
+            id = "silver",
+            displayName = "Silver",
+            price = 6_000_000,
+            type = SkinType.MaterialResource,
+            primaryColor = new Color(0.72f, 0.76f, 0.82f),
+            materialResourcePath = "Materials/SilverSkin",
+        },
+        new SkinDef
+        {
+            id = "gold",
+            displayName = "Gold",
+            price = 8_000_000,
+            type = SkinType.MaterialResource,
+            primaryColor = new Color(0.95f, 0.55f, 0.12f),
+            materialResourcePath = "Materials/GoldSkin",
+        },
+        new SkinDef
+        {
             id = "diamond",
             displayName = "Diamond",
             price = 10_000_000,
@@ -181,6 +200,41 @@ public static class SkinManager
         return GetDef(EquippedId);
     }
 
+    public static bool UsesMaterial(SkinDef skin)
+    {
+        return skin.type == SkinType.PrefabMaterial
+            || skin.type == SkinType.MaterialResource;
+    }
+
+    public static Material GetMaterial(SkinDef skin)
+    {
+        if (skin.type == SkinType.PrefabMaterial)
+        {
+            return GetPrefabMaterial(skin);
+        }
+
+        if (skin.type != SkinType.MaterialResource)
+        {
+            Debug.LogError($"Skin '{skin.id}' is not configured as a material skin.");
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(skin.materialResourcePath))
+        {
+            Debug.LogError($"Skin '{skin.id}' has no material resource path.");
+            return null;
+        }
+
+        Material material = Resources.Load<Material>(skin.materialResourcePath);
+        if (material == null)
+        {
+            Debug.LogError(
+                $"Skin '{skin.id}' could not load Resources/{skin.materialResourcePath}.");
+        }
+
+        return material;
+    }
+
     public static Material GetPrefabMaterial(SkinDef skin)
     {
         if (skin.type != SkinType.PrefabMaterial)
@@ -229,10 +283,11 @@ public static class SkinManager
     {
         if (skin.id == "default") return;
 
-        Material prefabMat = skin.type == SkinType.PrefabMaterial
-            ? GetPrefabMaterial(skin)
+        bool usesMaterial = UsesMaterial(skin);
+        Material skinMaterial = usesMaterial
+            ? GetMaterial(skin)
             : null;
-        if (skin.type == SkinType.PrefabMaterial && prefabMat == null)
+        if (usesMaterial && skinMaterial == null)
         {
             return;
         }
@@ -247,10 +302,10 @@ public static class SkinManager
                 || IsUnderWearable(rend.transform))
                 continue;
 
-            if (skin.type == SkinType.PrefabMaterial && prefabMat != null)
+            if (usesMaterial)
             {
                 Material[] mats = new Material[rend.sharedMaterials.Length];
-                for (int i = 0; i < mats.Length; i++) mats[i] = prefabMat;
+                for (int i = 0; i < mats.Length; i++) mats[i] = skinMaterial;
                 rend.sharedMaterials = mats;
             }
             else

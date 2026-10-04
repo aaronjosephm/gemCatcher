@@ -2834,14 +2834,15 @@ public partial class UIManager : MonoBehaviour
       preview.transform.SetParent(shopSkinTilePreviewRoot.transform, false);
       preview.transform.localPosition = new Vector3(previewIndex * 10f, 0f, 0f);
 
-      GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-      quad.name = $"{skin.id}Quad";
-      quad.transform.SetParent(preview.transform, false);
-      quad.transform.localPosition = Vector3.zero;
-      quad.transform.localScale = new Vector3(2f, 2f, 1f);
-      Collider collider = quad.GetComponent<Collider>();
+      GameObject sample = GameObject.CreatePrimitive(PrimitiveType.Quad);
+      sample.name = $"{skin.id}MaterialSample";
+      sample.transform.SetParent(preview.transform, false);
+      sample.transform.localPosition = Vector3.zero;
+      sample.transform.localRotation = Quaternion.identity;
+      sample.transform.localScale = new Vector3(2f, 2f, 1f);
+      Collider collider = sample.GetComponent<Collider>();
       if (collider != null) Destroy(collider);
-      quad.GetComponent<Renderer>().sharedMaterial = material;
+      sample.GetComponent<Renderer>().sharedMaterial = material;
 
       GameObject cameraGo = new GameObject($"{skin.id}TileCamera");
       cameraGo.transform.SetParent(preview.transform, false);
@@ -3437,6 +3438,10 @@ public partial class UIManager : MonoBehaviour
         rawGo.GetComponent<RawImage>().texture = texture;
         rawGo.GetComponent<RawImage>().raycastTarget = false;
       }
+    }
+    else if (skin.type == SkinManager.SkinType.MaterialResource)
+    {
+      cardBg.color = skin.primaryColor;
     }
     else if (skin.type == SkinManager.SkinType.Camo)
     {
