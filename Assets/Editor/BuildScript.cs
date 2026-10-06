@@ -8,7 +8,7 @@ using UnityEngine;
 namespace QuickSlickLabs.EditorTools
 {
     /// <summary>
-    /// One-click Android build helpers for Gem Catcher.
+    /// One-click Android and iOS build helpers for Gem Catcher.
     ///
     /// Menu items live under: Quick Slick Labs / Build
     ///
@@ -24,9 +24,12 @@ namespace QuickSlickLabs.EditorTools
     /// </summary>
     public static class BuildScript
     {
-        private const string OUTPUT_DIR = "Builds/Android";
+        private const string ANDROID_OUTPUT_DIR = "Builds/Android";
+        private const string IOS_OUTPUT_DIR = "Builds/iOS";
         private const string MENU_ROOT = "Quick Slick Labs/Build/";
         private const int MINIMUM_ANDROID_TARGET_API = 36;
+        private const string PENDING_IOS_DEVELOPMENT_BUILD_KEY =
+            "GemCatch.PendingIosDevelopmentBuild";
 
         [MenuItem(MENU_ROOT + "Android AAB (Release)", priority = 100)]
         public static void BuildAndroidAab()
@@ -46,6 +49,41 @@ namespace QuickSlickLabs.EditorTools
             BuildAndroid(asAppBundle: false, development: true);
         }
 
+        [MenuItem(MENU_ROOT + "iOS Xcode (Development)", priority = 201)]
+        public static void BuildIosDevelopment()
+        {
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
+            {
+                SessionState.SetBool(PENDING_IOS_DEVELOPMENT_BUILD_KEY, true);
+                bool switched = EditorUserBuildSettings.SwitchActiveBuildTarget(
+                    BuildTargetGroup.iOS,
+                    BuildTarget.iOS);
+                if (!switched)
+                {
+                    SessionState.EraseBool(PENDING_IOS_DEVELOPMENT_BUILD_KEY);
+                    Debug.LogError(
+                        "[BuildScript] Could not switch the active build target to iOS.");
+                }
+                return;
+            }
+
+            BuildIos(development: true);
+        }
+
+        [InitializeOnLoadMethod]
+        private static void ResumePendingIosDevelopmentBuild()
+        {
+            if (!SessionState.GetBool(PENDING_IOS_DEVELOPMENT_BUILD_KEY, false)) return;
+
+            EditorApplication.delayCall += () =>
+            {
+                if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS) return;
+
+                SessionState.EraseBool(PENDING_IOS_DEVELOPMENT_BUILD_KEY);
+                BuildIos(development: true);
+            };
+        }
+
         [MenuItem(MENU_ROOT + "Bump Version Code", priority = 300)]
         public static void BumpVersionCode()
         {
@@ -58,8 +96,8 @@ namespace QuickSlickLabs.EditorTools
         [MenuItem(MENU_ROOT + "Reveal Build Folder", priority = 301)]
         public static void RevealBuildFolder()
         {
-            Directory.CreateDirectory(OUTPUT_DIR);
-            EditorUtility.RevealInFinder(Path.GetFullPath(OUTPUT_DIR));
+            Directory.CreateDirectory("Builds");
+            EditorUtility.RevealInFinder(Path.GetFullPath("Builds"));
         }
 
         [MenuItem(MENU_ROOT + "Diagnose Build Config", priority = 302)]
@@ -131,13 +169,13 @@ namespace QuickSlickLabs.EditorTools
                 return;
             }
 
-            Directory.CreateDirectory(OUTPUT_DIR);
+            Directory.CreateDirectory(ANDROID_OUTPUT_DIR);
 
             string ext = asAppBundle ? "aab" : "apk";
             string version = string.IsNullOrEmpty(PlayerSettings.bundleVersion) ? "0.0.0" : PlayerSettings.bundleVersion;
             int versionCode = PlayerSettings.Android.bundleVersionCode;
             string filename = $"GemCatcher_v{version}_b{versionCode}{(development ? "_dev" : "")}.{ext}";
-            string outputPath = Path.Combine(OUTPUT_DIR, filename);
+            string outputPath = Path.Combine(ANDROID_OUTPUT_DIR, filename);
 
             string[] scenes = GetEnabledScenes();
             if (scenes.Length == 0)
@@ -211,6 +249,75 @@ namespace QuickSlickLabs.EditorTools
             else
             {
                 Debug.LogError($"[BuildScript] BUILD FAILED: {summary.result} ({summary.totalErrors} errors)");
+            }
+        }
+
+        private static void BuildIos(bool development)
+        {
+            if (EditorUserBuildSettings.activeBuildTarget != BuildTarget.iOS)
+            {
+                Debug.LogError(
+                    "[BuildScript] iOS build requested before the iOS platform reload completed.");
+                return;
+            }
+
+            string[] scenes = GetEnabledScenes();
+            if (scenes.Length == 0)
+            {
+                EditorUtility.DisplayDialog(
+                    "No scenes",
+                    "There are no scenes enabled in Build Settings. Add at least one scene before building.",
+                    "OK");
+                return;
+            }
+
+            Directory.CreateDirectory(IOS_OUTPUT_DIR);
+
+            string version = string.IsNullOrEmpty(PlayerSettings.bundleVersion)
+                ? "0.0.0"
+                : PlayerSettings.bundleVersion;
+            string buildNumber = string.IsNullOrEmpty(PlayerSettings.iOS.buildNumber)
+                ? "0"
+                : PlayerSettings.iOS.buildNumber;
+            string directoryName =
+                $"GemCatcher_v{version}_b{buildNumber}{(development ? "_dev" : "")}";
+            string outputPath = Path.Combine(IOS_OUTPUT_DIR, directoryName);
+
+            BuildOptions options = BuildOptions.None;
+            if (development)
+            {
+                options |= BuildOptions.Development
+                    | BuildOptions.AllowDebugging
+                    | BuildOptions.ConnectWithProfiler;
+            }
+
+            var buildOptions = new BuildPlayerOptions
+            {
+                scenes = scenes,
+                locationPathName = outputPath,
+                target = BuildTarget.iOS,
+                targetGroup = BuildTargetGroup.iOS,
+                options = options,
+            };
+
+            Debug.Log($"[BuildScript] Building iOS Xcode project -> {outputPath}");
+            Debug.Log($"[BuildScript] Version: {version} (build {buildNumber})");
+            Debug.Log($"[BuildScript] Development build: {development}");
+            Debug.Log($"[BuildScript] Scenes: {string.Join(", ", scenes)}");
+
+            BuildReport report = BuildPipeline.BuildPlayer(buildOptions);
+            BuildSummary summary = report.summary;
+            if (summary.result == BuildResult.Succeeded)
+            {
+                Debug.Log(
+                    $"[BuildScript] SUCCESS in {summary.totalTime} | {outputPath}");
+                EditorUtility.RevealInFinder(Path.GetFullPath(outputPath));
+            }
+            else
+            {
+                Debug.LogError(
+                    $"[BuildScript] BUILD FAILED: {summary.result} "
+                    + $"({summary.totalErrors} errors)");
             }
         }
 
